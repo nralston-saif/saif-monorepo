@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { useToast } from '@saif/ui'
@@ -97,6 +97,11 @@ export default function PeopleClient({
   const router = useRouter()
   const supabase = createClient()
   const { showToast } = useToast()
+
+  // Sync initialSearch prop to state (for same-page navigation with different query params)
+  useEffect(() => {
+    setSearchQuery(initialSearch)
+  }, [initialSearch])
 
   // Filter and search people
   const filteredPeople = useMemo(() => {

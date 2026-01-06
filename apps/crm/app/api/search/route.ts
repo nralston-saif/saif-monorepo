@@ -49,17 +49,35 @@ export async function GET(request: NextRequest) {
       console.error('Error searching investments:', invError)
     }
 
-    // Search people
-    const { data: people, error: peopleError } = await supabase
+    // Search people - handle multi-word queries (e.g., "nick ralston")
+    // Split query into words and search for each word, then filter results that match ALL words
+    const searchWords = query.toLowerCase().split(/\s+/).filter(w => w.length > 0)
+
+    // Search for results matching the first word (or full query if single word)
+    const firstWordPattern = `%${searchWords[0]}%`
+    const { data: peopleRaw, error: peopleError } = await supabase
       .from('saif_people')
       .select('id, name, first_name, last_name, email, role, status, title, location')
-      .or(`name.ilike.${searchPattern},first_name.ilike.${searchPattern},last_name.ilike.${searchPattern},email.ilike.${searchPattern},title.ilike.${searchPattern}`)
+      .or(`name.ilike.${firstWordPattern},first_name.ilike.${firstWordPattern},last_name.ilike.${firstWordPattern},email.ilike.${firstWordPattern},title.ilike.${firstWordPattern}`)
       .order('first_name', { ascending: true })
-      .limit(10)
+      .limit(50) // Fetch more to filter down
 
     if (peopleError) {
       console.error('Error searching people:', peopleError)
     }
+
+    // Filter to only include results where ALL search words match somewhere
+    const people = (peopleRaw || []).filter(person => {
+      const searchableText = [
+        person.name,
+        person.first_name,
+        person.last_name,
+        person.email,
+        person.title,
+      ].filter(Boolean).join(' ').toLowerCase()
+
+      return searchWords.every(word => searchableText.includes(word))
+    }).slice(0, 10)
 
     return NextResponse.json({
       applications: applications || [],
