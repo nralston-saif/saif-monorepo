@@ -281,17 +281,23 @@ function NotesList({
   const fetchNotes = useCallback(async () => {
     const { data, error } = await supabase
       .from('saifcrm_people_notes')
-      .select('*, saif_people(name)')
+      .select('*, author:saif_people!user_id(name, first_name, last_name)')
       .eq('person_id', personId)
       .order('meeting_date', { ascending: false })
       .order('created_at', { ascending: false })
 
     if (!error && data) {
       setNotes(
-        data.map((note: any) => ({
-          ...note,
-          user_name: note.saif_people?.name || 'Unknown',
-        }))
+        data.map((note: any) => {
+          const author = note.author
+          const authorName = author?.first_name && author?.last_name
+            ? `${author.first_name} ${author.last_name}`
+            : author?.name || 'Unknown'
+          return {
+            ...note,
+            user_name: authorName,
+          }
+        })
       )
     }
     setLoading(false)
