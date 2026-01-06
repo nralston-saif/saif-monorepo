@@ -1,7 +1,11 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import { Suspense } from 'react'
 import Navigation from '@/components/Navigation'
 import PeopleClient from './PeopleClient'
+
+// Force dynamic rendering to ensure searchParams are always fresh
+export const dynamic = 'force-dynamic'
 
 export default async function PeoplePage({
   searchParams,
@@ -97,13 +101,15 @@ export default async function PeoplePage({
   return (
     <div className="min-h-screen bg-gray-50">
       <Navigation userName={profile?.name || user.email || 'User'} />
-      <PeopleClient
-        people={peopleWithNotes}
-        userId={profile?.id || ''}
-        userName={profile?.name || user.email || 'User'}
-        companyLocationMap={companyLocationMap}
-        initialSearch={initialSearch || ''}
-      />
+      <Suspense fallback={<div className="p-8 text-center text-gray-500">Loading...</div>}>
+        <PeopleClient
+          people={peopleWithNotes}
+          userId={profile?.id || ''}
+          userName={profile?.name || user.email || 'User'}
+          companyLocationMap={companyLocationMap}
+          initialSearch={initialSearch || ''}
+        />
+      </Suspense>
     </div>
   )
 }

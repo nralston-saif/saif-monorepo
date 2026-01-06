@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useToast } from '@saif/ui'
 import PersonMeetingNotes from '@/components/PersonMeetingNotes'
 import type { UserRole, UserStatus } from '@saif/supabase'
@@ -84,7 +84,11 @@ export default function PeopleClient({
   companyLocationMap: Record<string, CompanyLocation>
   initialSearch?: string
 }) {
-  const [searchQuery, setSearchQuery] = useState(initialSearch)
+  // Use both server-provided initialSearch AND client-side URL params
+  const searchParams = useSearchParams()
+  const urlSearch = searchParams.get('search') || ''
+
+  const [searchQuery, setSearchQuery] = useState(initialSearch || urlSearch)
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('all')
   const [statusFilter, setStatusFilter] = useState<UserStatus | 'all'>('all')
   const [sortOption, setSortOption] = useState<SortOption>('name-az')
@@ -98,10 +102,13 @@ export default function PeopleClient({
   const supabase = createClient()
   const { showToast } = useToast()
 
-  // Sync initialSearch prop to state (for same-page navigation with different query params)
+  // Sync URL search param to state (handles client-side navigation)
   useEffect(() => {
-    setSearchQuery(initialSearch)
-  }, [initialSearch])
+    const newSearch = urlSearch || initialSearch
+    if (newSearch !== searchQuery) {
+      setSearchQuery(newSearch)
+    }
+  }, [urlSearch, initialSearch])
 
   // Filter and search people
   const filteredPeople = useMemo(() => {
