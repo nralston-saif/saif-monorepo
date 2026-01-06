@@ -19,6 +19,9 @@ type CompanyAssociation = {
 type Person = {
   id: string
   name: string | null
+  first_name: string | null
+  last_name: string | null
+  displayName: string | null
   email: string | null
   role: UserRole
   status: UserStatus
@@ -92,6 +95,9 @@ export default function PeopleClient({
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase()
       filtered = filtered.filter(person =>
+        person.displayName?.toLowerCase().includes(query) ||
+        person.first_name?.toLowerCase().includes(query) ||
+        person.last_name?.toLowerCase().includes(query) ||
         person.name?.toLowerCase().includes(query) ||
         person.email?.toLowerCase().includes(query) ||
         person.title?.toLowerCase().includes(query) ||
@@ -384,11 +390,11 @@ export default function PeopleClient({
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-gradient-to-br from-gray-200 to-gray-300 rounded-full flex items-center justify-center flex-shrink-0">
                           <span className="text-gray-600 font-medium">
-                            {(person.name || '?').charAt(0).toUpperCase()}
+                            {(person.displayName || '?').charAt(0).toUpperCase()}
                           </span>
                         </div>
                         <div className="min-w-0">
-                          <p className="font-medium text-gray-900 truncate">{person.name || 'Unknown'}</p>
+                          <p className="font-medium text-gray-900 truncate">{person.displayName || 'Unknown'}</p>
                           {person.title && (
                             <p className="text-sm text-gray-500 truncate">{person.title}</p>
                           )}
@@ -485,12 +491,12 @@ export default function PeopleClient({
                 <div className="flex items-center gap-4">
                   <div className="w-16 h-16 bg-gradient-to-br from-gray-200 to-gray-300 rounded-full flex items-center justify-center">
                     <span className="text-gray-600 text-2xl font-medium">
-                      {(selectedPerson.name || '?').charAt(0).toUpperCase()}
+                      {(selectedPerson.displayName || '?').charAt(0).toUpperCase()}
                     </span>
                   </div>
                   <div>
                     <h2 className="text-2xl font-bold text-gray-900">
-                      {selectedPerson.name || 'Unknown'}
+                      {selectedPerson.displayName || 'Unknown'}
                     </h2>
                     <div className="flex items-center gap-2 mt-1">
                       <span className={`badge ${ROLE_COLORS[selectedPerson.role]}`}>
@@ -838,7 +844,7 @@ export default function PeopleClient({
       {notesPersonId && (
         <PersonMeetingNotes
           personId={notesPersonId.id}
-          personName={notesPersonId.name || 'Unknown'}
+          personName={notesPersonId.displayName || 'Unknown'}
           userId={userId}
           userName={userName}
           onClose={() => setNotesPersonId(null)}

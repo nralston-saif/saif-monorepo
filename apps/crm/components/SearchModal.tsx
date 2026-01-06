@@ -24,6 +24,8 @@ type Investment = {
 type Person = {
   id: string
   name: string | null
+  first_name: string | null
+  last_name: string | null
   email: string | null
   role: string
   status: string
@@ -81,7 +83,7 @@ export default function SearchModal({ onClose }: { onClose: () => void }) {
     ...results.people.map((person) => ({
       type: 'person' as const,
       id: person.id,
-      title: person.name || 'Unknown',
+      title: getPersonDisplayName(person),
       subtitle: person.title || person.email,
       badge: getRoleLabel(person.role),
       badgeStyle: getRoleBadgeStyle(person.role),
@@ -360,7 +362,7 @@ export default function SearchModal({ onClose }: { onClose: () => void }) {
                           navigateToResult({
                             type: 'person',
                             id: person.id,
-                            title: person.name || 'Unknown',
+                            title: getPersonDisplayName(person),
                             subtitle: person.title || person.email,
                             badge: getRoleLabel(person.role),
                             badgeStyle: getRoleBadgeStyle(person.role),
@@ -375,11 +377,11 @@ export default function SearchModal({ onClose }: { onClose: () => void }) {
                       >
                         <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center flex-shrink-0">
                           <span className="text-slate-600 font-medium">
-                            {(person.name || '?').charAt(0).toUpperCase()}
+                            {getPersonDisplayName(person).charAt(0).toUpperCase()}
                           </span>
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium text-gray-900 truncate">{person.name || 'Unknown'}</p>
+                          <p className="font-medium text-gray-900 truncate">{getPersonDisplayName(person)}</p>
                           {(person.title || person.email) && (
                             <p className="text-sm text-gray-500 truncate">{person.title || person.email}</p>
                           )}
@@ -469,4 +471,11 @@ function getRoleBadgeStyle(role: string): string {
     contact: 'bg-slate-100 text-slate-800',
   }
   return styles[role] || 'bg-gray-100 text-gray-800'
+}
+
+function getPersonDisplayName(person: Person): string {
+  if (person.first_name && person.last_name) {
+    return `${person.first_name} ${person.last_name}`
+  }
+  return person.first_name || person.last_name || person.name || 'Unknown'
 }

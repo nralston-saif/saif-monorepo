@@ -32,7 +32,7 @@ export default async function PeoplePage() {
         company:saif_companies(id, name)
       )
     `)
-    .order('name', { ascending: true })
+    .order('first_name', { ascending: true })
 
   // Get note counts for each person
   const { data: noteCounts } = await supabase
@@ -45,11 +45,19 @@ export default async function PeoplePage() {
     noteCountMap[note.person_id] = (noteCountMap[note.person_id] || 0) + 1
   })
 
-  // Attach note counts to people
-  const peopleWithNotes = (people || []).map(person => ({
-    ...person,
-    noteCount: noteCountMap[person.id] || 0,
-  }))
+  // Attach note counts and construct display name
+  const peopleWithNotes = (people || []).map(person => {
+    // Construct display name from first_name + last_name, fallback to name field
+    const displayName = person.first_name && person.last_name
+      ? `${person.first_name} ${person.last_name}`
+      : person.first_name || person.last_name || person.name || null
+
+    return {
+      ...person,
+      displayName,
+      noteCount: noteCountMap[person.id] || 0,
+    }
+  })
 
   return (
     <div className="min-h-screen bg-gray-50">

@@ -52,9 +52,9 @@ export async function GET(request: NextRequest) {
     // Search people
     const { data: people, error: peopleError } = await supabase
       .from('saif_people')
-      .select('id, name, email, role, status, title, location')
-      .or(`name.ilike.${searchPattern},email.ilike.${searchPattern},title.ilike.${searchPattern}`)
-      .order('name', { ascending: true })
+      .select('id, name, first_name, last_name, email, role, status, title, location')
+      .or(`name.ilike.${searchPattern},first_name.ilike.${searchPattern},last_name.ilike.${searchPattern},email.ilike.${searchPattern},title.ilike.${searchPattern}`)
+      .order('first_name', { ascending: true })
       .limit(10)
 
     if (peopleError) {
