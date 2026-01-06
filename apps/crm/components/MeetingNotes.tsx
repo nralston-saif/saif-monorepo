@@ -1,9 +1,8 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { RoomProvider, useOthers, useUpdateMyPresence, useSelf, useStorage, useMutation, ClientSideSuspense } from '@/lib/liveblocks'
-import { LiveObject } from '@liveblocks/client'
+import { RoomProvider, useOthers, useUpdateMyPresence, useStorage, useMutation, ClientSideSuspense } from '@/lib/liveblocks'
 
 type MeetingNote = {
   id: string
@@ -12,6 +11,7 @@ type MeetingNote = {
   content: string
   meeting_date: string
   created_at: string
+  updated_at?: string
   user_name?: string
 }
 
@@ -22,13 +22,17 @@ type MeetingNotesProps = {
   deliberationNotes?: string | null
 }
 
+type SaveStatus = 'idle' | 'unsaved' | 'saving' | 'saved' | 'error'
+
 // Collaborative text area component with real-time sync
 function CollaborativeTextArea({
   userName,
   onContentChange,
+  onSetDraft,
 }: {
   userName: string
   onContentChange: (value: string) => void
+  onSetDraft?: (setter: (value: string) => void) => void
 }) {
   const updateMyPresence = useUpdateMyPresence()
   const others = useOthers()
@@ -40,6 +44,13 @@ function CollaborativeTextArea({
   const updateDraft = useMutation(({ storage }, newDraft: string) => {
     storage.set('draft', newDraft)
   }, [])
+
+  // Expose the updateDraft function to parent for editing existing notes
+  useEffect(() => {
+    if (onSetDraft) {
+      onSetDraft(updateDraft)
+    }
+  }, [onSetDraft, updateDraft])
 
   // Get who is typing
   const typingUsers = others.filter((user) => user.presence.isTyping)
@@ -73,7 +84,7 @@ function CollaborativeTextArea({
         onBlur={handleBlur}
         rows={12}
         className="input resize-y w-full min-h-[300px]"
-        placeholder="Type your meeting notes here... Everyone sees changes in real-time!"
+        placeholder="Type your meeting notes here... Changes auto-save every 2 seconds."
       />
 
       {/* Typing indicators */}
@@ -119,71 +130,182 @@ function CollaborativeTextArea({
   )
 }
 
+// Save status indicator component
+function SaveStatusIndicator({ status }: { status: SaveStatus }) {
+  return (
+    <div className="flex items-center gap-2 text-sm">
+      {status === 'idle' && (
+        <span className="text-gray-400">Ready</span>
+      )}
+      {status === 'unsaved' && (
+        <>
+          <span className="w-2 h-2 bg-yellow-500 rounded-full" />
+          <span className="text-yellow-600">Unsaved changes</span>
+        </>
+      )}
+      {status === 'saving' && (
+        <>
+          <svg className="animate-spin h-4 w-4 text-blue-500" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+          </svg>
+          <span className="text-blue-600">Saving...</span>
+        </>
+      )}
+      {status === 'saved' && (
+        <>
+          <svg className="h-4 w-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+          <span className="text-green-600">Saved</span>
+        </>
+      )}
+      {status === 'error' && (
+        <>
+          <svg className="h-4 w-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+          <span className="text-red-600">Error saving</span>
+        </>
+      )}
+    </div>
+  )
+}
+
 // Main meeting notes input component (inside RoomProvider)
 function MeetingNotesInput({
   applicationId,
   userId,
   userName,
+  editingNote,
+  onEditComplete,
   onNoteAdded,
 }: {
   applicationId: string
   userId: string
   userName: string
+  editingNote: MeetingNote | null
+  onEditComplete: () => void
   onNoteAdded: () => void
 }) {
-  const [content, setContent] = useState('')
   const [meetingDate, setMeetingDate] = useState(() => {
     return new Date().toISOString().split('T')[0]
   })
-  const [saving, setSaving] = useState(false)
-  const [showConfirm, setShowConfirm] = useState(false)
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
+  const [lastSavedNoteId, setLastSavedNoteId] = useState<string | null>(null)
+  const [draftVersion, setDraftVersion] = useState(0)
   const supabase = createClient()
-  const others = useOthers()
 
-  // Check if others are currently typing
-  const othersTyping = others.filter((user) => user.presence.isTyping)
-  const typingNames = othersTyping.map((user) => user.presence.name || 'Someone')
+  // Ref to track the latest draft content (fixes sync bug)
+  const draftRef = useRef('')
+  const setDraftRef = useRef<((value: string) => void) | null>(null)
 
-  // Mutation to clear the shared draft after saving
+  // Mutation to clear the shared draft
   const clearDraft = useMutation(({ storage }) => {
     storage.set('draft', '')
   }, [])
 
-  const handleFinalizeNote = async (confirmed: boolean = false) => {
-    if (!content.trim()) return
+  // Update meeting date when editing a note
+  useEffect(() => {
+    if (editingNote) {
+      setMeetingDate(editingNote.meeting_date)
+      setLastSavedNoteId(editingNote.id)
+      // Load the note content into the draft
+      if (setDraftRef.current) {
+        setDraftRef.current(editingNote.content)
+      }
+    }
+  }, [editingNote])
 
-    // Always show confirmation first
-    if (!confirmed) {
-      setShowConfirm(true)
+  // Auto-save effect with debounce
+  useEffect(() => {
+    const content = draftRef.current
+    if (!content.trim()) {
+      setSaveStatus('idle')
       return
     }
 
-    setSaving(true)
-    setShowConfirm(false)
+    setSaveStatus('unsaved')
+
+    const timer = setTimeout(async () => {
+      await saveNote()
+    }, 2000)
+
+    return () => clearTimeout(timer)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftVersion, meetingDate])
+
+  const saveNote = async () => {
+    const content = draftRef.current.trim()
+    if (!content) return
+
+    setSaveStatus('saving')
     try {
-      const { error } = await supabase.from('saifcrm_meeting_notes').insert({
-        application_id: applicationId,
-        user_id: userId,
-        content: content.trim(),
-        meeting_date: meetingDate,
-      })
+      if (lastSavedNoteId || editingNote) {
+        // Update existing note
+        const noteId = lastSavedNoteId || editingNote!.id
+        const { error } = await supabase
+          .from('saifcrm_meeting_notes')
+          .update({
+            content,
+            meeting_date: meetingDate,
+          })
+          .eq('id', noteId)
 
-      if (error) throw error
+        if (error) throw error
+      } else {
+        // Create new note
+        const { data, error } = await supabase
+          .from('saifcrm_meeting_notes')
+          .insert({
+            application_id: applicationId,
+            user_id: userId,
+            content,
+            meeting_date: meetingDate,
+          })
+          .select('id')
+          .single()
 
-      // Clear both local state and shared draft
-      setContent('')
-      clearDraft()
+        if (error) throw error
+        if (data) {
+          setLastSavedNoteId(data.id)
+        }
+      }
+
+      setSaveStatus('saved')
       onNoteAdded()
+
+      // Keep showing 'saved' status
+      setTimeout(() => {
+        if (draftRef.current.trim() === content) {
+          setSaveStatus('saved')
+        }
+      }, 1000)
     } catch (error) {
       console.error('Error saving note:', error)
-    } finally {
-      setSaving(false)
+      setSaveStatus('error')
     }
   }
 
   const handleContentChange = useCallback((value: string) => {
-    setContent(value)
+    draftRef.current = value
+    // Increment version to trigger auto-save effect
+    setDraftVersion((v) => v + 1)
   }, [])
+
+  const handleSetDraft = useCallback((setter: (value: string) => void) => {
+    setDraftRef.current = setter
+  }, [])
+
+  const handleNewNote = () => {
+    clearDraft()
+    draftRef.current = ''
+    setLastSavedNoteId(null)
+    setMeetingDate(new Date().toISOString().split('T')[0])
+    setSaveStatus('idle')
+    setDraftVersion(0)
+    onEditComplete()
+  }
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-4">
@@ -199,66 +321,34 @@ function MeetingNotesInput({
             className="input"
           />
         </div>
-        <div className="flex items-center gap-2 pt-6">
-          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-          <span className="text-sm text-gray-500">Draft synced</span>
+        <div className="flex items-center gap-3 pt-6">
+          <SaveStatusIndicator status={saveStatus} />
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+            <span className="text-sm text-gray-500">Live sync</span>
+          </div>
         </div>
       </div>
+
+      {(editingNote || lastSavedNoteId) && (
+        <div className="mb-4 flex items-center justify-between">
+          <span className="text-sm text-gray-600">
+            {editingNote ? 'Editing note' : 'Current note'}
+          </span>
+          <button
+            onClick={handleNewNote}
+            className="btn btn-secondary text-sm"
+          >
+            + New Note
+          </button>
+        </div>
+      )}
 
       <CollaborativeTextArea
         userName={userName}
         onContentChange={handleContentChange}
+        onSetDraft={handleSetDraft}
       />
-
-      {/* Confirmation dialog */}
-      {showConfirm && (
-        <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <p className="text-blue-800 text-sm mb-3">
-            {othersTyping.length > 0 ? (
-              <>
-                <strong>{typingNames.join(', ')}</strong> {typingNames.length === 1 ? 'is' : 'are'} still typing.{' '}
-              </>
-            ) : null}
-            Finalizing will save this note and clear the draft for everyone.
-          </p>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setShowConfirm(false)}
-              className="btn btn-secondary text-sm"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={() => handleFinalizeNote(true)}
-              className="btn btn-primary text-sm"
-            >
-              Confirm & Save
-            </button>
-          </div>
-        </div>
-      )}
-
-      {!showConfirm && (
-        <div className="mt-4 flex justify-end">
-          <button
-            onClick={() => handleFinalizeNote()}
-            disabled={saving || !content.trim()}
-            className="btn btn-primary"
-          >
-            {saving ? (
-              <span className="flex items-center gap-2">
-                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                </svg>
-                Saving...
-              </span>
-            ) : (
-              'Finalize Note'
-            )}
-          </button>
-        </div>
-      )}
     </div>
   )
 }
@@ -268,10 +358,14 @@ function NotesList({
   applicationId,
   refreshTrigger,
   deliberationNotes,
+  onEditNote,
+  editingNoteId,
 }: {
   applicationId: string
   refreshTrigger: number
   deliberationNotes?: string | null
+  onEditNote: (note: MeetingNote) => void
+  editingNoteId: string | null
 }) {
   const [notes, setNotes] = useState<MeetingNote[]>([])
   const [loading, setLoading] = useState(true)
@@ -280,17 +374,27 @@ function NotesList({
   const fetchNotes = useCallback(async () => {
     const { data, error } = await supabase
       .from('saifcrm_meeting_notes')
-      .select('*, saif_people(name)')
+      .select('*, author:saif_people!meeting_notes_user_id_fkey(name, first_name, last_name)')
       .eq('application_id', applicationId)
       .order('meeting_date', { ascending: false })
       .order('created_at', { ascending: false })
 
+    if (error) {
+      console.error('Error fetching meeting notes:', error)
+    }
+
     if (!error && data) {
       setNotes(
-        data.map((note: any) => ({
-          ...note,
-          user_name: note.saif_people?.name || 'Unknown',
-        }))
+        data.map((note: any) => {
+          const author = note.author
+          const authorName = author?.first_name && author?.last_name
+            ? `${author.first_name} ${author.last_name}`
+            : author?.name || 'Unknown'
+          return {
+            ...note,
+            user_name: authorName,
+          }
+        })
       )
     }
     setLoading(false)
@@ -308,7 +412,7 @@ function NotesList({
       .on(
         'postgres_changes',
         {
-          event: 'INSERT',
+          event: '*',
           schema: 'public',
           table: 'saifcrm_meeting_notes',
           filter: `application_id=eq.${applicationId}`,
@@ -338,7 +442,7 @@ function NotesList({
   if (notes.length === 0 && !deliberationNotes) {
     return (
       <div className="text-center py-8 text-gray-500">
-        No meeting notes yet. Add the first one above!
+        No meeting notes yet. Start typing above to create your first note!
       </div>
     )
   }
@@ -398,7 +502,10 @@ function NotesList({
             {dateNotes.map((note) => (
               <div
                 key={note.id}
-                className="bg-gray-50 rounded-lg p-4 border border-gray-100"
+                onClick={() => onEditNote(note)}
+                className={`bg-gray-50 rounded-lg p-4 border cursor-pointer transition-all hover:border-blue-300 hover:shadow-sm ${
+                  editingNoteId === note.id ? 'border-blue-500 ring-2 ring-blue-100' : 'border-gray-100'
+                }`}
               >
                 <div className="flex items-center gap-3 mb-2">
                   <div className="w-8 h-8 bg-gradient-to-br from-gray-400 to-gray-500 rounded-full flex items-center justify-center">
@@ -410,6 +517,7 @@ function NotesList({
                     <p className="font-medium text-gray-900">{note.user_name || 'Unknown'}</p>
                     <p className="text-xs text-gray-500">{formatTime(note.created_at)}</p>
                   </div>
+                  <span className="text-xs text-gray-400">Click to edit</span>
                 </div>
                 <p className="text-gray-700 whitespace-pre-wrap">{note.content}</p>
               </div>
@@ -424,13 +532,19 @@ function NotesList({
 // Wrapper component that provides the Liveblocks room
 function MeetingNotesWithRoom({ applicationId, userId, userName, deliberationNotes }: MeetingNotesProps) {
   const [refreshTrigger, setRefreshTrigger] = useState(0)
+  const [editingNote, setEditingNote] = useState<MeetingNote | null>(null)
 
   const handleNoteAdded = () => {
     setRefreshTrigger((prev) => prev + 1)
   }
 
-  // Generate a random color for the user
-  const userColor = `hsl(${Math.abs(userName.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)) % 360}, 70%, 50%)`
+  const handleEditNote = (note: MeetingNote) => {
+    setEditingNote(note)
+  }
+
+  const handleEditComplete = () => {
+    setEditingNote(null)
+  }
 
   return (
     <RoomProvider
@@ -450,6 +564,8 @@ function MeetingNotesWithRoom({ applicationId, userId, userName, deliberationNot
               applicationId={applicationId}
               userId={userId}
               userName={userName}
+              editingNote={editingNote}
+              onEditComplete={handleEditComplete}
               onNoteAdded={handleNoteAdded}
             />
           )}
@@ -457,7 +573,13 @@ function MeetingNotesWithRoom({ applicationId, userId, userName, deliberationNot
 
         <div>
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Previous Notes</h3>
-          <NotesList applicationId={applicationId} refreshTrigger={refreshTrigger} deliberationNotes={deliberationNotes} />
+          <NotesList
+            applicationId={applicationId}
+            refreshTrigger={refreshTrigger}
+            deliberationNotes={deliberationNotes}
+            onEditNote={handleEditNote}
+            editingNoteId={editingNote?.id || null}
+          />
         </div>
       </div>
     </RoomProvider>
@@ -477,35 +599,96 @@ export default function MeetingNotes(props: MeetingNotesProps) {
   return <MeetingNotesWithRoom key={props.applicationId} {...props} />
 }
 
-// Fallback component when Liveblocks is not configured
+// Fallback component when Liveblocks is not configured (also with auto-save)
 function MeetingNotesWithoutLive({ applicationId, userId, userName, deliberationNotes }: MeetingNotesProps) {
   const [content, setContent] = useState('')
   const [meetingDate, setMeetingDate] = useState(() => new Date().toISOString().split('T')[0])
-  const [saving, setSaving] = useState(false)
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
+  const [lastSavedNoteId, setLastSavedNoteId] = useState<string | null>(null)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
+  const [editingNote, setEditingNote] = useState<MeetingNote | null>(null)
   const supabase = createClient()
+  const contentRef = useRef('')
 
-  const handleAddNote = async () => {
-    if (!content.trim()) return
+  // Auto-save with debounce
+  useEffect(() => {
+    if (!content.trim()) {
+      setSaveStatus('idle')
+      return
+    }
 
-    setSaving(true)
+    setSaveStatus('unsaved')
+    contentRef.current = content
+
+    const timer = setTimeout(async () => {
+      await saveNote()
+    }, 2000)
+
+    return () => clearTimeout(timer)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [content, meetingDate])
+
+  useEffect(() => {
+    if (editingNote) {
+      setContent(editingNote.content)
+      setMeetingDate(editingNote.meeting_date)
+      setLastSavedNoteId(editingNote.id)
+    }
+  }, [editingNote])
+
+  const saveNote = async () => {
+    const noteContent = contentRef.current.trim()
+    if (!noteContent) return
+
+    setSaveStatus('saving')
     try {
-      const { error } = await supabase.from('saifcrm_meeting_notes').insert({
-        application_id: applicationId,
-        user_id: userId,
-        content: content.trim(),
-        meeting_date: meetingDate,
-      })
+      if (lastSavedNoteId || editingNote) {
+        const noteId = lastSavedNoteId || editingNote!.id
+        const { error } = await supabase
+          .from('saifcrm_meeting_notes')
+          .update({
+            content: noteContent,
+            meeting_date: meetingDate,
+          })
+          .eq('id', noteId)
 
-      if (error) throw error
+        if (error) throw error
+      } else {
+        const { data, error } = await supabase
+          .from('saifcrm_meeting_notes')
+          .insert({
+            application_id: applicationId,
+            user_id: userId,
+            content: noteContent,
+            meeting_date: meetingDate,
+          })
+          .select('id')
+          .single()
 
-      setContent('')
+        if (error) throw error
+        if (data) {
+          setLastSavedNoteId(data.id)
+        }
+      }
+
+      setSaveStatus('saved')
       setRefreshTrigger((prev) => prev + 1)
     } catch (error) {
       console.error('Error saving note:', error)
-    } finally {
-      setSaving(false)
+      setSaveStatus('error')
     }
+  }
+
+  const handleNewNote = () => {
+    setContent('')
+    setLastSavedNoteId(null)
+    setMeetingDate(new Date().toISOString().split('T')[0])
+    setSaveStatus('idle')
+    setEditingNote(null)
+  }
+
+  const handleEditNote = (note: MeetingNote) => {
+    setEditingNote(note)
   }
 
   return (
@@ -523,30 +706,43 @@ function MeetingNotesWithoutLive({ applicationId, userId, userName, deliberation
               className="input"
             />
           </div>
+          <div className="pt-6">
+            <SaveStatusIndicator status={saveStatus} />
+          </div>
         </div>
+
+        {(editingNote || lastSavedNoteId) && (
+          <div className="mb-4 flex items-center justify-between">
+            <span className="text-sm text-gray-600">
+              {editingNote ? 'Editing note' : 'Current note'}
+            </span>
+            <button
+              onClick={handleNewNote}
+              className="btn btn-secondary text-sm"
+            >
+              + New Note
+            </button>
+          </div>
+        )}
 
         <textarea
           value={content}
           onChange={(e) => setContent(e.target.value)}
           rows={12}
           className="input resize-y w-full min-h-[300px]"
-          placeholder="Type your meeting notes here..."
+          placeholder="Type your meeting notes here... Changes auto-save every 2 seconds."
         />
-
-        <div className="mt-4 flex justify-end">
-          <button
-            onClick={handleAddNote}
-            disabled={saving || !content.trim()}
-            className="btn btn-primary"
-          >
-            {saving ? 'Saving...' : 'Add Note'}
-          </button>
-        </div>
       </div>
 
       <div>
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Previous Notes</h3>
-        <NotesList applicationId={applicationId} refreshTrigger={refreshTrigger} deliberationNotes={deliberationNotes} />
+        <NotesList
+          applicationId={applicationId}
+          refreshTrigger={refreshTrigger}
+          deliberationNotes={deliberationNotes}
+          onEditNote={handleEditNote}
+          editingNoteId={editingNote?.id || null}
+        />
       </div>
     </div>
   )

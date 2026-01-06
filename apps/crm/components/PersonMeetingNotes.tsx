@@ -245,7 +245,7 @@ function MeetingNotesInput({
     try {
       if (lastSavedNoteId || editingNote) {
         // Update existing note
-        const noteId = lastSavedNoteId || editingNote?.id
+        const noteId = lastSavedNoteId || editingNote!.id
         const { error } = await supabase
           .from('saifcrm_people_notes')
           .update({
