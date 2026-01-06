@@ -3,7 +3,12 @@ import { redirect } from 'next/navigation'
 import Navigation from '@/components/Navigation'
 import PeopleClient from './PeopleClient'
 
-export default async function PeoplePage() {
+export default async function PeoplePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ search?: string }>
+}) {
+  const { search: initialSearch } = await searchParams
   const supabase = await createClient()
 
   const {
@@ -97,6 +102,7 @@ export default async function PeoplePage() {
         userId={profile?.id || ''}
         userName={profile?.name || user.email || 'User'}
         companyLocationMap={companyLocationMap}
+        initialSearch={initialSearch || ''}
       />
     </div>
   )
