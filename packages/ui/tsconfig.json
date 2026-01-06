@@ -1,0 +1,10 @@
+{
+  "extends": "@saif/config/typescript/nextjs",
+  "compilerOptions": {
+    "paths": {
+      "@saif/ui/*": ["./src/*"]
+    }
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules"]
+}
