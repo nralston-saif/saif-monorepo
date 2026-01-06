@@ -37,6 +37,7 @@ type Person = {
 }
 
 type RoleFilter = 'all' | UserRole
+type SortOption = 'name-az' | 'name-za' | 'role' | 'date-newest' | 'date-oldest'
 
 const ROLE_LABELS: Record<UserRole, string> = {
   partner: 'Partner',
@@ -84,6 +85,7 @@ export default function PeopleClient({
   const [searchQuery, setSearchQuery] = useState('')
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('all')
   const [statusFilter, setStatusFilter] = useState<UserStatus | 'all'>('all')
+  const [sortOption, setSortOption] = useState<SortOption>('name-az')
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null)
   const [notesPersonId, setNotesPersonId] = useState<Person | null>(null)
   const [showAddModal, setShowAddModal] = useState(false)
@@ -125,8 +127,26 @@ export default function PeopleClient({
       filtered = filtered.filter(person => person.status === statusFilter)
     }
 
+    // Apply sorting
+    filtered = [...filtered].sort((a, b) => {
+      switch (sortOption) {
+        case 'name-az':
+          return (a.displayName || '').localeCompare(b.displayName || '')
+        case 'name-za':
+          return (b.displayName || '').localeCompare(a.displayName || '')
+        case 'role':
+          return (a.role || '').localeCompare(b.role || '')
+        case 'date-newest':
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        case 'date-oldest':
+          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        default:
+          return 0
+      }
+    })
+
     return filtered
-  }, [people, searchQuery, roleFilter, statusFilter])
+  }, [people, searchQuery, roleFilter, statusFilter, sortOption])
 
   // Calculate role counts
   const roleCounts = useMemo(() => {
@@ -356,6 +376,19 @@ export default function PeopleClient({
               {(Object.keys(STATUS_LABELS) as UserStatus[]).map(status => (
                 <option key={status} value={status}>{STATUS_LABELS[status]}</option>
               ))}
+            </select>
+          </div>
+          <div className="sm:w-44">
+            <select
+              value={sortOption}
+              onChange={(e) => setSortOption(e.target.value as SortOption)}
+              className="input"
+            >
+              <option value="name-az">Name (A-Z)</option>
+              <option value="name-za">Name (Z-A)</option>
+              <option value="role">Role</option>
+              <option value="date-newest">Newest First</option>
+              <option value="date-oldest">Oldest First</option>
             </select>
           </div>
         </div>
