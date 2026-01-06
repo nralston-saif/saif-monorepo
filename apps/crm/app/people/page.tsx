@@ -45,6 +45,36 @@ export default async function PeoplePage() {
     noteCountMap[note.person_id] = (noteCountMap[note.person_id] || 0) + 1
   })
 
+  // Get portfolio companies (investments)
+  const { data: investments } = await supabase
+    .from('saifcrm_investments')
+    .select('id, company_name')
+
+  // Get applications (pipeline and deliberation)
+  const { data: applications } = await supabase
+    .from('saifcrm_applications')
+    .select('id, company_name, stage')
+
+  // Build company location map: company_name (lowercase) -> { page, id }
+  // Priority: portfolio > deliberation > pipeline
+  const companyLocationMap: Record<string, { page: string; id: string }> = {}
+
+  // First add pipeline/deliberation applications
+  applications?.forEach(app => {
+    const key = app.company_name.toLowerCase()
+    const page = app.stage === 'deliberation' ? 'deliberation' : 'pipeline'
+    // Only set if not already set, or if this is deliberation (higher priority than pipeline)
+    if (!companyLocationMap[key] || (page === 'deliberation' && companyLocationMap[key].page === 'pipeline')) {
+      companyLocationMap[key] = { page, id: app.id }
+    }
+  })
+
+  // Then add portfolio (highest priority, overwrites others)
+  investments?.forEach(inv => {
+    const key = inv.company_name.toLowerCase()
+    companyLocationMap[key] = { page: 'portfolio', id: inv.id }
+  })
+
   // Attach note counts and construct display name
   const peopleWithNotes = (people || []).map(person => {
     // Construct display name from first_name + last_name, fallback to name field
@@ -66,6 +96,7 @@ export default async function PeoplePage() {
         people={peopleWithNotes}
         userId={profile?.id || ''}
         userName={profile?.name || user.email || 'User'}
+        companyLocationMap={companyLocationMap}
       />
     </div>
   )

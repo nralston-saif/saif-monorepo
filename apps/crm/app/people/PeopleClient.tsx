@@ -65,14 +65,21 @@ const ROLE_COLORS: Record<UserRole, string> = {
   contact: 'bg-slate-100 text-slate-800',
 }
 
+type CompanyLocation = {
+  page: string
+  id: string
+}
+
 export default function PeopleClient({
   people,
   userId,
   userName,
+  companyLocationMap,
 }: {
   people: Person[]
   userId: string
   userName: string
+  companyLocationMap: Record<string, CompanyLocation>
 }) {
   const [searchQuery, setSearchQuery] = useState('')
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('all')
@@ -216,6 +223,15 @@ export default function PeopleClient({
       .filter(a => a.company)
       .map(a => a.company!.name)
       .join(', ')
+  }
+
+  // Get the URL for a company based on where it is in the pipeline
+  const getCompanyUrl = (companyName: string): string | null => {
+    const location = companyLocationMap[companyName.toLowerCase()]
+    if (!location) return null
+
+    const hashPrefix = location.page === 'portfolio' ? 'inv' : 'app'
+    return `/${location.page}#${hashPrefix}-${location.id}`
   }
 
   return (
@@ -538,10 +554,25 @@ export default function PeopleClient({
                 <div>
                   <label className="block text-sm font-medium text-gray-500 mb-2">Companies</label>
                   <div className="space-y-2">
-                    {selectedPerson.company_associations.map((assoc, idx) => (
-                      assoc.company && (
+                    {selectedPerson.company_associations.map((assoc, idx) => {
+                      if (!assoc.company) return null
+                      const companyUrl = getCompanyUrl(assoc.company.name)
+                      return (
                         <div key={idx} className="flex items-center gap-2 text-gray-900">
-                          <span className="font-medium">{assoc.company.name}</span>
+                          {companyUrl ? (
+                            <a
+                              href={companyUrl}
+                              className="font-medium text-[#1a1a1a] hover:underline flex items-center gap-1"
+                              onClick={() => setSelectedPerson(null)}
+                            >
+                              {assoc.company.name}
+                              <svg className="w-3.5 h-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                              </svg>
+                            </a>
+                          ) : (
+                            <span className="font-medium">{assoc.company.name}</span>
+                          )}
                           <span className="text-gray-400">-</span>
                           <span className="text-gray-600">{assoc.relationship_type}</span>
                           {assoc.title && (
@@ -549,7 +580,7 @@ export default function PeopleClient({
                           )}
                         </div>
                       )
-                    ))}
+                    })}
                   </div>
                 </div>
               )}
