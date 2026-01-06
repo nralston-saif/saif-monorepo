@@ -4,8 +4,16 @@ import { useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import ApplicationDetailModal from '@/components/ApplicationDetailModal'
-import NotesModal from '@/components/NotesModal'
+import InvestmentMeetingNotes from '@/components/InvestmentMeetingNotes'
 import { useToast } from '@saif/ui'
+
+type MeetingNote = {
+  id: string
+  content: string
+  meeting_date: string | null
+  created_at: string
+  user_name: string | null
+}
 
 type Investment = {
   id: string
@@ -21,18 +29,24 @@ type Investment = {
   founders: string | null
   other_funders: string | null
   notes: string | null
-  meetingNotes: string | null
+  applicationId: string | null
+  deliberationNotes: string | null
+  meetingNotes: MeetingNote[]
 }
 
 type SortOption = 'date-newest' | 'date-oldest' | 'name-az' | 'name-za' | 'amount-high' | 'amount-low'
 
 export default function PortfolioClient({
   investments,
+  userId,
+  userName,
 }: {
   investments: Investment[]
+  userId: string
+  userName: string
 }) {
   const [selectedInvestment, setSelectedInvestment] = useState<Investment | null>(null)
-  const [notesInvestment, setNotesInvestment] = useState<Investment | null>(null)
+  const [meetingNotesInvestment, setMeetingNotesInvestment] = useState<Investment | null>(null)
   const [showAddModal, setShowAddModal] = useState(false)
   const [formData, setFormData] = useState<Partial<Investment>>({})
   const [loading, setLoading] = useState(false)
@@ -518,20 +532,18 @@ export default function PortfolioClient({
                       <span>🌐</span> Website
                     </a>
                   )}
-                  {investment.meetingNotes && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setNotesInvestment(investment)
-                      }}
-                      className="inline-flex items-center gap-1.5 text-sm text-[#1a1a1a] bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-lg transition-colors"
-                    >
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                      Notes
-                    </button>
-                  )}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setMeetingNotesInvestment(investment)
+                    }}
+                    className="inline-flex items-center gap-1.5 text-sm text-[#1a1a1a] bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-lg transition-colors"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Notes
+                  </button>
                 </div>
               </div>
             </div>
@@ -792,12 +804,14 @@ export default function PortfolioClient({
         </div>
       )}
 
-      {/* Notes Modal */}
-      {notesInvestment && (
-        <NotesModal
-          companyName={notesInvestment.company_name}
-          notes={notesInvestment.meetingNotes}
-          onClose={() => setNotesInvestment(null)}
+      {/* Meeting Notes Modal with Liveblocks */}
+      {meetingNotesInvestment && (
+        <InvestmentMeetingNotes
+          investmentId={meetingNotesInvestment.id}
+          companyName={meetingNotesInvestment.company_name}
+          userId={userId}
+          userName={userName}
+          onClose={() => setMeetingNotesInvestment(null)}
         />
       )}
     </div>

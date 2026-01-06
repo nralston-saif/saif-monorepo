@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useCallback, useEffect } from 'react'
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { useToast } from '@saif/ui'
@@ -139,9 +139,15 @@ export default function PipelineClient({
     setClientApplications(applications)
   }, [applications])
 
+  // Keep a ref of application IDs to avoid stale closures in subscription
+  const appIdsRef = useRef<string[]>([])
+  useEffect(() => {
+    appIdsRef.current = clientApplications.map(app => app.id)
+  }, [clientApplications])
+
   // Function to fetch votes and update application state
   const fetchVotesAndUpdateApplications = useCallback(async () => {
-    const appIds = clientApplications.map(app => app.id)
+    const appIds = appIdsRef.current
     if (appIds.length === 0) return
 
     const { data: votes, error } = await supabase
@@ -188,8 +194,7 @@ export default function PipelineClient({
 
   // Subscribe to real-time vote updates
   useEffect(() => {
-    const appIds = clientApplications.map(app => app.id)
-    if (appIds.length === 0) return
+    console.log('[Realtime] Setting up vote subscription')
 
     const channel = supabase
       .channel('pipeline-votes')
@@ -201,21 +206,26 @@ export default function PipelineClient({
           table: 'saifcrm_votes',
         },
         (payload) => {
+          console.log('[Realtime] Vote change received:', payload)
           // Check if the vote is for an application we're tracking
           const newRecord = payload.new as { application_id?: string } | null
           const oldRecord = payload.old as { application_id?: string } | null
           const affectedAppId = newRecord?.application_id || oldRecord?.application_id
-          if (affectedAppId && appIds.includes(affectedAppId)) {
+          if (affectedAppId && appIdsRef.current.includes(affectedAppId)) {
+            console.log('[Realtime] Refetching votes for app:', affectedAppId)
             fetchVotesAndUpdateApplications()
           }
         }
       )
-      .subscribe()
+      .subscribe((status) => {
+        console.log('[Realtime] Subscription status:', status)
+      })
 
     return () => {
+      console.log('[Realtime] Cleaning up subscription')
       supabase.removeChannel(channel)
     }
-  }, [clientApplications.map(a => a.id).join(','), supabase, fetchVotesAndUpdateApplications])
+  }, [supabase, fetchVotesAndUpdateApplications])
 
   const handleVoteSubmit = async () => {
     if (!selectedApp || !vote) return

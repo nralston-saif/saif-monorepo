@@ -27,34 +27,72 @@ export default async function PortfolioPage() {
     .select('*')
     .order('investment_date', { ascending: false })
 
-  // Get applications with deliberation notes to map to investments by company name
+  // Get applications with deliberation notes and meeting notes to map to investments by company name
   const { data: applications } = await supabase
     .from('saifcrm_applications')
     .select(`
       id,
       company_name,
-      deliberation:saifcrm_deliberations(thoughts)
+      deliberation:saifcrm_deliberations(thoughts),
+      meeting_notes:saifcrm_meeting_notes(id, content, meeting_date, created_at, user_id, saif_people(name))
     `)
 
-  // Create a map of company name -> notes
-  const companyNotesMap: Record<string, string | null> = {}
+  // Create maps for company name -> application data
+  const companyAppMap: Record<string, {
+    applicationId: string
+    deliberationNotes: string | null
+    meetingNotes: Array<{
+      id: string
+      content: string
+      meeting_date: string | null
+      created_at: string
+      user_name: string | null
+    }>
+  }> = {}
+
   applications?.forEach(app => {
     const deliberation = Array.isArray(app.deliberation) ? app.deliberation[0] : app.deliberation
-    if (deliberation?.thoughts) {
-      companyNotesMap[app.company_name.toLowerCase()] = deliberation.thoughts
+    const meetingNotes = (app.meeting_notes || []).map((note: {
+      id: string
+      content: string
+      meeting_date: string | null
+      created_at: string
+      user_id: string
+      saif_people: { name: string | null }
+    }) => ({
+      id: note.id,
+      content: note.content,
+      meeting_date: note.meeting_date,
+      created_at: note.created_at,
+      user_name: note.saif_people?.name || null,
+    }))
+
+    companyAppMap[app.company_name.toLowerCase()] = {
+      applicationId: app.id,
+      deliberationNotes: deliberation?.thoughts || null,
+      meetingNotes: meetingNotes,
     }
   })
 
-  // Attach notes to investments
-  const investmentsWithNotes = (investments || []).map(inv => ({
-    ...inv,
-    meetingNotes: companyNotesMap[inv.company_name.toLowerCase()] || null
-  }))
+  // Attach application data to investments
+  const investmentsWithNotes = (investments || []).map(inv => {
+    const appData = companyAppMap[inv.company_name.toLowerCase()]
+    return {
+      ...inv,
+      applicationId: appData?.applicationId || null,
+      deliberationNotes: appData?.deliberationNotes || null,
+      meetingNotes: appData?.meetingNotes || [],
+    }
+  })
 
   return (
     <div className="min-h-screen bg-gray-50">
       <Navigation userName={profile?.name || user.email || 'User'} />
-      <PortfolioClient investments={investmentsWithNotes} />
+      <PortfolioClient
+        investments={investmentsWithNotes}
+        userId={profile?.id || ''}
+        userName={profile?.name || user.email || 'User'}
+      />
     </div>
   )
 }
