@@ -1,0 +1,5 @@
+{
+  "buildCommand": "cd apps/crm && pnpm run build",
+  "outputDirectory": "apps/crm/.next",
+  "installCommand": "pnpm install"
+}
