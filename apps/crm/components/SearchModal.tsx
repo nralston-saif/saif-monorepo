@@ -21,13 +21,24 @@ type Investment = {
   investment_date: string | null
 }
 
+type Person = {
+  id: string
+  name: string | null
+  email: string | null
+  role: string
+  status: string
+  title: string | null
+  location: string | null
+}
+
 type SearchResults = {
   applications: Application[]
   investments: Investment[]
+  people: Person[]
 }
 
 type SearchItem = {
-  type: 'application' | 'investment'
+  type: 'application' | 'investment' | 'person'
   id: string
   title: string
   subtitle: string | null
@@ -39,7 +50,7 @@ type SearchItem = {
 
 export default function SearchModal({ onClose }: { onClose: () => void }) {
   const [query, setQuery] = useState('')
-  const [results, setResults] = useState<SearchResults>({ applications: [], investments: [] })
+  const [results, setResults] = useState<SearchResults>({ applications: [], investments: [], people: [] })
   const [loading, setLoading] = useState(false)
   const [selectedIndex, setSelectedIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -67,12 +78,22 @@ export default function SearchModal({ onClose }: { onClose: () => void }) {
       href: '/portfolio',
       hash: `inv-${inv.id}`,
     })),
+    ...results.people.map((person) => ({
+      type: 'person' as const,
+      id: person.id,
+      title: person.name || 'Unknown',
+      subtitle: person.title || person.email,
+      badge: getRoleLabel(person.role),
+      badgeStyle: getRoleBadgeStyle(person.role),
+      href: '/people',
+      hash: `person-${person.id}`,
+    })),
   ]
 
   // Debounced search
   useEffect(() => {
     if (query.length < 2) {
-      setResults({ applications: [], investments: [] })
+      setResults({ applications: [], investments: [], people: [] })
       return
     }
 
@@ -177,7 +198,7 @@ export default function SearchModal({ onClose }: { onClose: () => void }) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Search companies, founders..."
+            placeholder="Search companies, founders, people..."
             className="flex-1 text-lg outline-none placeholder-gray-400"
           />
           {loading && (
@@ -320,6 +341,57 @@ export default function SearchModal({ onClose }: { onClose: () => void }) {
                   })}
                 </div>
               )}
+
+              {/* People Section */}
+              {results.people.length > 0 && (
+                <div>
+                  <div className="px-4 py-2 mt-2">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                      People
+                    </p>
+                  </div>
+                  {results.people.map((person, idx) => {
+                    const flatIdx = results.applications.length + results.investments.length + idx
+                    const isSelected = selectedIndex === flatIdx
+                    return (
+                      <button
+                        key={person.id}
+                        onClick={() =>
+                          navigateToResult({
+                            type: 'person',
+                            id: person.id,
+                            title: person.name || 'Unknown',
+                            subtitle: person.title || person.email,
+                            badge: getRoleLabel(person.role),
+                            badgeStyle: getRoleBadgeStyle(person.role),
+                            href: '/people',
+                            hash: `person-${person.id}`,
+                          })
+                        }
+                        onMouseEnter={() => setSelectedIndex(flatIdx)}
+                        className={`w-full px-4 py-3 flex items-center gap-3 text-left transition-colors ${
+                          isSelected ? 'bg-gray-100' : 'hover:bg-gray-50'
+                        }`}
+                      >
+                        <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center flex-shrink-0">
+                          <span className="text-slate-600 font-medium">
+                            {(person.name || '?').charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-gray-900 truncate">{person.name || 'Unknown'}</p>
+                          {(person.title || person.email) && (
+                            <p className="text-sm text-gray-500 truncate">{person.title || person.email}</p>
+                          )}
+                        </div>
+                        <span className={`badge ${getRoleBadgeStyle(person.role)}`}>
+                          {getRoleLabel(person.role)}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -371,4 +443,30 @@ function formatCurrency(amount: number): string {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(amount)
+}
+
+function getRoleLabel(role: string): string {
+  const labels: Record<string, string> = {
+    partner: 'Partner',
+    founder: 'Founder',
+    advisor: 'Advisor',
+    employee: 'Employee',
+    board_member: 'Board Member',
+    investor: 'Investor',
+    contact: 'Contact',
+  }
+  return labels[role] || role
+}
+
+function getRoleBadgeStyle(role: string): string {
+  const styles: Record<string, string> = {
+    partner: 'bg-blue-100 text-blue-800',
+    founder: 'bg-purple-100 text-purple-800',
+    advisor: 'bg-amber-100 text-amber-800',
+    employee: 'bg-gray-100 text-gray-800',
+    board_member: 'bg-emerald-100 text-emerald-800',
+    investor: 'bg-indigo-100 text-indigo-800',
+    contact: 'bg-slate-100 text-slate-800',
+  }
+  return styles[role] || 'bg-gray-100 text-gray-800'
 }

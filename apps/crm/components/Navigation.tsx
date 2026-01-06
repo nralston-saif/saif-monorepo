@@ -36,6 +36,7 @@ export default function Navigation({ userName }: { userName: string }) {
     { name: 'Pipeline', href: '/pipeline' },
     { name: 'Deliberation', href: '/deliberation' },
     { name: 'Portfolio', href: '/portfolio' },
+    { name: 'People', href: '/people' },
   ]
 
   return (

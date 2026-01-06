@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     const query = url.searchParams.get('q')?.trim()
 
     if (!query || query.length < 2) {
-      return NextResponse.json({ applications: [], investments: [] })
+      return NextResponse.json({ applications: [], investments: [], people: [] })
     }
 
     // Search pattern for ilike
@@ -49,9 +49,22 @@ export async function GET(request: NextRequest) {
       console.error('Error searching investments:', invError)
     }
 
+    // Search people
+    const { data: people, error: peopleError } = await supabase
+      .from('saif_people')
+      .select('id, name, email, role, status, title, location')
+      .or(`name.ilike.${searchPattern},email.ilike.${searchPattern},title.ilike.${searchPattern}`)
+      .order('name', { ascending: true })
+      .limit(10)
+
+    if (peopleError) {
+      console.error('Error searching people:', peopleError)
+    }
+
     return NextResponse.json({
       applications: applications || [],
       investments: investments || [],
+      people: people || [],
     })
   } catch (error: any) {
     console.error('Search error:', error)

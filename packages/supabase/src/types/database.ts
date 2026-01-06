@@ -577,6 +577,49 @@ export interface Database {
           }
         ]
       }
+      saifcrm_people_notes: {
+        Row: {
+          id: string
+          person_id: string
+          user_id: string
+          content: string
+          meeting_date: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          person_id: string
+          user_id: string
+          content: string
+          meeting_date?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          person_id?: string
+          user_id?: string
+          content?: string
+          meeting_date?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saifcrm_people_notes_person_id_fkey"
+            columns: ["person_id"]
+            referencedRelation: "saif_people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "saifcrm_people_notes_user_id_fkey"
+            columns: ["user_id"]
+            referencedRelation: "saif_people"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -624,6 +667,7 @@ export type Vote = Database['public']['Tables']['saifcrm_votes']['Row']
 export type Deliberation = Database['public']['Tables']['saifcrm_deliberations']['Row']
 export type CrmInvestment = Database['public']['Tables']['saifcrm_investments']['Row']
 export type InvestmentNote = Database['public']['Tables']['saifcrm_investment_notes']['Row']
+export type PeopleNote = Database['public']['Tables']['saifcrm_people_notes']['Row']
 
 // Composite types
 export type PersonWithCompany = Person & {
