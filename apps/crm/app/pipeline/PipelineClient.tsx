@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { useToast } from '@saif/ui'
@@ -92,9 +92,12 @@ export default function PipelineClient({
   const supabase = createClient()
   const { showToast } = useToast()
 
-  // Separate applications into sections
-  const needsYourVote = applications.filter(app => !app.userVote)
-  const alreadyVoted = applications.filter(app => app.userVote)
+  // Client-side state for real-time updates
+  const [clientApplications, setClientApplications] = useState<Application[]>(applications)
+
+  // Separate applications into sections (using client state for real-time updates)
+  const needsYourVote = clientApplications.filter(app => !app.userVote)
+  const alreadyVoted = clientApplications.filter(app => app.userVote)
 
   // Filter and sort old applications
   const filteredOldApplications = useMemo(() => {
@@ -130,6 +133,89 @@ export default function PipelineClient({
 
     return sorted
   }, [oldApplications, searchQuery, sortOption])
+
+  // Sync server props with client state when props change
+  useEffect(() => {
+    setClientApplications(applications)
+  }, [applications])
+
+  // Function to fetch votes and update application state
+  const fetchVotesAndUpdateApplications = useCallback(async () => {
+    const appIds = clientApplications.map(app => app.id)
+    if (appIds.length === 0) return
+
+    const { data: votes, error } = await supabase
+      .from('saifcrm_votes')
+      .select('id, application_id, vote, user_id, notes, vote_type, saif_people(name)')
+      .in('application_id', appIds)
+      .eq('vote_type', 'initial')
+
+    if (error) {
+      console.error('Error fetching votes:', error)
+      return
+    }
+
+    // Group votes by application_id
+    const votesByApp: Record<string, typeof votes> = {}
+    votes?.forEach(vote => {
+      if (!votesByApp[vote.application_id]) {
+        votesByApp[vote.application_id] = []
+      }
+      votesByApp[vote.application_id].push(vote)
+    })
+
+    // Update applications with new vote data
+    setClientApplications(prevApps =>
+      prevApps.map(app => {
+        const appVotes = votesByApp[app.id] || []
+        const userVoteRecord = appVotes.find(v => v.user_id === userId)
+
+        return {
+          ...app,
+          voteCount: appVotes.length,
+          userVote: userVoteRecord?.vote || null,
+          userNotes: userVoteRecord?.notes || null,
+          allVotes: appVotes.map(v => ({
+            oduserId: v.user_id,
+            userName: (v.saif_people as { name: string } | null)?.name || 'Unknown',
+            vote: v.vote || '',
+            notes: v.notes,
+          })),
+        }
+      })
+    )
+  }, [supabase, userId])
+
+  // Subscribe to real-time vote updates
+  useEffect(() => {
+    const appIds = clientApplications.map(app => app.id)
+    if (appIds.length === 0) return
+
+    const channel = supabase
+      .channel('pipeline-votes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'saifcrm_votes',
+        },
+        (payload) => {
+          // Check if the vote is for an application we're tracking
+          const newRecord = payload.new as { application_id?: string } | null
+          const oldRecord = payload.old as { application_id?: string } | null
+          const affectedAppId = newRecord?.application_id || oldRecord?.application_id
+          if (affectedAppId && appIds.includes(affectedAppId)) {
+            fetchVotesAndUpdateApplications()
+          }
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [clientApplications.map(a => a.id).join(','), supabase, fetchVotesAndUpdateApplications])
 
   const handleVoteSubmit = async () => {
     if (!selectedApp || !vote) return
@@ -327,6 +413,129 @@ export default function PipelineClient({
       month: 'short',
       day: 'numeric'
     })
+  }
+
+  // Render company info - used in both vote modal and detail modal
+  const renderCompanyInfo = (app: Application | OldApplication) => {
+    return (
+      <>
+        {/* Company Description */}
+        {app.company_description && (
+          <div>
+            <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">
+              Company Description
+            </h3>
+            <p className="text-gray-700">{app.company_description}</p>
+          </div>
+        )}
+
+        {/* Founder Bios */}
+        {app.founder_bios && (
+          <div>
+            <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">
+              Founder Bios
+            </h3>
+            <p className="text-gray-700 whitespace-pre-wrap">{app.founder_bios}</p>
+          </div>
+        )}
+
+        {/* Founder LinkedIns */}
+        {app.founder_linkedins && (
+          <div>
+            <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">
+              Founder LinkedIn Profiles
+            </h3>
+            <div className="flex flex-wrap gap-2">
+              {app.founder_linkedins.split(/[\n,]+/).filter(Boolean).map((link, i) => {
+                const url = link.trim()
+                const fullUrl = url.startsWith('http') ? url : `https://${url}`
+                return (
+                  <a
+                    key={i}
+                    href={fullUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 text-sm text-[#0077B5] hover:text-[#005582] bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors"
+                  >
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/>
+                    </svg>
+                    LinkedIn {i + 1}
+                  </a>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Contact Email */}
+        {app.primary_email && (
+          <div>
+            <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">
+              Primary Email
+            </h3>
+            <a
+              href={`mailto:${app.primary_email}`}
+              className="text-[#1a1a1a] hover:text-black underline"
+            >
+              {app.primary_email}
+            </a>
+          </div>
+        )}
+
+        {/* Website */}
+        {app.website && (
+          <div>
+            <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">
+              Website
+            </h3>
+            <a
+              href={app.website}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 text-[#1a1a1a] hover:text-black underline"
+            >
+              <span>🌐</span> {app.website}
+            </a>
+          </div>
+        )}
+
+        {/* Previous Funding */}
+        {app.previous_funding && (
+          <div>
+            <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">
+              Previous Funding
+            </h3>
+            <p className="text-gray-700 whitespace-pre-wrap">{app.previous_funding}</p>
+          </div>
+        )}
+
+        {/* Deck Link */}
+        {app.deck_link && (
+          <div>
+            <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">
+              Pitch Deck / Additional Documents
+            </h3>
+            <a
+              href={app.deck_link}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 text-purple-600 hover:text-purple-700 font-medium"
+            >
+              <span>📊</span> View Deck
+            </a>
+          </div>
+        )}
+
+        {/* Submission Date */}
+        <div>
+          <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">
+            Submission Date
+          </h3>
+          <p className="text-gray-700">{formatDate(app.submitted_at)}</p>
+        </div>
+      </>
+    )
   }
 
   const renderApplicationCard = (app: Application, showFullVotes: boolean = false) => {
@@ -740,41 +949,9 @@ export default function PipelineClient({
             </div>
 
             {/* Modal Content */}
-            <div className="p-6 space-y-6">
-              {selectedApp.company_description && (
-                <div>
-                  <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">
-                    About
-                  </h3>
-                  <p className="text-gray-700">{selectedApp.company_description}</p>
-                </div>
-              )}
-
-              {/* Links */}
-              {(selectedApp.website || selectedApp.deck_link) && (
-                <div className="flex gap-3">
-                  {selectedApp.website && (
-                    <a
-                      href={selectedApp.website}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 text-[#1a1a1a] hover:text-black underline font-medium"
-                    >
-                      <span>🌐</span> Visit Website
-                    </a>
-                  )}
-                  {selectedApp.deck_link && (
-                    <a
-                      href={selectedApp.deck_link}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 text-purple-600 hover:text-purple-700 font-medium"
-                    >
-                      <span>📊</span> View Deck
-                    </a>
-                  )}
-                </div>
-              )}
+            <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+              {/* Full Company Info */}
+              {renderCompanyInfo(selectedApp)}
 
               {/* Vote Selection */}
               <div>
@@ -885,122 +1062,8 @@ export default function PipelineClient({
 
             {/* Modal Content */}
             <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
-              {/* Company Description */}
-              {detailApp.company_description && (
-                <div>
-                  <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">
-                    Company Description
-                  </h3>
-                  <p className="text-gray-700">{detailApp.company_description}</p>
-                </div>
-              )}
-
-              {/* Founder Bios */}
-              {detailApp.founder_bios && (
-                <div>
-                  <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">
-                    Founder Bios
-                  </h3>
-                  <p className="text-gray-700 whitespace-pre-wrap">{detailApp.founder_bios}</p>
-                </div>
-              )}
-
-              {/* Founder LinkedIns */}
-              {detailApp.founder_linkedins && (
-                <div>
-                  <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">
-                    Founder LinkedIn Profiles
-                  </h3>
-                  <div className="flex flex-wrap gap-2">
-                    {detailApp.founder_linkedins.split(/[\n,]+/).filter(Boolean).map((link, i) => {
-                      const url = link.trim()
-                      const isValidUrl = url.startsWith('http') || url.startsWith('linkedin')
-                      const fullUrl = url.startsWith('http') ? url : `https://${url}`
-                      return (
-                        <a
-                          key={i}
-                          href={fullUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 text-sm text-[#0077B5] hover:text-[#005582] bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors"
-                        >
-                          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/>
-                          </svg>
-                          LinkedIn {i + 1}
-                        </a>
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* Contact Email */}
-              {detailApp.primary_email && (
-                <div>
-                  <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">
-                    Primary Email
-                  </h3>
-                  <a
-                    href={`mailto:${detailApp.primary_email}`}
-                    className="text-[#1a1a1a] hover:text-black underline"
-                  >
-                    {detailApp.primary_email}
-                  </a>
-                </div>
-              )}
-
-              {/* Website */}
-              {detailApp.website && (
-                <div>
-                  <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">
-                    Website
-                  </h3>
-                  <a
-                    href={detailApp.website}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 text-[#1a1a1a] hover:text-black underline"
-                  >
-                    <span>🌐</span> {detailApp.website}
-                  </a>
-                </div>
-              )}
-
-              {/* Previous Funding */}
-              {detailApp.previous_funding && (
-                <div>
-                  <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">
-                    Previous Funding
-                  </h3>
-                  <p className="text-gray-700 whitespace-pre-wrap">{detailApp.previous_funding}</p>
-                </div>
-              )}
-
-              {/* Deck Link */}
-              {detailApp.deck_link && (
-                <div>
-                  <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">
-                    Pitch Deck / Additional Documents
-                  </h3>
-                  <a
-                    href={detailApp.deck_link}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 text-purple-600 hover:text-purple-700 font-medium"
-                  >
-                    <span>📊</span> View Deck
-                  </a>
-                </div>
-              )}
-
-              {/* Submission Date */}
-              <div>
-                <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">
-                  Submission Date
-                </h3>
-                <p className="text-gray-700">{formatDate(detailApp.submitted_at)}</p>
-              </div>
+              {/* Company Info */}
+              {renderCompanyInfo(detailApp)}
 
               {/* Vote information for new applications */}
               {isNewApplication(detailApp) && detailApp.allVotes.length > 0 && (
