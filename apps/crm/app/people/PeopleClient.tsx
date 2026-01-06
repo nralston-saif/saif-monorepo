@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useToast } from '@saif/ui'
 import PersonMeetingNotes from '@/components/PersonMeetingNotes'
 import type { UserRole, UserStatus } from '@saif/supabase'
@@ -82,7 +82,10 @@ export default function PeopleClient({
   userName: string
   companyLocationMap: Record<string, CompanyLocation>
 }) {
-  const [searchQuery, setSearchQuery] = useState('')
+  const searchParams = useSearchParams()
+  const initialSearch = searchParams.get('search') || ''
+
+  const [searchQuery, setSearchQuery] = useState(initialSearch)
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('all')
   const [statusFilter, setStatusFilter] = useState<UserStatus | 'all'>('all')
   const [sortOption, setSortOption] = useState<SortOption>('name-az')
@@ -95,6 +98,14 @@ export default function PeopleClient({
   const router = useRouter()
   const supabase = createClient()
   const { showToast } = useToast()
+
+  // Update search query when URL search param changes
+  useEffect(() => {
+    const urlSearch = searchParams.get('search') || ''
+    if (urlSearch !== searchQuery) {
+      setSearchQuery(urlSearch)
+    }
+  }, [searchParams])
 
   // Filter and search people
   const filteredPeople = useMemo(() => {

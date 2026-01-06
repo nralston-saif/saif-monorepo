@@ -87,8 +87,8 @@ export default function SearchModal({ onClose }: { onClose: () => void }) {
       subtitle: person.title || person.email,
       badge: getRoleLabel(person.role),
       badgeStyle: getRoleBadgeStyle(person.role),
-      href: '/people',
-      hash: `person-${person.id}`,
+      href: `/people?search=${encodeURIComponent(getPersonDisplayName(person))}`,
+      hash: '',
     })),
   ]
 
@@ -151,6 +151,12 @@ export default function SearchModal({ onClose }: { onClose: () => void }) {
 
   const navigateToResult = (item: SearchItem) => {
     onClose()
+
+    // For people, navigate with search query (no hash)
+    if (!item.hash) {
+      router.push(item.href)
+      return
+    }
 
     // Navigate to the page with hash
     const targetUrl = `${item.href}#${item.hash}`
