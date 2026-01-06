@@ -196,3 +196,4 @@ WEBHOOK_SECRET=your-webhook-secret
 Database migrations are stored in `supabase/migrations/`. Run them in order when setting up a new database.
 
 See `supabase/migrations/000_RUN_ALL_MIGRATIONS.md` for instructions.
+
