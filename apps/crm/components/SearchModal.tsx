@@ -372,8 +372,8 @@ export default function SearchModal({ onClose }: { onClose: () => void }) {
                             subtitle: person.title || person.email,
                             badge: getRoleLabel(person.role),
                             badgeStyle: getRoleBadgeStyle(person.role),
-                            href: '/people',
-                            hash: `person-${person.id}`,
+                            href: `/people?search=${encodeURIComponent(getPersonDisplayName(person))}`,
+                            hash: '',
                           })
                         }
                         onMouseEnter={() => setSelectedIndex(flatIdx)}
