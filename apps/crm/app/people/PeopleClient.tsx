@@ -102,21 +102,26 @@ export default function PeopleClient({
   const filteredPeople = useMemo(() => {
     let filtered = people
 
-    // Apply search filter
+    // Apply search filter - support multi-word search (all words must match)
     if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase()
-      filtered = filtered.filter(person =>
-        person.displayName?.toLowerCase().includes(query) ||
-        person.first_name?.toLowerCase().includes(query) ||
-        person.last_name?.toLowerCase().includes(query) ||
-        person.name?.toLowerCase().includes(query) ||
-        person.email?.toLowerCase().includes(query) ||
-        person.title?.toLowerCase().includes(query) ||
-        person.bio?.toLowerCase().includes(query) ||
-        person.company_associations.some(ca =>
-          ca.company?.name.toLowerCase().includes(query)
-        )
-      )
+      const searchWords = searchQuery.toLowerCase().split(/\s+/).filter(w => w.length > 0)
+
+      filtered = filtered.filter(person => {
+        // Build searchable text from all fields
+        const searchableText = [
+          person.displayName,
+          person.first_name,
+          person.last_name,
+          person.name,
+          person.email,
+          person.title,
+          person.bio,
+          ...person.company_associations.map(ca => ca.company?.name),
+        ].filter(Boolean).join(' ').toLowerCase()
+
+        // All search words must be found
+        return searchWords.every(word => searchableText.includes(word))
+      })
     }
 
     // Apply role filter
