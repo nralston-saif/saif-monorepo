@@ -1,5 +1,5 @@
 {
-  "buildCommand": "pnpm --filter @saif/crm build",
-  "outputDirectory": "apps/crm/.next",
-  "installCommand": "pnpm install"
+  "buildCommand": "cd ../.. && pnpm --filter @saif/crm build",
+  "outputDirectory": ".next",
+  "installCommand": "cd ../.. && pnpm install"
 }
