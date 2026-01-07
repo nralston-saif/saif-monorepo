@@ -1,6 +1,7 @@
 import { redirect, notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import FounderNavigation from '@/components/FounderNavigation'
+import Navigation from '@/components/Navigation'
 import Link from 'next/link'
 
 export default async function PersonPage({ params }: { params: Promise<{ id: string }> }) {
@@ -60,9 +61,12 @@ export default async function PersonPage({ params }: { params: Promise<{ id: str
   const primaryCompany = activeCompanies.find((c: any) => c.is_primary_contact)?.company ||
                          activeCompanies[0]?.company
 
+  const isPartner = currentPerson.role === 'partner'
+  const userName = `${currentPerson.first_name || ''} ${currentPerson.last_name || ''}`.trim() || 'User'
+
   return (
     <div className="min-h-screen bg-white">
-      <FounderNavigation />
+      {isPartner ? <Navigation userName={userName} /> : <FounderNavigation />}
 
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Back link */}

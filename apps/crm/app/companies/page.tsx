@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/lib/types/database'
 import FounderNavigation from '@/components/FounderNavigation'
+import Navigation from '@/components/Navigation'
 import CompanyGrid from './CompanyGrid'
 
 type Company = Database['public']['Tables']['saif_companies']['Row']
@@ -28,9 +29,11 @@ export default async function CompaniesPage() {
   }
 
   const isPartner = person.role === 'partner'
+  const userName = `${person.first_name || ''} ${person.last_name || ''}`.trim() || 'User'
 
-  // Fetch portfolio companies (RLS will filter based on user's role)
-  // Use separate queries to avoid template literal type parsing issues
+  // Fetch companies based on role:
+  // - Partners see only portfolio companies (exclude SAIF)
+  // - Founders see portfolio + SAIF company
   let companies: any[] | null = null
   let companiesError: any = null
 
@@ -65,6 +68,7 @@ export default async function CompaniesPage() {
     companies = result.data
     companiesError = result.error
   } else {
+    // Founders see portfolio companies + SAIF
     const result = await supabase
       .from('saif_companies')
       .select(`
@@ -83,7 +87,7 @@ export default async function CompaniesPage() {
           )
         )
       `)
-      .eq('stage', 'portfolio')
+      .in('stage', ['portfolio', 'saif'] as const)
       .eq('is_active', true)
       .order('name')
     companies = result.data
@@ -118,12 +122,14 @@ export default async function CompaniesPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      <FounderNavigation />
+      {isPartner ? <Navigation userName={userName} /> : <FounderNavigation />}
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">SAIF Companies</h1>
+          <h1 className="text-3xl font-bold text-gray-900">
+            {isPartner ? 'Portfolio Companies' : 'SAIF Companies'}
+          </h1>
           <p className="mt-2 text-sm text-gray-600">
             Browse and connect with companies in the SAIF portfolio
           </p>

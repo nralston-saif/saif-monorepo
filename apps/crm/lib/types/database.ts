@@ -8,8 +8,8 @@ export type Json =
 
 export type UserRole = 'partner' | 'founder' | 'advisor' | 'employee' | 'board_member' | 'investor' | 'contact'
 export type UserStatus = 'active' | 'pending' | 'tracked' | 'inactive'
-export type CompanyStage = 'portfolio' | 'prospect' | 'diligence' | 'passed' | 'archived'
-export type RelationshipType = 'founder' | 'employee' | 'advisor' | 'board_member'
+export type CompanyStage = 'portfolio' | 'prospect' | 'diligence' | 'passed' | 'archived' | 'saif'
+export type RelationshipType = 'founder' | 'employee' | 'advisor' | 'board_member' | 'partner'
 
 export interface Database {
   public: {

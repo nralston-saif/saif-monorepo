@@ -2,6 +2,7 @@ import { redirect, notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/lib/types/database'
 import FounderNavigation from '@/components/FounderNavigation'
+import Navigation from '@/components/Navigation'
 import CompanyView from './CompanyView'
 
 type Company = Database['public']['Tables']['saif_companies']['Row']
@@ -89,6 +90,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
 
   // Check if current user can edit this company
   const isPartner = currentPerson.role === 'partner'
+  const userName = `${currentPerson.first_name || ''} ${currentPerson.last_name || ''}`.trim() || 'User'
   const isFounder = company.people?.some(
     (cp: any) =>
       cp.user_id === currentPerson.id &&
@@ -107,7 +109,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
 
   return (
     <div className="min-h-screen bg-white">
-      <FounderNavigation />
+      {isPartner ? <Navigation userName={userName} /> : <FounderNavigation />}
 
       {/* Main Content */}
       <CompanyView
