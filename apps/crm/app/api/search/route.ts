@@ -19,13 +19,13 @@ export async function GET(request: NextRequest) {
     const query = url.searchParams.get('q')?.trim()
 
     if (!query || query.length < 2) {
-      return NextResponse.json({ applications: [], investments: [], people: [] })
+      return NextResponse.json({ applications: [], investments: [], companies: [], people: [] })
     }
 
     // Search pattern for ilike
     const searchPattern = `%${query}%`
 
-    // Search applications
+    // Search applications (CRM)
     const { data: applications, error: appError } = await supabase
       .from('saifcrm_applications')
       .select('id, company_name, founder_names, company_description, stage, submitted_at')
@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
       console.error('Error searching applications:', appError)
     }
 
-    // Search investments
+    // Search investments (CRM)
     const { data: investments, error: invError } = await supabase
       .from('saifcrm_investments')
       .select('id, company_name, founders, description, amount, investment_date')
@@ -49,6 +49,18 @@ export async function GET(request: NextRequest) {
       console.error('Error searching investments:', invError)
     }
 
+    // Search companies
+    const { data: companies, error: compError } = await supabase
+      .from('saif_companies')
+      .select('id, name, short_description, logo_url, industry, city, country')
+      .or(`name.ilike.${searchPattern},short_description.ilike.${searchPattern},industry.ilike.${searchPattern}`)
+      .order('name', { ascending: true })
+      .limit(10)
+
+    if (compError) {
+      console.error('Error searching companies:', compError)
+    }
+
     // Search people - handle multi-word queries (e.g., "nick ralston")
     // Split query into words and search for each word, then filter results that match ALL words
     const searchWords = query.toLowerCase().split(/\s+/).filter(w => w.length > 0)
@@ -57,7 +69,7 @@ export async function GET(request: NextRequest) {
     const firstWordPattern = `%${searchWords[0]}%`
     const { data: peopleRaw, error: peopleError } = await supabase
       .from('saif_people')
-      .select('id, name, first_name, last_name, email, role, status, title, location')
+      .select('id, name, first_name, last_name, email, role, status, title, location, avatar_url')
       .or(`name.ilike.${firstWordPattern},first_name.ilike.${firstWordPattern},last_name.ilike.${firstWordPattern},email.ilike.${firstWordPattern},title.ilike.${firstWordPattern}`)
       .order('first_name', { ascending: true })
       .limit(50) // Fetch more to filter down
@@ -82,6 +94,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       applications: applications || [],
       investments: investments || [],
+      companies: companies || [],
       people: people || [],
     })
   } catch (error: any) {

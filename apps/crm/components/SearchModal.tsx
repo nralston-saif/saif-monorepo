@@ -21,6 +21,16 @@ type Investment = {
   investment_date: string | null
 }
 
+type Company = {
+  id: string
+  name: string
+  short_description: string | null
+  logo_url: string | null
+  industry: string | null
+  city: string | null
+  country: string | null
+}
+
 type Person = {
   id: string
   name: string | null
@@ -31,16 +41,18 @@ type Person = {
   status: string
   title: string | null
   location: string | null
+  avatar_url: string | null
 }
 
 type SearchResults = {
   applications: Application[]
   investments: Investment[]
+  companies: Company[]
   people: Person[]
 }
 
 type SearchItem = {
-  type: 'application' | 'investment' | 'person'
+  type: 'application' | 'investment' | 'company' | 'person'
   id: string
   title: string
   subtitle: string | null
@@ -48,11 +60,13 @@ type SearchItem = {
   badgeStyle: string
   href: string
   hash: string
+  avatarUrl?: string | null
+  logoUrl?: string | null
 }
 
 export default function SearchModal({ onClose }: { onClose: () => void }) {
   const [query, setQuery] = useState('')
-  const [results, setResults] = useState<SearchResults>({ applications: [], investments: [], people: [] })
+  const [results, setResults] = useState<SearchResults>({ applications: [], investments: [], companies: [], people: [] })
   const [loading, setLoading] = useState(false)
   const [selectedIndex, setSelectedIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -60,6 +74,28 @@ export default function SearchModal({ onClose }: { onClose: () => void }) {
 
   // Flatten results for keyboard navigation
   const flatResults: SearchItem[] = [
+    ...results.companies.map((company) => ({
+      type: 'company' as const,
+      id: company.id,
+      title: company.name,
+      subtitle: company.short_description,
+      badge: company.industry || 'Company',
+      badgeStyle: 'bg-blue-100 text-blue-700',
+      href: `/companies/${company.id}`,
+      hash: '',
+      logoUrl: company.logo_url,
+    })),
+    ...results.people.map((person) => ({
+      type: 'person' as const,
+      id: person.id,
+      title: getPersonDisplayName(person),
+      subtitle: person.title || person.email,
+      badge: getRoleLabel(person.role),
+      badgeStyle: getRoleBadgeStyle(person.role),
+      href: `/people/${person.id}`,
+      hash: '',
+      avatarUrl: person.avatar_url,
+    })),
     ...results.applications.map((app) => ({
       type: 'application' as const,
       id: app.id,
@@ -80,22 +116,12 @@ export default function SearchModal({ onClose }: { onClose: () => void }) {
       href: '/portfolio',
       hash: `inv-${inv.id}`,
     })),
-    ...results.people.map((person) => ({
-      type: 'person' as const,
-      id: person.id,
-      title: getPersonDisplayName(person),
-      subtitle: person.title || person.email,
-      badge: getRoleLabel(person.role),
-      badgeStyle: getRoleBadgeStyle(person.role),
-      href: `/people?search=${encodeURIComponent(getPersonDisplayName(person))}`,
-      hash: '',
-    })),
   ]
 
   // Debounced search
   useEffect(() => {
     if (query.length < 2) {
-      setResults({ applications: [], investments: [], people: [] })
+      setResults({ applications: [], investments: [], companies: [], people: [] })
       return
     }
 
@@ -152,13 +178,13 @@ export default function SearchModal({ onClose }: { onClose: () => void }) {
   const navigateToResult = (item: SearchItem) => {
     onClose()
 
-    // For people, navigate with search query (no hash)
-    if (!item.hash) {
+    // For companies and people, navigate directly to the page
+    if (item.type === 'company' || item.type === 'person') {
       router.push(item.href)
       return
     }
 
-    // Navigate to the page with hash
+    // Navigate to the page with hash (for applications and investments)
     const targetUrl = `${item.href}#${item.hash}`
     router.push(targetUrl)
 
@@ -248,16 +274,137 @@ export default function SearchModal({ onClose }: { onClose: () => void }) {
 
           {hasResults && (
             <div className="py-2">
+              {/* Companies Section */}
+              {results.companies.length > 0 && (
+                <div>
+                  <div className="px-4 py-2">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                      Companies
+                    </p>
+                  </div>
+                  {results.companies.map((company, idx) => {
+                    const flatIdx = idx
+                    const isSelected = selectedIndex === flatIdx
+                    return (
+                      <button
+                        key={company.id}
+                        onClick={() =>
+                          navigateToResult({
+                            type: 'company',
+                            id: company.id,
+                            title: company.name,
+                            subtitle: company.short_description,
+                            badge: company.industry || 'Company',
+                            badgeStyle: 'bg-blue-100 text-blue-700',
+                            href: `/companies/${company.id}`,
+                            hash: '',
+                            logoUrl: company.logo_url,
+                          })
+                        }
+                        onMouseEnter={() => setSelectedIndex(flatIdx)}
+                        className={`w-full px-4 py-3 flex items-center gap-3 text-left transition-colors ${
+                          isSelected ? 'bg-gray-100' : 'hover:bg-gray-50'
+                        }`}
+                      >
+                        {company.logo_url ? (
+                          <img
+                            src={company.logo_url}
+                            alt={company.name}
+                            className="w-10 h-10 rounded-lg object-contain bg-white border border-gray-100"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                            <span className="text-blue-600 font-medium">
+                              {company.name.charAt(0).toUpperCase()}
+                            </span>
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-gray-900 truncate">{company.name}</p>
+                          {company.short_description && (
+                            <p className="text-sm text-gray-500 truncate">{company.short_description}</p>
+                          )}
+                        </div>
+                        <span className="badge bg-blue-100 text-blue-700">
+                          {company.industry || 'Company'}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+
+              {/* People Section */}
+              {results.people.length > 0 && (
+                <div>
+                  <div className="px-4 py-2 mt-2">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                      People
+                    </p>
+                  </div>
+                  {results.people.map((person, idx) => {
+                    const flatIdx = results.companies.length + idx
+                    const isSelected = selectedIndex === flatIdx
+                    const fullName = getPersonDisplayName(person)
+                    return (
+                      <button
+                        key={person.id}
+                        onClick={() =>
+                          navigateToResult({
+                            type: 'person',
+                            id: person.id,
+                            title: fullName,
+                            subtitle: person.title || person.email,
+                            badge: getRoleLabel(person.role),
+                            badgeStyle: getRoleBadgeStyle(person.role),
+                            href: `/people/${person.id}`,
+                            hash: '',
+                            avatarUrl: person.avatar_url,
+                          })
+                        }
+                        onMouseEnter={() => setSelectedIndex(flatIdx)}
+                        className={`w-full px-4 py-3 flex items-center gap-3 text-left transition-colors ${
+                          isSelected ? 'bg-gray-100' : 'hover:bg-gray-50'
+                        }`}
+                      >
+                        {person.avatar_url ? (
+                          <img
+                            src={person.avatar_url}
+                            alt={fullName}
+                            className="w-10 h-10 rounded-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center flex-shrink-0">
+                            <span className="text-gray-600 font-medium">
+                              {fullName.charAt(0).toUpperCase()}
+                            </span>
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-gray-900 truncate">{fullName}</p>
+                          {(person.title || person.email) && (
+                            <p className="text-sm text-gray-500 truncate">{person.title || person.email}</p>
+                          )}
+                        </div>
+                        <span className={`badge ${getRoleBadgeStyle(person.role)}`}>
+                          {getRoleLabel(person.role)}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+
               {/* Applications Section */}
               {results.applications.length > 0 && (
                 <div>
-                  <div className="px-4 py-2">
+                  <div className="px-4 py-2 mt-2">
                     <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
                       Applications
                     </p>
                   </div>
                   {results.applications.map((app, idx) => {
-                    const flatIdx = idx
+                    const flatIdx = results.companies.length + results.people.length + idx
                     const isSelected = selectedIndex === flatIdx
                     return (
                       <button
@@ -308,7 +455,7 @@ export default function SearchModal({ onClose }: { onClose: () => void }) {
                     </p>
                   </div>
                   {results.investments.map((inv, idx) => {
-                    const flatIdx = results.applications.length + idx
+                    const flatIdx = results.companies.length + results.people.length + results.applications.length + idx
                     const isSelected = selectedIndex === flatIdx
                     return (
                       <button
@@ -343,57 +490,6 @@ export default function SearchModal({ onClose }: { onClose: () => void }) {
                         </div>
                         <span className="badge bg-emerald-100 text-emerald-700">
                           {inv.amount ? formatCurrency(inv.amount) : 'Portfolio'}
-                        </span>
-                      </button>
-                    )
-                  })}
-                </div>
-              )}
-
-              {/* People Section */}
-              {results.people.length > 0 && (
-                <div>
-                  <div className="px-4 py-2 mt-2">
-                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                      People
-                    </p>
-                  </div>
-                  {results.people.map((person, idx) => {
-                    const flatIdx = results.applications.length + results.investments.length + idx
-                    const isSelected = selectedIndex === flatIdx
-                    return (
-                      <button
-                        key={person.id}
-                        onClick={() =>
-                          navigateToResult({
-                            type: 'person',
-                            id: person.id,
-                            title: getPersonDisplayName(person),
-                            subtitle: person.title || person.email,
-                            badge: getRoleLabel(person.role),
-                            badgeStyle: getRoleBadgeStyle(person.role),
-                            href: `/people?search=${encodeURIComponent(getPersonDisplayName(person))}`,
-                            hash: '',
-                          })
-                        }
-                        onMouseEnter={() => setSelectedIndex(flatIdx)}
-                        className={`w-full px-4 py-3 flex items-center gap-3 text-left transition-colors ${
-                          isSelected ? 'bg-gray-100' : 'hover:bg-gray-50'
-                        }`}
-                      >
-                        <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center flex-shrink-0">
-                          <span className="text-slate-600 font-medium">
-                            {getPersonDisplayName(person).charAt(0).toUpperCase()}
-                          </span>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-gray-900 truncate">{getPersonDisplayName(person)}</p>
-                          {(person.title || person.email) && (
-                            <p className="text-sm text-gray-500 truncate">{person.title || person.email}</p>
-                          )}
-                        </div>
-                        <span className={`badge ${getRoleBadgeStyle(person.role)}`}>
-                          {getRoleLabel(person.role)}
                         </span>
                       </button>
                     )

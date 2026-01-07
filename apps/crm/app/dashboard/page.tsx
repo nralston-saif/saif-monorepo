@@ -2,6 +2,10 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Navigation from '@/components/Navigation'
 import DashboardClient from './DashboardClient'
+import FounderDashboard from './FounderDashboard'
+import type { Database } from '@/lib/types/database'
+
+type Person = Database['public']['Tables']['saif_people']['Row']
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -11,16 +15,83 @@ export default async function DashboardPage() {
   } = await supabase.auth.getUser()
 
   if (!user) {
-    redirect('/login')
+    redirect('/auth/login')
   }
 
-  // Get user profile (using auth_user_id to link to auth.users)
-  const { data: profile } = await supabase
+  // Get full user profile (using auth_user_id to link to auth.users)
+  const { data: profile, error: profileError } = await supabase
     .from('saif_people')
-    .select('id, name')
+    .select('*')
     .eq('auth_user_id', user.id)
     .single()
 
+  // If no profile, redirect to claim flow
+  if (profileError || !profile) {
+    redirect('/profile/claim')
+  }
+
+  const typedProfile = profile as Person
+
+  // Non-partners (founders, advisors, etc.) see the founder dashboard
+  if (typedProfile.role !== 'partner') {
+    // Fetch the founder's company
+    const { data: companyRelation } = await supabase
+      .from('saif_company_people')
+      .select(`
+        relationship_type,
+        title,
+        company:saif_companies(
+          id,
+          name,
+          short_description,
+          logo_url,
+          website,
+          industry,
+          city,
+          country
+        )
+      `)
+      .eq('user_id', typedProfile.id)
+      .eq('relationship_type', 'founder')
+      .is('end_date', null)
+      .single()
+
+    const company = companyRelation?.company as {
+      id: string
+      name: string
+      short_description: string | null
+      logo_url: string | null
+      website: string | null
+      industry: string | null
+      city: string | null
+      country: string | null
+    } | null
+
+    // Fetch all founders for this company
+    let founders: { id: string; first_name: string | null; last_name: string | null; title: string | null }[] = []
+    if (company) {
+      const { data: founderRelations } = await supabase
+        .from('saif_company_people')
+        .select(`
+          title,
+          person:saif_people(id, first_name, last_name)
+        `)
+        .eq('company_id', company.id)
+        .eq('relationship_type', 'founder')
+        .is('end_date', null)
+
+      founders = (founderRelations || []).map((rel: any) => ({
+        id: rel.person?.id,
+        first_name: rel.person?.first_name,
+        last_name: rel.person?.last_name,
+        title: rel.title,
+      })).filter((f: any) => f.id)
+    }
+
+    return <FounderDashboard person={typedProfile} userEmail={user.email || ''} company={company} founders={founders} founderTitle={companyRelation?.title} />
+  }
+
+  // Partners see the CRM dashboard
   // Get applications in pipeline that need user's vote
   const { data: pipelineApps } = await supabase
     .from('saifcrm_applications')
