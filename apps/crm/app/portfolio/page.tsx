@@ -17,9 +17,14 @@ export default async function PortfolioPage() {
   // Get user profile (using auth_user_id to link to auth.users)
   const { data: profile } = await supabase
     .from('saif_people')
-    .select('id, name')
+    .select('id, name, role')
     .eq('auth_user_id', user.id)
     .single()
+
+  // Only partners can access portfolio
+  if (!profile || profile.role !== 'partner') {
+    redirect('/access-denied')
+  }
 
   // Get all investments
   const { data: investments } = await supabase

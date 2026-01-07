@@ -3,6 +3,13 @@ import { redirect } from 'next/navigation'
 import { Suspense } from 'react'
 import Navigation from '@/components/Navigation'
 import PeopleClient from './PeopleClient'
+import PeopleGrid from './PeopleGrid'
+import Link from 'next/link'
+import type { Database } from '@/lib/types/database'
+
+type Person = Database['public']['Tables']['saif_people']['Row']
+type CompanyPerson = Database['public']['Tables']['saif_company_people']['Row']
+type Company = Database['public']['Tables']['saif_companies']['Row']
 
 // Force dynamic rendering to ensure searchParams are always fresh
 export const dynamic = 'force-dynamic'
@@ -20,96 +27,209 @@ export default async function PeoplePage({
   } = await supabase.auth.getUser()
 
   if (!user) {
-    redirect('/login')
+    redirect('/auth/login')
   }
 
-  // Get user profile
+  // Get user profile with role
   const { data: profile } = await supabase
     .from('saif_people')
-    .select('id, name')
+    .select('*')
     .eq('auth_user_id', user.id)
     .single()
 
-  // Get all people with their company associations
-  const { data: people } = await supabase
+  if (!profile) {
+    redirect('/profile/claim')
+  }
+
+  const isPartner = profile.role === 'partner'
+
+  // For partners, show the full CRM people view with notes
+  if (isPartner) {
+    // Get all people with their company associations
+    const { data: people } = await supabase
+      .from('saif_people')
+      .select(`
+        *,
+        company_associations:saif_company_people(
+          relationship_type,
+          title,
+          company:saif_companies(id, name)
+        )
+      `)
+      .order('first_name', { ascending: true })
+
+    // Get note counts for each person
+    const { data: noteCounts } = await supabase
+      .from('saifcrm_people_notes')
+      .select('person_id')
+
+    // Create a map of person_id -> note count
+    const noteCountMap: Record<string, number> = {}
+    noteCounts?.forEach(note => {
+      noteCountMap[note.person_id] = (noteCountMap[note.person_id] || 0) + 1
+    })
+
+    // Get portfolio companies (investments)
+    const { data: investments } = await supabase
+      .from('saifcrm_investments')
+      .select('id, company_name')
+
+    // Get applications (pipeline and deliberation)
+    const { data: applications } = await supabase
+      .from('saifcrm_applications')
+      .select('id, company_name, stage')
+
+    // Build company location map: company_name (lowercase) -> { page, id }
+    const companyLocationMap: Record<string, { page: string; id: string }> = {}
+
+    applications?.forEach(app => {
+      const key = app.company_name.toLowerCase()
+      const page = app.stage === 'deliberation' ? 'deliberation' : 'pipeline'
+      if (!companyLocationMap[key] || (page === 'deliberation' && companyLocationMap[key].page === 'pipeline')) {
+        companyLocationMap[key] = { page, id: app.id }
+      }
+    })
+
+    investments?.forEach(inv => {
+      const key = inv.company_name.toLowerCase()
+      companyLocationMap[key] = { page: 'portfolio', id: inv.id }
+    })
+
+    // Attach note counts and construct display name
+    const peopleWithNotes = (people || []).map(person => {
+      const displayName = person.first_name && person.last_name
+        ? `${person.first_name} ${person.last_name}`
+        : person.first_name || person.last_name || person.name || null
+
+      return {
+        ...person,
+        displayName,
+        noteCount: noteCountMap[person.id] || 0,
+      }
+    })
+
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Navigation userName={profile?.name || user.email || 'User'} />
+        <Suspense fallback={<div className="p-8 text-center text-gray-500">Loading...</div>}>
+          <PeopleClient
+            people={peopleWithNotes}
+            userId={profile?.id || ''}
+            userName={profile?.name || user.email || 'User'}
+            companyLocationMap={companyLocationMap}
+            initialSearch={initialSearch || ''}
+          />
+        </Suspense>
+      </div>
+    )
+  }
+
+  // For founders, show the simpler community view
+  const { data: people, error: peopleError } = await supabase
     .from('saif_people')
     .select(`
       *,
-      company_associations:saif_company_people(
+      companies:saif_company_people(
+        id,
         relationship_type,
         title,
-        company:saif_companies(id, name)
+        is_primary_contact,
+        end_date,
+        company:saif_companies(
+          id,
+          name,
+          logo_url,
+          stage
+        )
       )
     `)
-    .order('first_name', { ascending: true })
+    .order('first_name')
 
-  // Get note counts for each person
-  const { data: noteCounts } = await supabase
-    .from('saifcrm_people_notes')
-    .select('person_id')
+  if (peopleError) {
+    console.error('Error fetching people:', peopleError)
+  }
 
-  // Create a map of person_id -> note count
-  const noteCountMap: Record<string, number> = {}
-  noteCounts?.forEach(note => {
-    noteCountMap[note.person_id] = (noteCountMap[note.person_id] || 0) + 1
-  })
+  const typedPeople = (people || []) as (Person & {
+    companies?: {
+      id: string
+      relationship_type: string
+      title: string | null
+      is_primary_contact: boolean
+      end_date: string | null
+      company: {
+        id: string
+        name: string
+        logo_url: string | null
+        stage: string
+      } | null
+    }[]
+  })[]
 
-  // Get portfolio companies (investments)
-  const { data: investments } = await supabase
-    .from('saifcrm_investments')
-    .select('id, company_name')
-
-  // Get applications (pipeline and deliberation)
-  const { data: applications } = await supabase
-    .from('saifcrm_applications')
-    .select('id, company_name, stage')
-
-  // Build company location map: company_name (lowercase) -> { page, id }
-  // Priority: portfolio > deliberation > pipeline
-  const companyLocationMap: Record<string, { page: string; id: string }> = {}
-
-  // First add pipeline/deliberation applications
-  applications?.forEach(app => {
-    const key = app.company_name.toLowerCase()
-    const page = app.stage === 'deliberation' ? 'deliberation' : 'pipeline'
-    // Only set if not already set, or if this is deliberation (higher priority than pipeline)
-    if (!companyLocationMap[key] || (page === 'deliberation' && companyLocationMap[key].page === 'pipeline')) {
-      companyLocationMap[key] = { page, id: app.id }
-    }
-  })
-
-  // Then add portfolio (highest priority, overwrites others)
-  investments?.forEach(inv => {
-    const key = inv.company_name.toLowerCase()
-    companyLocationMap[key] = { page: 'portfolio', id: inv.id }
-  })
-
-  // Attach note counts and construct display name
-  const peopleWithNotes = (people || []).map(person => {
-    // Construct display name from first_name + last_name, fallback to name field
-    const displayName = person.first_name && person.last_name
-      ? `${person.first_name} ${person.last_name}`
-      : person.first_name || person.last_name || person.name || null
-
-    return {
-      ...person,
-      displayName,
-      noteCount: noteCountMap[person.id] || 0,
-    }
-  })
+  // Filter to show active people
+  const activePeople = typedPeople.filter(person =>
+    person.status === 'active' || person.status === 'pending'
+  )
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Navigation userName={profile?.name || user.email || 'User'} />
-      <Suspense fallback={<div className="p-8 text-center text-gray-500">Loading...</div>}>
-        <PeopleClient
-          people={peopleWithNotes}
-          userId={profile?.id || ''}
-          userName={profile?.name || user.email || 'User'}
-          companyLocationMap={companyLocationMap}
-          initialSearch={initialSearch || ''}
-        />
-      </Suspense>
+    <div className="min-h-screen bg-white">
+      {/* Founder Navigation */}
+      <nav className="border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center space-x-8">
+              <Link href="/dashboard" className="text-xl font-bold text-gray-900">
+                SAIFface
+              </Link>
+              <Link
+                href="/companies"
+                className="text-sm text-gray-600 hover:text-gray-900"
+              >
+                Companies
+              </Link>
+              <Link
+                href="/people"
+                className="text-sm font-medium text-gray-900"
+              >
+                People
+              </Link>
+            </div>
+            <div className="flex items-center space-x-4">
+              <Link
+                href="/profile/edit"
+                className="text-sm text-gray-600 hover:text-gray-900"
+              >
+                Profile
+              </Link>
+              <form action="/auth/signout" method="post">
+                <button
+                  type="submit"
+                  className="text-sm text-gray-600 hover:text-gray-900"
+                >
+                  Sign out
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900">SAIF People</h1>
+          <p className="mt-2 text-sm text-gray-600">
+            Connect with founders and partners in the SAIF community
+          </p>
+        </div>
+
+        {activePeople.length === 0 ? (
+          <div className="text-center py-12">
+            <p className="text-gray-500">No people found</p>
+          </div>
+        ) : (
+          <PeopleGrid people={activePeople} isPartner={false} />
+        )}
+      </main>
     </div>
   )
 }
