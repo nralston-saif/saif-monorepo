@@ -32,17 +32,17 @@ export default async function PortfolioPage() {
     .select('*')
     .order('investment_date', { ascending: false })
 
-  // Get company logos from saif_companies
+  // Get company logos from saif_companies (keyed by id for FK lookup)
   const { data: companies } = await supabase
     .from('saif_companies')
-    .select('name, logo_url')
+    .select('id, logo_url')
     .not('logo_url', 'is', null)
 
-  // Create map of company name -> logo_url
+  // Create map of company id -> logo_url
   const logoMap: Record<string, string> = {}
   companies?.forEach(company => {
     if (company.logo_url) {
-      logoMap[company.name.toLowerCase()] = company.logo_url
+      logoMap[company.id] = company.logo_url
     }
   })
 
@@ -96,13 +96,14 @@ export default async function PortfolioPage() {
   // Attach application data and logos to investments
   const investmentsWithNotes = (investments || []).map(inv => {
     const appData = companyAppMap[inv.company_name.toLowerCase()]
-    const logoUrl = logoMap[inv.company_name.toLowerCase()] || null
+    // Use company_id FK for logo lookup (falls back to null if no company linked)
+    const companyId = (inv as any).company_id as string | null
     return {
       ...inv,
       applicationId: appData?.applicationId || null,
       deliberationNotes: appData?.deliberationNotes || null,
       meetingNotes: appData?.meetingNotes || [],
-      logo_url: logoUrl,
+      logo_url: companyId ? logoMap[companyId] || null : null,
     }
   })
 
