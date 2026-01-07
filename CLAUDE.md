@@ -197,3 +197,47 @@ Database migrations are stored in `supabase/migrations/`. Run them in order when
 
 See `supabase/migrations/000_RUN_ALL_MIGRATIONS.md` for instructions.
 
+## Supabase Migration Lessons (Read Before Writing Migrations)
+
+These lessons were learned the hard way. Follow them to avoid painful debugging:
+
+### 1. Check RLS Policies on ALL Tables in Query Chain
+When data isn't showing up, RLS may be blocking at multiple levels. A query joining `saif_company_people` to `saif_companies` can fail if EITHER table's RLS policy blocks access. Always check policies on every table involved in the query.
+
+### 2. Check Constraints Before Adding New Enum Values
+The database has CHECK constraints on columns like `stage` and `relationship_type` that aren't visible in TypeScript types. Before adding a new value like `stage='saif'` or `relationship_type='partner'`, check existing constraints:
+```sql
+SELECT conname, pg_get_constraintdef(oid)
+FROM pg_constraint
+WHERE conrelid = 'saif_companies'::regclass;
+```
+Then ALTER the constraint before inserting new values.
+
+### 3. Use UUIDs or Emails, Never Names
+Name-based lookups are ambiguous:
+- "SAIF" matches both "SAIF" and "SAIF CHECK"
+- "Nick" might match multiple people named Nick
+
+Always use exact UUIDs or unique identifiers like email addresses for database operations.
+
+### 4. Verify Data Exists Before Writing Migrations
+Don't assume records exist. Query first:
+```sql
+SELECT id, email FROM saif_people WHERE email = 'mike@saif.vc';
+```
+If a record is missing, INSERT it before trying to UPDATE or reference it.
+
+### 5. Key Database Facts
+- SAIF company UUID: `d5d16d3a-4f56-405d-b262-37c1f79f28d4`
+- SAIF company has `stage='saif'` (special designation, not 'portfolio')
+- Partners (Nick, Michael, Geoff) are linked to SAIF with `relationship_type='partner'`
+- Partner emails: nick@saif.vc, mike@saif.vc, geoff@saif.vc
+- RLS helper functions use `SECURITY DEFINER` to bypass RLS when needed
+
+### 6. Test Approach for Migrations
+Before running a migration:
+1. Query the schema to understand current constraints
+2. Query the data to verify records exist
+3. Use exact IDs from queries, not name matching
+4. Check RLS policies if data access is involved
+
