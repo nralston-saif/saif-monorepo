@@ -81,7 +81,7 @@ export default function CompanyGrid({ companies, isPartner = false }: CompanyGri
           {filteredCompanies.map((company) => {
             // Get current founders for this company (exclude former founders)
             const founders = company.people?.filter(
-              (p) => p.relationship_type === 'founder' && p.person && !p.end_date
+              (p) => p.relationship_type?.toLowerCase() === 'founder' && p.person && !p.end_date
             ) || []
 
             return (

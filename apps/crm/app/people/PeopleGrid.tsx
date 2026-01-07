@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import type { Database } from '@/lib/types/database'
 
 type Person = Database['public']['Tables']['saif_people']['Row'] & {
@@ -25,6 +26,7 @@ interface PeopleGridProps {
 }
 
 export default function PeopleGrid({ people, isPartner }: PeopleGridProps) {
+  const router = useRouter()
   const [searchQuery, setSearchQuery] = useState('')
   const [roleFilter, setRoleFilter] = useState<string>('all')
 
@@ -101,9 +103,9 @@ export default function PeopleGrid({ people, isPartner }: PeopleGridProps) {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredPeople.map((person) => {
-            // Get active companies
+            // Get active companies (any company the person is currently associated with)
             const activeCompanies = person.companies?.filter(
-              (c) => c.company && !c.end_date && c.company.stage === 'portfolio'
+              (c) => c.company && !c.end_date
             ) || []
 
             const primaryCompany = activeCompanies.find((c) => c.is_primary_contact)?.company ||
@@ -112,7 +114,8 @@ export default function PeopleGrid({ people, isPartner }: PeopleGridProps) {
             return (
               <div
                 key={person.id}
-                className="border border-gray-200 rounded-lg p-6 hover:border-gray-300 transition hover:shadow-md"
+                onClick={() => router.push(`/people/${person.id}`)}
+                className="border border-gray-200 rounded-lg p-6 hover:border-gray-300 transition hover:shadow-md cursor-pointer"
               >
                 {/* Avatar and Basic Info */}
                 <div className="flex items-start space-x-4 mb-4">
@@ -150,13 +153,6 @@ export default function PeopleGrid({ people, isPartner }: PeopleGridProps) {
                   </div>
                 </div>
 
-                {/* Bio */}
-                {person.bio && (
-                  <p className="text-sm text-gray-700 mb-4 line-clamp-3">
-                    {person.bio}
-                  </p>
-                )}
-
                 {/* Company */}
                 {primaryCompany && (
                   <div className="mb-4 flex items-center space-x-2">
@@ -188,40 +184,8 @@ export default function PeopleGrid({ people, isPartner }: PeopleGridProps) {
 
                 {/* Location */}
                 {person.location && (
-                  <p className="text-xs text-gray-500 mb-4">{person.location}</p>
+                  <p className="text-xs text-gray-500">{person.location}</p>
                 )}
-
-                {/* Links */}
-                <div className="flex gap-3 pt-4 border-t border-gray-200">
-                  {person.linkedin_url && (
-                    <a
-                      href={person.linkedin_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs text-gray-600 hover:text-gray-900 underline"
-                    >
-                      LinkedIn
-                    </a>
-                  )}
-                  {person.twitter_url && (
-                    <a
-                      href={person.twitter_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs text-gray-600 hover:text-gray-900 underline"
-                    >
-                      Twitter
-                    </a>
-                  )}
-                  {person.email && (
-                    <a
-                      href={`mailto:${person.email}`}
-                      className="text-xs text-gray-600 hover:text-gray-900 underline"
-                    >
-                      Email
-                    </a>
-                  )}
-                </div>
               </div>
             )
           })}
