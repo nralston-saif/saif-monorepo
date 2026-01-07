@@ -1,7 +1,7 @@
 import { redirect, notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/lib/types/database'
-import Link from 'next/link'
+import FounderNavigation from '@/components/FounderNavigation'
 import CompanyView from './CompanyView'
 
 type Company = Database['public']['Tables']['saif_companies']['Row']
@@ -107,46 +107,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Navigation */}
-      <nav className="border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-8">
-              <Link href="/dashboard" className="text-xl font-bold text-gray-900">
-                SAIFface
-              </Link>
-              <Link
-                href="/companies"
-                className="text-sm text-gray-600 hover:text-gray-900"
-              >
-                Companies
-              </Link>
-              <Link
-                href="/people"
-                className="text-sm text-gray-600 hover:text-gray-900"
-              >
-                People
-              </Link>
-            </div>
-            <div className="flex items-center space-x-4">
-              <Link
-                href="/profile/edit"
-                className="text-sm text-gray-600 hover:text-gray-900"
-              >
-                Profile
-              </Link>
-              <form action="/auth/signout" method="post">
-                <button
-                  type="submit"
-                  className="text-sm text-gray-600 hover:text-gray-900"
-                >
-                  Sign out
-                </button>
-              </form>
-            </div>
-          </div>
-        </div>
-      </nav>
+      <FounderNavigation />
 
       {/* Main Content */}
       <CompanyView
