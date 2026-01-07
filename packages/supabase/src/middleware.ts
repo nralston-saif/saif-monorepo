@@ -54,6 +54,10 @@ export async function updateSession(
 
   // Redirect to login if not authenticated and not on public path
   if (!user && !isPublicPath && request.nextUrl.pathname !== '/') {
+    // Support external login URLs (absolute URLs)
+    if (loginPath.startsWith('http://') || loginPath.startsWith('https://')) {
+      return NextResponse.redirect(loginPath)
+    }
     const url = request.nextUrl.clone()
     url.pathname = loginPath
     return NextResponse.redirect(url)

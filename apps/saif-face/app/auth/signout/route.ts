@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
+import { LOGIN_URL } from '@/lib/constants'
 
 export async function POST(request: Request) {
   const supabase = await createClient()
@@ -16,6 +17,6 @@ export async function POST(request: Request) {
   // Revalidate the cache for the home page
   revalidatePath('/', 'layout')
 
-  // Redirect to home page
-  redirect('/')
+  // Redirect to CRM login page
+  redirect(LOGIN_URL)
 }

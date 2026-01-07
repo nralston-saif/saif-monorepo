@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import type { Database } from '@/lib/types/database'
 
 type Person = Database['public']['Tables']['saif_people']['Row'] & {
@@ -24,9 +25,12 @@ interface PeopleGridProps {
   isPartner: boolean
 }
 
+type SortOption = 'name_asc' | 'name_desc'
+
 export default function PeopleGrid({ people, isPartner }: PeopleGridProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [roleFilter, setRoleFilter] = useState<string>('all')
+  const [sortBy, setSortBy] = useState<SortOption>('name_asc')
 
   // Filter people based on search and role
   const filteredPeople = people.filter((person) => {
@@ -54,9 +58,21 @@ export default function PeopleGrid({ people, isPartner }: PeopleGridProps) {
     return true
   })
 
+  // Sort people
+  const sortedPeople = [...filteredPeople].sort((a, b) => {
+    const nameA = `${a.first_name || ''} ${a.last_name || ''}`.toLowerCase()
+    const nameB = `${b.first_name || ''} ${b.last_name || ''}`.toLowerCase()
+
+    if (sortBy === 'name_asc') {
+      return nameA.localeCompare(nameB)
+    } else {
+      return nameB.localeCompare(nameA)
+    }
+  })
+
   return (
     <div>
-      {/* Search and Filter Bar */}
+      {/* Search, Filter, and Sort Bar */}
       <div className="mb-6 flex flex-col sm:flex-row gap-4">
         <input
           type="text"
@@ -81,38 +97,47 @@ export default function PeopleGrid({ people, isPartner }: PeopleGridProps) {
             </>
           )}
         </select>
+        <select
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value as SortOption)}
+          className="px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-gray-900 focus:border-gray-900"
+        >
+          <option value="name_asc">Name A-Z</option>
+          <option value="name_desc">Name Z-A</option>
+        </select>
       </div>
 
       {/* Results Count */}
       <div className="mb-4">
         <p className="text-sm text-gray-600">
-          {filteredPeople.length === people.length
+          {sortedPeople.length === people.length
             ? `${people.length} ${people.length === 1 ? 'person' : 'people'}`
-            : `${filteredPeople.length} of ${people.length} people`
+            : `${sortedPeople.length} of ${people.length} people`
           }
         </p>
       </div>
 
       {/* People Grid */}
-      {filteredPeople.length === 0 ? (
+      {sortedPeople.length === 0 ? (
         <div className="text-center py-12">
           <p className="text-gray-500">No people match your search</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredPeople.map((person) => {
+          {sortedPeople.map((person) => {
             // Get active companies
             const activeCompanies = person.companies?.filter(
-              (c) => c.company && !c.end_date && c.company.stage === 'portfolio'
+              (c) => c.company && !c.end_date
             ) || []
 
             const primaryCompany = activeCompanies.find((c) => c.is_primary_contact)?.company ||
                                    activeCompanies[0]?.company
 
             return (
-              <div
+              <Link
                 key={person.id}
-                className="border border-gray-200 rounded-lg p-6 hover:border-gray-300 transition hover:shadow-md"
+                href={`/people/${person.id}`}
+                className="block border border-gray-200 rounded-lg p-6 hover:border-gray-300 transition hover:shadow-md"
               >
                 {/* Avatar and Basic Info */}
                 <div className="flex items-start space-x-4 mb-4">
@@ -192,13 +217,14 @@ export default function PeopleGrid({ people, isPartner }: PeopleGridProps) {
                 )}
 
                 {/* Links */}
-                <div className="flex gap-3 pt-4 border-t border-gray-200">
+                <div className="flex gap-3 pt-4 border-t border-gray-200" onClick={(e) => e.stopPropagation()}>
                   {person.linkedin_url && (
                     <a
                       href={person.linkedin_url}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-xs text-gray-600 hover:text-gray-900 underline"
+                      onClick={(e) => e.stopPropagation()}
                     >
                       LinkedIn
                     </a>
@@ -209,6 +235,7 @@ export default function PeopleGrid({ people, isPartner }: PeopleGridProps) {
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-xs text-gray-600 hover:text-gray-900 underline"
+                      onClick={(e) => e.stopPropagation()}
                     >
                       Twitter
                     </a>
@@ -217,12 +244,13 @@ export default function PeopleGrid({ people, isPartner }: PeopleGridProps) {
                     <a
                       href={`mailto:${person.email}`}
                       className="text-xs text-gray-600 hover:text-gray-900 underline"
+                      onClick={(e) => e.stopPropagation()}
                     >
                       Email
                     </a>
                   )}
                 </div>
-              </div>
+              </Link>
             )
           })}
         </div>

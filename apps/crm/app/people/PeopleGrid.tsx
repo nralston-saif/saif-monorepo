@@ -29,6 +29,7 @@ export default function PeopleGrid({ people, isPartner }: PeopleGridProps) {
   const router = useRouter()
   const [searchQuery, setSearchQuery] = useState('')
   const [roleFilter, setRoleFilter] = useState<string>('all')
+  const [sortOrder, setSortOrder] = useState<'first_asc' | 'first_desc' | 'last_asc' | 'last_desc'>('first_asc')
 
   // Filter people based on search and role
   const filteredPeople = people.filter((person) => {
@@ -54,6 +55,27 @@ export default function PeopleGrid({ people, isPartner }: PeopleGridProps) {
     }
 
     return true
+  })
+
+  // Sort people alphabetically
+  const sortedPeople = [...filteredPeople].sort((a, b) => {
+    const firstA = (a.first_name || '').toLowerCase()
+    const firstB = (b.first_name || '').toLowerCase()
+    const lastA = (a.last_name || '').toLowerCase()
+    const lastB = (b.last_name || '').toLowerCase()
+
+    switch (sortOrder) {
+      case 'first_asc':
+        return firstA.localeCompare(firstB)
+      case 'first_desc':
+        return firstB.localeCompare(firstA)
+      case 'last_asc':
+        return lastA.localeCompare(lastB)
+      case 'last_desc':
+        return lastB.localeCompare(lastA)
+      default:
+        return firstA.localeCompare(firstB)
+    }
   })
 
   return (
@@ -83,26 +105,36 @@ export default function PeopleGrid({ people, isPartner }: PeopleGridProps) {
             </>
           )}
         </select>
+        <select
+          value={sortOrder}
+          onChange={(e) => setSortOrder(e.target.value as 'first_asc' | 'first_desc' | 'last_asc' | 'last_desc')}
+          className="px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-gray-900 focus:border-gray-900"
+        >
+          <option value="first_asc">A-Z First Name</option>
+          <option value="first_desc">Z-A First Name</option>
+          <option value="last_asc">A-Z Last Name</option>
+          <option value="last_desc">Z-A Last Name</option>
+        </select>
       </div>
 
       {/* Results Count */}
       <div className="mb-4">
         <p className="text-sm text-gray-600">
-          {filteredPeople.length === people.length
+          {sortedPeople.length === people.length
             ? `${people.length} ${people.length === 1 ? 'person' : 'people'}`
-            : `${filteredPeople.length} of ${people.length} people`
+            : `${sortedPeople.length} of ${people.length} people`
           }
         </p>
       </div>
 
       {/* People Grid */}
-      {filteredPeople.length === 0 ? (
+      {sortedPeople.length === 0 ? (
         <div className="text-center py-12">
           <p className="text-gray-500">No people match your search</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredPeople.map((person) => {
+          {sortedPeople.map((person) => {
             // Get active companies (any company the person is currently associated with)
             const activeCompanies = person.companies?.filter(
               (c) => c.company && !c.end_date

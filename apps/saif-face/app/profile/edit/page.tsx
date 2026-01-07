@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { Database } from '@/lib/types/database'
 import Link from 'next/link'
+import { LOGIN_URL } from '@/lib/constants'
 
 type Person = Database['public']['Tables']['saif_people']['Row']
 
@@ -37,7 +38,7 @@ export default function EditProfilePage() {
         const { data: { user } } = await supabase.auth.getUser()
 
         if (!user) {
-          router.push('/auth/login')
+          window.location.href = LOGIN_URL
           return
         }
 
@@ -109,7 +110,7 @@ export default function EditProfilePage() {
 
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
-        router.push('/auth/login')
+        window.location.href = LOGIN_URL
         return
       }
 

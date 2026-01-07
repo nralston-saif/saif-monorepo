@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/lib/types/database'
 import Link from 'next/link'
 import CompanyView from './CompanyView'
+import { LOGIN_URL } from '@/lib/constants'
 
 type Company = Database['public']['Tables']['saif_companies']['Row']
 type Person = Database['public']['Tables']['saif_people']['Row']
@@ -16,7 +17,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
   const { data: { user }, error: authError } = await supabase.auth.getUser()
 
   if (authError || !user) {
-    redirect('/auth/login')
+    redirect(LOGIN_URL)
   }
 
   // Get current user's profile

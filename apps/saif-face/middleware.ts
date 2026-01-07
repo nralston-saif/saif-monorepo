@@ -1,9 +1,10 @@
 import { updateSession, type NextRequest } from '@saif/supabase/middleware'
+import { LOGIN_URL } from '@/lib/constants'
 
 export async function middleware(request: NextRequest) {
   return await updateSession(request, {
-    publicPaths: ['/auth', '/_next', '/api', '/'],
-    loginPath: '/auth/login',
+    publicPaths: ['/_next', '/api', '/'],
+    loginPath: LOGIN_URL,
     defaultRedirect: '/dashboard',
   })
 }

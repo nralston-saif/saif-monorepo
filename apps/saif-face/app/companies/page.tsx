@@ -1,8 +1,9 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/lib/types/database'
-import Link from 'next/link'
 import CompanyGrid from './CompanyGrid'
+import { LOGIN_URL } from '@/lib/constants'
+import Navigation from '@/components/Navigation'
 
 type Company = Database['public']['Tables']['saif_companies']['Row']
 
@@ -13,7 +14,7 @@ export default async function CompaniesPage() {
   const { data: { user }, error: authError } = await supabase.auth.getUser()
 
   if (authError || !user) {
-    redirect('/auth/login')
+    redirect(LOGIN_URL)
   }
 
   // Get user's profile
@@ -118,46 +119,7 @@ export default async function CompaniesPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Navigation */}
-      <nav className="border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-8">
-              <Link href="/dashboard" className="text-xl font-bold text-gray-900">
-                SAIFface
-              </Link>
-              <Link
-                href="/companies"
-                className="text-sm font-medium text-gray-900"
-              >
-                Companies
-              </Link>
-              <Link
-                href="/people"
-                className="text-sm text-gray-600 hover:text-gray-900"
-              >
-                People
-              </Link>
-            </div>
-            <div className="flex items-center space-x-4">
-              <Link
-                href="/profile/edit"
-                className="text-sm text-gray-600 hover:text-gray-900"
-              >
-                Profile
-              </Link>
-              <form action="/auth/signout" method="post">
-                <button
-                  type="submit"
-                  className="text-sm text-gray-600 hover:text-gray-900"
-                >
-                  Sign out
-                </button>
-              </form>
-            </div>
-          </div>
-        </div>
-      </nav>
+      <Navigation />
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

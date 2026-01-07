@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import FounderNavigation from '@/components/FounderNavigation'
+import PeopleGrid from '@/app/people/PeopleGrid'
 import type { Database } from '@/lib/types/database'
 
 type Person = Database['public']['Tables']['saif_people']['Row']
@@ -24,15 +25,32 @@ interface Founder {
   title: string | null
 }
 
+type PersonWithCompanies = Person & {
+  companies?: Array<{
+    id: string
+    relationship_type: string
+    title: string | null
+    is_primary_contact: boolean
+    end_date: string | null
+    company: {
+      id: string
+      name: string
+      logo_url: string | null
+      stage: string
+    } | null
+  }>
+}
+
 interface FounderDashboardProps {
   person: Person
   userEmail: string
   company: Company | null
   founders: Founder[]
   founderTitle?: string | null
+  community: PersonWithCompanies[]
 }
 
-export default function FounderDashboard({ person, userEmail, company, founders, founderTitle }: FounderDashboardProps) {
+export default function FounderDashboard({ person, userEmail, company, founders, founderTitle, community }: FounderDashboardProps) {
   return (
     <div className="min-h-screen bg-white">
       <FounderNavigation />
@@ -143,60 +161,34 @@ export default function FounderDashboard({ person, userEmail, company, founders,
           </div>
         )}
 
-        {/* Quick Actions */}
-        <div className="bg-white border border-gray-200 rounded-lg p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Link
-              href="/companies"
-              className="flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition"
-            >
-              <div>
-                <h4 className="text-sm font-medium text-gray-900">Browse Portfolio</h4>
-                <p className="mt-1 text-sm text-gray-500">
-                  Discover companies in the SAIF portfolio
-                </p>
-              </div>
-            </Link>
+        {/* Action Bar */}
+        <div className="flex flex-wrap gap-3 mb-8">
+          <Link
+            href="/companies"
+            className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 transition"
+          >
+            Browse SAIF Companies
+          </Link>
+          <Link
+            href="/people"
+            className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 transition"
+          >
+            Browse SAIF People
+          </Link>
+          <a
+            href="https://calendly.com/geoffralston/saif-hours"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 transition"
+          >
+            Schedule Office Hours
+          </a>
+        </div>
 
-            <Link
-              href="/people"
-              className="flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition"
-            >
-              <div>
-                <h4 className="text-sm font-medium text-gray-900">SAIF People</h4>
-                <p className="mt-1 text-sm text-gray-500">
-                  Connect with founders and partners
-                </p>
-              </div>
-            </Link>
-
-            <Link
-              href="/profile/edit"
-              className="flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition"
-            >
-              <div>
-                <h4 className="text-sm font-medium text-gray-900">Edit Profile</h4>
-                <p className="mt-1 text-sm text-gray-500">
-                  Update your information and photo
-                </p>
-              </div>
-            </Link>
-
-            {company && (
-              <Link
-                href={`/companies/${company.id}`}
-                className="flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition"
-              >
-                <div>
-                  <h4 className="text-sm font-medium text-gray-900">View Company</h4>
-                  <p className="mt-1 text-sm text-gray-500">
-                    See {company.name}'s full profile
-                  </p>
-                </div>
-              </Link>
-            )}
-          </div>
+        {/* SAIF Community */}
+        <div className="mt-8">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">SAIF Community</h3>
+          <PeopleGrid people={community} isPartner={false} />
         </div>
 
       </main>

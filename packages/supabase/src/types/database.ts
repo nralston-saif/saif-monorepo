@@ -40,6 +40,7 @@ export interface Database {
           twitter_url: string | null
           mobile_phone: string | null
           location: string | null
+          tags: string[]
           created_at: string
           updated_at: string
         }
@@ -59,6 +60,7 @@ export interface Database {
           twitter_url?: string | null
           mobile_phone?: string | null
           location?: string | null
+          tags?: string[]
           created_at?: string
           updated_at?: string
         }
@@ -78,6 +80,7 @@ export interface Database {
           twitter_url?: string | null
           mobile_phone?: string | null
           location?: string | null
+          tags?: string[]
           created_at?: string
           updated_at?: string
         }
@@ -93,12 +96,13 @@ export interface Database {
           logo_url: string | null
           industry: string | null
           founded_year: number | null
-          is_AIsafety_company: boolean
-          YC_batch: string | null
+          is_aisafety_company: boolean
+          yc_batch: string | null
           city: string | null
           country: string | null
           stage: CompanyStage
           is_active: boolean
+          tags: string[]
           created_at: string
           updated_at: string
         }
@@ -111,12 +115,13 @@ export interface Database {
           logo_url?: string | null
           industry?: string | null
           founded_year?: number | null
-          is_AIsafety_company?: boolean
-          YC_batch?: string | null
+          is_aisafety_company?: boolean
+          yc_batch?: string | null
           city?: string | null
           country?: string | null
           stage?: CompanyStage
           is_active?: boolean
+          tags?: string[]
           created_at?: string
           updated_at?: string
         }
@@ -129,12 +134,13 @@ export interface Database {
           logo_url?: string | null
           industry?: string | null
           founded_year?: number | null
-          is_AIsafety_company?: boolean
-          YC_batch?: string | null
+          is_aisafety_company?: boolean
+          yc_batch?: string | null
           city?: string | null
           country?: string | null
           stage?: CompanyStage
           is_active?: boolean
+          tags?: string[]
           created_at?: string
           updated_at?: string
         }

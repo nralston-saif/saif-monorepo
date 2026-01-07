@@ -134,12 +134,12 @@ export default function CompanyGrid({ companies, isPartner = false }: CompanyGri
                       Founded: {company.founded_year}
                     </p>
                   )}
-                  {company.YC_batch && (
+                  {company.yc_batch && (
                     <p className="text-xs text-gray-500">
-                      YC: {company.YC_batch}
+                      YC: {company.yc_batch}
                     </p>
                   )}
-                  {company.is_AIsafety_company && (
+                  {company.is_aisafety_company && (
                     <p className="text-xs text-blue-600 font-medium">
                       AI Safety Company
                     </p>

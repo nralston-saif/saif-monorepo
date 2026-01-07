@@ -49,8 +49,8 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
     founded_year: company.founded_year?.toString() || '',
     city: company.city || '',
     country: company.country || '',
-    YC_batch: company.YC_batch || '',
-    is_AIsafety_company: company.is_AIsafety_company,
+    yc_batch: company.yc_batch || '',
+    is_aisafety_company: company.is_aisafety_company,
   })
 
   const [logoUrl, setLogoUrl] = useState(company.logo_url)
@@ -159,8 +159,8 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
           founded_year: formData.founded_year ? parseInt(formData.founded_year) : null,
           city: formData.city || null,
           country: formData.country || null,
-          YC_batch: formData.YC_batch || null,
-          is_AIsafety_company: formData.is_AIsafety_company,
+          yc_batch: formData.yc_batch || null,
+          is_aisafety_company: formData.is_aisafety_company,
           updated_at: new Date().toISOString(),
         })
         .eq('id', company.id)
@@ -344,12 +344,12 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
                   {company.industry}
                 </span>
               )}
-              {company.YC_batch && (
+              {company.yc_batch && (
                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
-                  YC {company.YC_batch}
+                  YC {company.yc_batch}
                 </span>
               )}
-              {company.is_AIsafety_company && (
+              {company.is_aisafety_company && (
                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                   AI Safety
                 </span>
@@ -504,14 +504,14 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
               </div>
 
               <div>
-                <label htmlFor="YC_batch" className="block text-sm font-medium text-gray-700">
+                <label htmlFor="yc_batch" className="block text-sm font-medium text-gray-700">
                   YC Batch
                 </label>
                 <input
                   type="text"
-                  id="YC_batch"
-                  name="YC_batch"
-                  value={formData.YC_batch}
+                  id="yc_batch"
+                  name="yc_batch"
+                  value={formData.yc_batch}
                   onChange={handleInputChange}
                   placeholder="S24, W25, etc."
                   className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-gray-900 focus:border-gray-900"
@@ -521,13 +521,13 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
               <div className="flex items-center">
                 <input
                   type="checkbox"
-                  id="is_AIsafety_company"
-                  name="is_AIsafety_company"
-                  checked={formData.is_AIsafety_company}
+                  id="is_aisafety_company"
+                  name="is_aisafety_company"
+                  checked={formData.is_aisafety_company}
                   onChange={handleInputChange}
                   className="h-4 w-4 text-gray-900 focus:ring-gray-900 border-gray-300 rounded"
                 />
-                <label htmlFor="is_AIsafety_company" className="ml-2 block text-sm text-gray-700">
+                <label htmlFor="is_aisafety_company" className="ml-2 block text-sm text-gray-700">
                   AI Safety Company
                 </label>
               </div>
@@ -551,8 +551,8 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
                   founded_year: company.founded_year?.toString() || '',
                   city: company.city || '',
                   country: company.country || '',
-                  YC_batch: company.YC_batch || '',
-                  is_AIsafety_company: company.is_AIsafety_company,
+                  yc_batch: company.yc_batch || '',
+                  is_aisafety_company: company.is_aisafety_company,
                 })
               }}
               className="text-sm text-gray-600 hover:text-gray-900"

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { Database } from '@/lib/types/database'
+import { LOGIN_URL } from '@/lib/constants'
 
 type Person = Database['public']['Tables']['saif_people']['Row']
 
@@ -25,7 +26,7 @@ export default function ClaimProfilePage() {
         const { data: { user } } = await supabase.auth.getUser()
 
         if (!user) {
-          router.push('/auth/login')
+          window.location.href = LOGIN_URL
           return
         }
 
@@ -128,7 +129,7 @@ export default function ClaimProfilePage() {
       const { data: { user } } = await supabase.auth.getUser()
 
       if (!user) {
-        router.push('/auth/login')
+        window.location.href = LOGIN_URL
         return
       }
 

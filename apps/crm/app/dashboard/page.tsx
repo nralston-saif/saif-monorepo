@@ -88,7 +88,24 @@ export default async function DashboardPage() {
       })).filter((f: any) => f.id)
     }
 
-    return <FounderDashboard person={typedProfile} userEmail={user.email || ''} company={company} founders={founders} founderTitle={companyRelation?.title} />
+    // Fetch community (all active/pending people) for the community listing
+    const { data: communityPeople } = await supabase
+      .from('saif_people')
+      .select(`
+        *,
+        companies:saif_company_people(
+          id,
+          relationship_type,
+          title,
+          is_primary_contact,
+          end_date,
+          company:saif_companies(id, name, logo_url, stage)
+        )
+      `)
+      .in('status', ['active', 'pending'])
+      .order('first_name')
+
+    return <FounderDashboard person={typedProfile} userEmail={user.email || ''} company={company} founders={founders} founderTitle={companyRelation?.title} community={communityPeople || []} />
   }
 
   // Partners see the CRM dashboard

@@ -81,8 +81,8 @@ export interface Database {
           logo_url: string | null
           industry: string | null
           founded_year: number | null
-          is_AIsafety_company: boolean
-          YC_batch: string | null
+          is_aisafety_company: boolean
+          yc_batch: string | null
           city: string | null
           country: string | null
           stage: CompanyStage
@@ -99,8 +99,8 @@ export interface Database {
           logo_url?: string | null
           industry?: string | null
           founded_year?: number | null
-          is_AIsafety_company?: boolean
-          YC_batch?: string | null
+          is_aisafety_company?: boolean
+          yc_batch?: string | null
           city?: string | null
           country?: string | null
           stage?: CompanyStage
@@ -117,8 +117,8 @@ export interface Database {
           logo_url?: string | null
           industry?: string | null
           founded_year?: number | null
-          is_AIsafety_company?: boolean
-          YC_batch?: string | null
+          is_aisafety_company?: boolean
+          yc_batch?: string | null
           city?: string | null
           country?: string | null
           stage?: CompanyStage

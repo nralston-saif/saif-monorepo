@@ -43,14 +43,15 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
 
   const [formData, setFormData] = useState({
     name: company.name,
+    previous_names: company.previous_names?.join(', ') || '',
     short_description: company.short_description || '',
     website: company.website || '',
     industry: company.industry || '',
     founded_year: company.founded_year?.toString() || '',
     city: company.city || '',
     country: company.country || '',
-    YC_batch: company.YC_batch || '',
-    is_AIsafety_company: company.is_AIsafety_company,
+    yc_batch: company.yc_batch || '',
+    is_aisafety_company: company.is_aisafety_company,
   })
 
   const [logoUrl, setLogoUrl] = useState(company.logo_url)
@@ -134,9 +135,10 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
       setLogoUrl(`${publicUrl}?t=${Date.now()}`)
       setSuccess('Logo uploaded successfully!')
       setTimeout(() => setSuccess(null), 3000)
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error uploading logo:', err)
-      setError('Failed to upload logo. Please try again.')
+      const errorMessage = err?.message || err?.error?.message || 'Unknown error'
+      setError(`Failed to upload logo: ${errorMessage}`)
     } finally {
       setUploadingLogo(false)
     }
@@ -149,24 +151,36 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
     setSuccess(null)
 
     try {
-      const { error: updateError } = await supabase
+      // Parse previous_names from comma-separated string to array
+      const previousNamesArray = formData.previous_names
+        ? formData.previous_names.split(',').map(name => name.trim()).filter(Boolean)
+        : null
+
+      const { data: updateData, error: updateError } = await supabase
         .from('saif_companies')
         .update({
           name: formData.name,
+          previous_names: previousNamesArray,
           short_description: formData.short_description || null,
           website: formData.website || null,
           industry: formData.industry || null,
           founded_year: formData.founded_year ? parseInt(formData.founded_year) : null,
           city: formData.city || null,
           country: formData.country || null,
-          YC_batch: formData.YC_batch || null,
-          is_AIsafety_company: formData.is_AIsafety_company,
+          yc_batch: formData.yc_batch || null,
+          is_aisafety_company: formData.is_aisafety_company,
           updated_at: new Date().toISOString(),
         })
         .eq('id', company.id)
+        .select()
 
       if (updateError) {
         throw updateError
+      }
+
+      // Check if update actually affected any rows (RLS might silently block)
+      if (!updateData || updateData.length === 0) {
+        throw new Error('Update failed - you may not have permission to edit this company')
       }
 
       setSuccess('Company updated successfully!')
@@ -176,9 +190,27 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
       setTimeout(() => {
         router.refresh()
       }, 1000)
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error updating company:', err)
-      setError('Failed to update company. Please try again.')
+      // Try multiple ways to extract error info from Supabase errors
+      let errorMessage = 'Unknown error'
+      if (typeof err === 'string') {
+        errorMessage = err
+      } else if (err?.message) {
+        errorMessage = err.message
+      } else if (err?.error?.message) {
+        errorMessage = err.error.message
+      } else if (err?.error_description) {
+        errorMessage = err.error_description
+      } else if (err?.msg) {
+        errorMessage = err.msg
+      } else if (Object.keys(err || {}).length > 0) {
+        // Fallback: stringify the whole error object
+        errorMessage = JSON.stringify(err)
+      }
+      const errorCode = err?.code || err?.error?.code || err?.statusCode || ''
+      const errorDetails = err?.details || err?.error?.details || err?.hint || ''
+      setError(`Failed to update company: ${errorMessage}${errorCode ? ` (${errorCode})` : ''}${errorDetails ? ` - ${errorDetails}` : ''}`)
     } finally {
       setSaving(false)
     }
@@ -276,9 +308,10 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
       setTimeout(() => {
         router.refresh()
       }, 1000)
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error removing founder:', err)
-      setError('Failed to remove founder. Please try again.')
+      const errorMessage = err?.message || err?.error?.message || 'Unknown error'
+      setError(`Failed to remove founder: ${errorMessage}`)
     }
   }
 
@@ -338,18 +371,23 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
           {/* Company Name and Basic Info */}
           <div>
             <h1 className="text-4xl font-bold text-gray-900">{company.name}</h1>
+            {company.previous_names && company.previous_names.length > 0 && (
+              <p className="text-sm text-gray-500 mt-1">
+                Formerly: {company.previous_names.join(', ')}
+              </p>
+            )}
             <div className="mt-2 flex flex-wrap gap-2">
               {company.industry && (
                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
                   {company.industry}
                 </span>
               )}
-              {company.YC_batch && (
+              {company.yc_batch && (
                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
-                  YC {company.YC_batch}
+                  YC {company.yc_batch}
                 </span>
               )}
-              {company.is_AIsafety_company && (
+              {company.is_aisafety_company && (
                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                   AI Safety
                 </span>
@@ -405,6 +443,22 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
                   onChange={handleInputChange}
                   className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-gray-900 focus:border-gray-900"
                 />
+              </div>
+
+              <div>
+                <label htmlFor="previous_names" className="block text-sm font-medium text-gray-700">
+                  Former Names
+                </label>
+                <input
+                  type="text"
+                  id="previous_names"
+                  name="previous_names"
+                  value={formData.previous_names}
+                  onChange={handleInputChange}
+                  placeholder="e.g. OldCorp, Previous Inc (comma-separated)"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-gray-900 focus:border-gray-900"
+                />
+                <p className="mt-1 text-xs text-gray-500">Separate multiple names with commas</p>
               </div>
 
               <div>
@@ -504,14 +558,14 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
               </div>
 
               <div>
-                <label htmlFor="YC_batch" className="block text-sm font-medium text-gray-700">
+                <label htmlFor="yc_batch" className="block text-sm font-medium text-gray-700">
                   YC Batch
                 </label>
                 <input
                   type="text"
-                  id="YC_batch"
-                  name="YC_batch"
-                  value={formData.YC_batch}
+                  id="yc_batch"
+                  name="yc_batch"
+                  value={formData.yc_batch}
                   onChange={handleInputChange}
                   placeholder="S24, W25, etc."
                   className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-gray-900 focus:border-gray-900"
@@ -521,13 +575,13 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
               <div className="flex items-center">
                 <input
                   type="checkbox"
-                  id="is_AIsafety_company"
-                  name="is_AIsafety_company"
-                  checked={formData.is_AIsafety_company}
+                  id="is_aisafety_company"
+                  name="is_aisafety_company"
+                  checked={formData.is_aisafety_company}
                   onChange={handleInputChange}
                   className="h-4 w-4 text-gray-900 focus:ring-gray-900 border-gray-300 rounded"
                 />
-                <label htmlFor="is_AIsafety_company" className="ml-2 block text-sm text-gray-700">
+                <label htmlFor="is_aisafety_company" className="ml-2 block text-sm text-gray-700">
                   AI Safety Company
                 </label>
               </div>
@@ -545,14 +599,15 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
                 // Reset form data
                 setFormData({
                   name: company.name,
+                  previous_names: company.previous_names?.join(', ') || '',
                   short_description: company.short_description || '',
                   website: company.website || '',
                   industry: company.industry || '',
                   founded_year: company.founded_year?.toString() || '',
                   city: company.city || '',
                   country: company.country || '',
-                  YC_batch: company.YC_batch || '',
-                  is_AIsafety_company: company.is_AIsafety_company,
+                  yc_batch: company.yc_batch || '',
+                  is_aisafety_company: company.is_aisafety_company,
                 })
               }}
               className="text-sm text-gray-600 hover:text-gray-900"
