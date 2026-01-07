@@ -1,0 +1,136 @@
+{
+  "applications": [
+    {
+      "company_name": "Sec0",
+      "incorporated_as": "WormAI, Inc.",
+      "contact_email": "teluashish@gwu.edu",
+      "founder_names": "Ashish",
+      "description": "Protocol agnostic governance, risk & compliance (GRC) platform that wraps agent-to-agent and agent-to-MCP workflows in enterprise AI systems. Includes open-source SDK and unified control-plane dashboard for auditing, policy enforcement, and vulnerability remediation.",
+      "internal_notes": [
+        "Young ML researcher still working at his company",
+        "No cofounder",
+        "Nowhere on his idea judging from deck"
+      ],
+      "rejection_category": "early_stage_no_team",
+      "status": "reject"
+    },
+    {
+      "company_name": "Tova",
+      "contact_email": "hello@tovaapp.com",
+      "founder_names": null,
+      "description": "AI safety companion that helps people spot romance and investment scams in real time by analyzing chat flow and showing traffic light warnings. Built to sit inside dating apps, messaging platforms and financial services.",
+      "internal_notes": [
+        "No technical founder",
+        "Beta is probably vibe coded"
+      ],
+      "rejection_category": "no_tech_cofounder",
+      "status": "reject"
+    },
+    {
+      "company_name": "VAITION",
+      "contact_email": "vadim@vaition.com",
+      "founder_names": "Vadim",
+      "description": "Building the Continuity Layer (L0) with HISPU protocol for human presence verification. Claims to move digital world from probabilistic to deterministic architecture grounded in biological reality.",
+      "internal_notes": [
+        "Not believable",
+        "Psychosis"
+      ],
+      "rejection_category": "too_conceptual",
+      "status": "reject"
+    },
+    {
+      "company_name": "Chord",
+      "incorporated_as": "Sylience, Inc.",
+      "contact_email": null,
+      "founder_names": "Alex",
+      "description": "AI-facilitated group communication and decision making tool. Parallelizes group conversations to incorporate more stakeholder thinking. Currently text-based, built on Sonnet 4.5.",
+      "internal_notes": [
+        "Still contracting part time with Anthropic",
+        "Plans on bringing on a co-founder but no short list",
+        "User testing but no market validation yet"
+      ],
+      "rejection_category": "safety_angle_unclear",
+      "additional_asks": [
+        "Cofounder/team members",
+        "Fulltime commitment",
+        "Convince us on safety angle"
+      ],
+      "status": "friendly_reject"
+    },
+    {
+      "company_name": "Stitch",
+      "contact_email": "jdmccaffrey12@gmail.com",
+      "founder_names": "Jim",
+      "description": "Instructional intelligence platform for K-12 teachers. Analyzes student work to surface misconceptions, summarize trends, suggest interventions, and generate scaffolded reteach activities.",
+      "internal_notes": [
+        "Not aligned with AI safety",
+        "No tech cofounder",
+        "Bizdev guy, don't think he can build"
+      ],
+      "rejection_category": "not_ai_safety",
+      "status": "reject"
+    },
+    {
+      "company_name": "Inquiro",
+      "contact_email": "tomarshubham24@gmail.com",
+      "founder_names": "Ambika and Shubham",
+      "description": "AI Coding Agents for Social Scientists and Developmental Economists. Allows SMEs to edit prompts, context and workflows easily.",
+      "internal_notes": [
+        "Don't think this is SAIF"
+      ],
+      "rejection_category": "not_ai_safety",
+      "status": "reject"
+    },
+    {
+      "company_name": "ExoPriors, Inc.",
+      "contact_email": "xyra@exopriors.com",
+      "founder_names": "Xyra",
+      "description": "Building the DNS of subjectivity. Devoted to instantiating foundational epistemic infrastructure with agents comparing entities across high-dimensional subjective qualities.",
+      "internal_notes": [
+        "Probably psychosis",
+        "Nothing built",
+        "Not clear he has capability"
+      ],
+      "rejection_category": "too_conceptual",
+      "status": "reject"
+    },
+    {
+      "company_name": "EmpowerRwanda AI",
+      "contact_email": "delicelamia03@gmail.com",
+      "founder_names": "Ishimwe",
+      "description": "Platform using AI to connect Rwandan youth with digital skills training, apprenticeships, and microenterprise opportunities. Piloted programs impacting 300 youth with 100 internships and 30 microenterprises.",
+      "internal_notes": [
+        "Not safety"
+      ],
+      "rejection_category": "not_ai_safety",
+      "status": "reject"
+    },
+    {
+      "company_name": "CIRIS",
+      "contact_email": "mooreericnyc@gmail.com",
+      "founder_names": "Eric",
+      "corporate_structure": "L3C",
+      "description": "AGI safety framework for all sentient life. Open source CIRISAgent technology claims high jailbreak resistance and self-alignment. Running moderation on Discord with 200 members.",
+      "internal_notes": [
+        "This guy is out there",
+        "Need to confirm profit model",
+        "Unsure about adoption path"
+      ],
+      "rejection_category": "not_for_profit",
+      "status": "reject"
+    },
+    {
+      "company_name": "Cleferr",
+      "contact_email": "likiths082@gmail.com",
+      "founder_names": "Naga",
+      "description": "MCP server connecting to multiple LMS systems with real-time analytics engine. Plans to give away free LMS to entire Indian states to collect training data for educational foundation model.",
+      "internal_notes": [
+        "Not AI Safety",
+        "Founder seems ungrounded",
+        "From LMS to MCP to free LLM - unclear if AI tech expert"
+      ],
+      "rejection_category": "not_ai_safety",
+      "status": "reject"
+    }
+  ]
+}

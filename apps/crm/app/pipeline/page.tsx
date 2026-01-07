@@ -36,12 +36,13 @@ export default async function PipelinePage() {
     .in('stage', ['new', 'voting'])
     .order('submitted_at', { ascending: false })
 
-  // Get old/archived applications (already processed) with email sender info
+  // Get old/archived applications (already processed) with email sender info and votes
   const { data: oldApplications } = await supabase
     .from('saifcrm_applications')
     .select(`
       *,
-      email_sender:saif_people!applications_email_sender_id_fkey(name)
+      email_sender:saif_people!applications_email_sender_id_fkey(name),
+      saifcrm_votes(id, vote, user_id, notes, vote_type, saif_people(name))
     `)
     .in('stage', ['deliberation', 'invested', 'rejected'])
     .order('submitted_at', { ascending: false })
@@ -95,10 +96,35 @@ export default async function PipelinePage() {
       <Navigation userName={profile?.name || user.email || 'User'} />
       <PipelineClient
         applications={applicationsWithVotes}
-        oldApplications={(oldApplications || []).map(app => ({
-          ...app,
-          email_sender_name: (app.email_sender as any)?.name || null
-        }))}
+        oldApplications={(oldApplications || []).map(app => {
+          // Filter to only initial votes
+          const initialVotes = app.saifcrm_votes?.filter((v: any) => v.vote_type === 'initial') || []
+          const votesWithNames = initialVotes.map((v: any) => ({
+            oduserId: v.user_id,
+            userName: v.saif_people?.name || 'Unknown',
+            vote: v.vote,
+            notes: v.notes,
+          }))
+
+          return {
+            id: app.id,
+            company_name: app.company_name,
+            founder_names: app.founder_names,
+            founder_linkedins: app.founder_linkedins,
+            founder_bios: app.founder_bios,
+            primary_email: app.primary_email,
+            company_description: app.company_description,
+            website: app.website,
+            previous_funding: app.previous_funding,
+            deck_link: app.deck_link,
+            stage: app.stage,
+            submitted_at: app.submitted_at,
+            email_sent: app.email_sent,
+            email_sender_name: (app.email_sender as any)?.name || null,
+            allVotes: votesWithNames,
+            draft_rejection_email: (app as any).draft_rejection_email || null,
+          }
+        })}
         userId={profile?.id || ''}
         partners={partners || []}
       />

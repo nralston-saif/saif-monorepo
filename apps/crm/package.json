@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.71.2",
     "@liveblocks/client": "^3.12.1",
     "@liveblocks/react": "^3.12.1",
     "@saif/supabase": "workspace:*",
