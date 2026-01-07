@@ -32,6 +32,7 @@ type Investment = {
   applicationId: string | null
   deliberationNotes: string | null
   meetingNotes: MeetingNote[]
+  logo_url: string | null
 }
 
 type SortOption = 'date-newest' | 'date-oldest' | 'name-az' | 'name-za' | 'amount-high' | 'amount-low'
@@ -466,20 +467,36 @@ export default function PortfolioClient({
               className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden card-hover cursor-pointer"
             >
               <div className="p-6">
-                <div className="flex items-start justify-between mb-3">
+                <div className="flex items-start gap-3 mb-3">
+                  {/* Company Logo */}
+                  {investment.logo_url ? (
+                    <img
+                      src={investment.logo_url}
+                      alt={investment.company_name}
+                      className="w-10 h-10 object-contain flex-shrink-0"
+                    />
+                  ) : (
+                    <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <span className="text-lg font-bold text-gray-400">
+                        {investment.company_name[0]}
+                      </span>
+                    </div>
+                  )}
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-lg font-semibold text-gray-900 truncate">
-                      {investment.company_name}
-                    </h3>
+                    <div className="flex items-start justify-between">
+                      <h3 className="text-lg font-semibold text-gray-900 truncate">
+                        {investment.company_name}
+                      </h3>
+                      {investment.stealthy && (
+                        <span className="badge badge-purple ml-2 flex-shrink-0">
+                          Stealth
+                        </span>
+                      )}
+                    </div>
                     {investment.founders && (
                       <p className="text-sm text-gray-500 mt-0.5 truncate">{investment.founders}</p>
                     )}
                   </div>
-                  {investment.stealthy && (
-                    <span className="badge badge-purple ml-2 flex-shrink-0">
-                      Stealth
-                    </span>
-                  )}
                 </div>
 
                 {investment.description && (

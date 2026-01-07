@@ -32,6 +32,20 @@ export default async function PortfolioPage() {
     .select('*')
     .order('investment_date', { ascending: false })
 
+  // Get company logos from saif_companies
+  const { data: companies } = await supabase
+    .from('saif_companies')
+    .select('name, logo_url')
+    .not('logo_url', 'is', null)
+
+  // Create map of company name -> logo_url
+  const logoMap: Record<string, string> = {}
+  companies?.forEach(company => {
+    if (company.logo_url) {
+      logoMap[company.name.toLowerCase()] = company.logo_url
+    }
+  })
+
   // Get applications with deliberation notes and meeting notes to map to investments by company name
   const { data: applications } = await supabase
     .from('saifcrm_applications')
@@ -79,14 +93,16 @@ export default async function PortfolioPage() {
     }
   })
 
-  // Attach application data to investments
+  // Attach application data and logos to investments
   const investmentsWithNotes = (investments || []).map(inv => {
     const appData = companyAppMap[inv.company_name.toLowerCase()]
+    const logoUrl = logoMap[inv.company_name.toLowerCase()] || null
     return {
       ...inv,
       applicationId: appData?.applicationId || null,
       deliberationNotes: appData?.deliberationNotes || null,
       meetingNotes: appData?.meetingNotes || [],
+      logo_url: logoUrl,
     }
   })
 
