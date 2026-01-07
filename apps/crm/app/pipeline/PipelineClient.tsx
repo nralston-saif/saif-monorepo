@@ -1236,7 +1236,7 @@ export default function PipelineClient({
                         onChange={(e) => setEditingEmail(e.target.value)}
                         onFocus={() => !editingEmail && setEditingEmail(detailApp.draft_rejection_email || '')}
                         rows={12}
-                        className="input font-mono text-sm resize-none"
+                        className="input font-mono text-sm resize-y min-h-[200px]"
                         placeholder="Draft rejection email..."
                       />
                       <div className="flex gap-2">
