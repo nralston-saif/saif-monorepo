@@ -565,12 +565,12 @@ function MeetingNotesEditor({
       </div>
 
       {/* Shared Document Editor */}
-      <div className="flex-1 p-6 overflow-hidden">
+      <div className="flex-1 p-6 overflow-auto">
         <textarea
           value={draft}
           onChange={handleTextChange}
           placeholder="Start typing your meeting notes here... Everyone can edit this document together in real-time!"
-          className="w-full h-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent resize-none font-mono text-sm"
+          className="w-full min-h-[500px] px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent resize-y font-mono text-sm"
         />
       </div>
     </div>
@@ -668,12 +668,12 @@ function SimpleMeetingEditor({
           </div>
         </div>
       </div>
-      <div className="flex-1 p-6 overflow-hidden">
+      <div className="flex-1 p-6 overflow-auto">
         <textarea
           value={content}
           onChange={(e) => setContent(e.target.value)}
           placeholder="Start typing your meeting notes here..."
-          className="w-full h-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent resize-none font-mono text-sm"
+          className="w-full min-h-[500px] px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent resize-y font-mono text-sm"
         />
       </div>
     </div>
