@@ -1,11 +1,73 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Component, ReactNode } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { RoomProvider, useMutation, useStorage, useOthers, ClientSideSuspense, isLiveblocksConfigured } from '@/lib/liveblocks'
 import type { Meeting, Person, Company, TicketStatus, TicketPriority } from '@saif/supabase'
 import { useToast } from '@saif/ui'
 import TagSelector from '../tickets/TagSelector'
+
+// Error boundary to catch Liveblocks errors
+class LiveblocksErrorBoundary extends Component<
+  { children: ReactNode; fallback: ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: { children: ReactNode; fallback: ReactNode }) {
+    super(props)
+    this.state = { hasError: false }
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true }
+  }
+
+  componentDidCatch(error: Error) {
+    console.error('[Liveblocks] Error:', error)
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback
+    }
+    return this.props.children
+  }
+}
+
+// Suspense wrapper with timeout fallback
+function SuspenseWithTimeout({
+  children,
+  fallback,
+  loadingFallback,
+  timeoutMs = 10000
+}: {
+  children: ReactNode
+  fallback: ReactNode
+  loadingFallback?: ReactNode
+  timeoutMs?: number
+}) {
+  const [timedOut, setTimedOut] = useState(false)
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      console.log('[Liveblocks] Connection timed out after', timeoutMs, 'ms')
+      setTimedOut(true)
+    }, timeoutMs)
+
+    return () => clearTimeout(timer)
+  }, [timeoutMs])
+
+  if (timedOut) {
+    return <>{fallback}</>
+  }
+
+  return (
+    <ClientSideSuspense
+      fallback={loadingFallback || <div className="p-8 text-center text-gray-500">Connecting to collaborative editor...</div>}
+    >
+      {() => <>{children}</>}
+    </ClientSideSuspense>
+  )
+}
 
 type MeetingsClientProps = {
   meetings: Meeting[]
@@ -230,33 +292,57 @@ export default function MeetingsClient({ meetings, currentUser, partners }: Meet
         <div className="lg:col-span-3">
           {selectedMeeting ? (
             isLiveblocksConfigured ? (
-              <RoomProvider
-                id={`meeting-${selectedMeeting.id}`}
-                initialPresence={{
-                  cursor: null,
-                  name: currentUser.name || `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || 'Unknown',
-                  isTyping: false
-                }}
-                initialStorage={{
-                  draft: selectedMeeting.content || ''
-                }}
+              <LiveblocksErrorBoundary
+                fallback={
+                  <SimpleMeetingEditor
+                    meeting={selectedMeeting}
+                    currentUser={currentUser}
+                    onContentSaved={(meetingId, content) => {
+                      setMeetingsList(prev =>
+                        prev.map(m => m.id === meetingId ? { ...m, content } : m)
+                      )
+                    }}
+                  />
+                }
               >
-                <ClientSideSuspense fallback={<div className="p-8 text-center">Loading collaborative editor...</div>}>
-                  {() => (
+                <RoomProvider
+                  id={`meeting-${selectedMeeting.id}`}
+                  initialPresence={{
+                    cursor: null,
+                    name: currentUser.name || `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || 'Unknown',
+                    isTyping: false
+                  }}
+                  initialStorage={{
+                    draft: selectedMeeting.content || ''
+                  }}
+                >
+                  <SuspenseWithTimeout
+                    fallback={
+                      <SimpleMeetingEditor
+                        meeting={selectedMeeting}
+                        currentUser={currentUser}
+                        onContentSaved={(meetingId, content) => {
+                          setMeetingsList(prev =>
+                            prev.map(m => m.id === meetingId ? { ...m, content } : m)
+                          )
+                        }}
+                      />
+                    }
+                    timeoutMs={10000}
+                  >
                     <MeetingNotesEditor
                       meeting={selectedMeeting}
                       currentUser={currentUser}
                       partners={partners}
                       onContentSaved={(meetingId, content) => {
-                        // Update the meetings list with the new content for search
                         setMeetingsList(prev =>
                           prev.map(m => m.id === meetingId ? { ...m, content } : m)
                         )
                       }}
                     />
-                  )}
-                </ClientSideSuspense>
-              </RoomProvider>
+                  </SuspenseWithTimeout>
+                </RoomProvider>
+              </LiveblocksErrorBoundary>
             ) : (
               <SimpleMeetingEditor
                 meeting={selectedMeeting}
