@@ -6,11 +6,12 @@ const publicApiKey = process.env.NEXT_PUBLIC_LIVEBLOCKS_PUBLIC_KEY;
 const isValidKey = publicApiKey && publicApiKey.startsWith('pk_');
 export const isLiveblocksConfigured = isValidKey;
 
-// Create the Liveblocks client using auth endpoint for better security
-const client: Client = createClient({
-  authEndpoint: '/api/liveblocks-auth',
-  throttle: 100,
-});
+// Create the Liveblocks client - use public key directly if available
+const client: Client = createClient(
+  publicApiKey
+    ? { publicApiKey, throttle: 100 }
+    : { authEndpoint: '/api/liveblocks-auth', throttle: 100 }
+);
 
 // Presence represents the user's current state
 type Presence = {

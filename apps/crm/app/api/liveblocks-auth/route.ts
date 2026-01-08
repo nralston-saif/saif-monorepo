@@ -2,12 +2,25 @@ import { NextRequest } from 'next/server'
 import { Liveblocks } from '@liveblocks/node'
 import { createClient } from '@/lib/supabase/server'
 
-// Initialize Liveblocks with secret key
-const liveblocks = new Liveblocks({
-  secret: process.env.LIVEBLOCKS_SECRET_KEY || process.env.NEXT_PUBLIC_LIVEBLOCKS_PUBLIC_KEY || '',
-})
+// Lazy initialize Liveblocks to avoid build-time errors when secret key is not set
+function getLiveblocks(): Liveblocks | null {
+  const secretKey = process.env.LIVEBLOCKS_SECRET_KEY
+  if (!secretKey || !secretKey.startsWith('sk_')) {
+    return null
+  }
+  return new Liveblocks({ secret: secretKey })
+}
 
 export async function POST(request: NextRequest) {
+  // Check if Liveblocks is properly configured with a secret key
+  const liveblocks = getLiveblocks()
+  if (!liveblocks) {
+    return new Response(
+      JSON.stringify({ error: 'Liveblocks auth endpoint not configured. Using public key authentication instead.' }),
+      { status: 503, headers: { 'Content-Type': 'application/json' } }
+    )
+  }
+
   const supabase = await createClient()
 
   // Get the current user from Supabase auth
