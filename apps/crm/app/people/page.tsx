@@ -28,6 +28,10 @@ type PersonWithNotes = {
   twitter_url: string | null
   mobile_phone: string | null
   location: string | null
+  first_met_date: string | null
+  introduced_by: string | null
+  introduction_context: string | null
+  relationship_notes: string | null
   created_at: string
   company_associations: {
     relationship_type: string
@@ -74,7 +78,7 @@ export default async function PeoplePage({
     // Get all people (limit columns, no nested associations yet)
     const { data: people } = await supabase
       .from('saif_people')
-      .select('id, auth_user_id, first_name, last_name, name, email, role, status, avatar_url, linkedin_url, title, bio, twitter_url, mobile_phone, location, tags, created_at, updated_at')
+      .select('id, auth_user_id, first_name, last_name, name, email, role, status, avatar_url, linkedin_url, title, bio, twitter_url, mobile_phone, location, tags, first_met_date, introduced_by, introduction_context, relationship_notes, created_at, updated_at')
       .order('first_name', { ascending: true })
       .limit(500)
 
@@ -178,6 +182,10 @@ export default async function PeoplePage({
         twitter_url: person.twitter_url,
         mobile_phone: person.mobile_phone,
         location: person.location,
+        first_met_date: person.first_met_date,
+        introduced_by: person.introduced_by,
+        introduction_context: person.introduction_context,
+        relationship_notes: person.relationship_notes,
         created_at: person.created_at,
         company_associations: associationsByPerson[person.id] || [],
         noteCount: noteCountMap[person.id] || 0,

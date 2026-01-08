@@ -44,6 +44,10 @@ export interface Database {
           mobile_phone: string | null
           location: string | null
           tags: string[]
+          first_met_date: string | null
+          introduced_by: string | null
+          introduction_context: string | null
+          relationship_notes: string | null
           created_at: string
           updated_at: string
         }
@@ -64,6 +68,10 @@ export interface Database {
           mobile_phone?: string | null
           location?: string | null
           tags?: string[]
+          first_met_date?: string | null
+          introduced_by?: string | null
+          introduction_context?: string | null
+          relationship_notes?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -84,10 +92,21 @@ export interface Database {
           mobile_phone?: string | null
           location?: string | null
           tags?: string[]
+          first_met_date?: string | null
+          introduced_by?: string | null
+          introduction_context?: string | null
+          relationship_notes?: string | null
           created_at?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "saif_people_introduced_by_fkey"
+            columns: ["introduced_by"]
+            referencedRelation: "saif_people"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       saif_companies: {
         Row: {

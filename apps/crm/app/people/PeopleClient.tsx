@@ -31,6 +31,10 @@ type Person = {
   twitter_url: string | null
   mobile_phone: string | null
   location: string | null
+  first_met_date: string | null
+  introduced_by: string | null
+  introduction_context: string | null
+  relationship_notes: string | null
   created_at: string
   company_associations: CompanyAssociation[]
   noteCount: number
@@ -296,6 +300,10 @@ export default function PeopleClient({
         twitter_url: formData.twitter_url || null,
         mobile_phone: formData.mobile_phone || null,
         location: formData.location || null,
+        first_met_date: formData.first_met_date || null,
+        introduced_by: formData.introduced_by || null,
+        introduction_context: formData.introduction_context || null,
+        relationship_notes: formData.relationship_notes || null,
       }
 
       if (formData.id) {
@@ -1044,6 +1052,77 @@ export default function PeopleClient({
                   className="input resize-none"
                   placeholder="Brief background or notes about this person..."
                 />
+              </div>
+
+              {/* Relationship Tracking Section */}
+              <div className="p-4 bg-blue-50 rounded-lg border border-blue-100 space-y-4">
+                <div className="flex items-center gap-2 text-sm font-medium text-blue-800">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+                  </svg>
+                  Relationship Tracking
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      First Met Date
+                    </label>
+                    <input
+                      type="date"
+                      value={formData.first_met_date || ''}
+                      onChange={(e) => setFormData({ ...formData, first_met_date: e.target.value })}
+                      className="input"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      Introduced By
+                    </label>
+                    <select
+                      value={formData.introduced_by || ''}
+                      onChange={(e) => setFormData({ ...formData, introduced_by: e.target.value })}
+                      className="input"
+                    >
+                      <option value="">Select a person...</option>
+                      {people
+                        .filter(p => p.id !== formData.id)
+                        .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+                        .map(p => (
+                          <option key={p.id} value={p.id}>
+                            {p.name || p.displayName || `${p.first_name || ''} ${p.last_name || ''}`.trim() || p.email || 'Unknown'}
+                          </option>
+                        ))
+                      }
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    How We Met / Introduction Context
+                  </label>
+                  <textarea
+                    value={formData.introduction_context || ''}
+                    onChange={(e) => setFormData({ ...formData, introduction_context: e.target.value })}
+                    rows={2}
+                    className="input resize-none"
+                    placeholder="e.g., Met at YC Demo Day, introduced via email by John..."
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Relationship Notes
+                  </label>
+                  <textarea
+                    value={formData.relationship_notes || ''}
+                    onChange={(e) => setFormData({ ...formData, relationship_notes: e.target.value })}
+                    rows={2}
+                    className="input resize-none"
+                    placeholder="Ongoing notes about the relationship..."
+                  />
+                </div>
               </div>
             </div>
 

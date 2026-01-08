@@ -54,6 +54,20 @@ export default async function PersonPage({ params }: { params: Promise<{ id: str
     notFound()
   }
 
+  // Fetch introducer name if set
+  let introducerName: string | null = null
+  if (person.introduced_by) {
+    const { data: introducer } = await supabase
+      .from('saif_people')
+      .select('first_name, last_name, name')
+      .eq('id', person.introduced_by)
+      .single()
+
+    if (introducer) {
+      introducerName = introducer.name || `${introducer.first_name || ''} ${introducer.last_name || ''}`.trim() || null
+    }
+  }
+
   // Get active company associations
   const activeCompanies = person.companies?.filter(
     (c: any) => c.company && !c.end_date
@@ -120,6 +134,59 @@ export default async function PersonPage({ params }: { params: Promise<{ id: str
           <div className="mb-8">
             <h2 className="text-lg font-semibold text-gray-900 mb-2">About</h2>
             <p className="text-gray-700 whitespace-pre-wrap">{person.bio}</p>
+          </div>
+        )}
+
+        {/* Relationship Tracking */}
+        {(person.first_met_date || introducerName || person.introduction_context || person.relationship_notes) && (
+          <div className="mb-8 p-4 bg-blue-50 rounded-lg border border-blue-100">
+            <h2 className="text-lg font-semibold text-blue-900 mb-3 flex items-center gap-2">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+              </svg>
+              Relationship
+            </h2>
+            <div className="space-y-3">
+              {(person.first_met_date || introducerName) && (
+                <div className="flex flex-wrap gap-4 text-sm">
+                  {person.first_met_date && (
+                    <div>
+                      <span className="text-gray-500">First met:</span>{' '}
+                      <span className="font-medium text-gray-900">
+                        {new Date(person.first_met_date).toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric'
+                        })}
+                      </span>
+                    </div>
+                  )}
+                  {introducerName && (
+                    <div>
+                      <span className="text-gray-500">Introduced by:</span>{' '}
+                      <Link
+                        href={`/people/${person.introduced_by}`}
+                        className="font-medium text-blue-600 hover:text-blue-800"
+                      >
+                        {introducerName}
+                      </Link>
+                    </div>
+                  )}
+                </div>
+              )}
+              {person.introduction_context && (
+                <div>
+                  <p className="text-sm text-gray-500 mb-1">How we met:</p>
+                  <p className="text-gray-700 whitespace-pre-wrap">{person.introduction_context}</p>
+                </div>
+              )}
+              {person.relationship_notes && (
+                <div>
+                  <p className="text-sm text-gray-500 mb-1">Relationship notes:</p>
+                  <p className="text-gray-700 whitespace-pre-wrap">{person.relationship_notes}</p>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
