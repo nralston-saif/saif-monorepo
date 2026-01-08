@@ -2,7 +2,12 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { RoomProvider, useMutation, useStorage, useOthers, ClientSideSuspense, isLiveblocksConfigured } from '@/lib/liveblocks'
+import { RoomProvider, useMutation, useStorage, useOthers, ClientSideSuspense } from '@/lib/liveblocks'
+
+// Check if Liveblocks is configured (same pattern as MeetingNotes.tsx that works)
+const hasLiveblocks = typeof window !== 'undefined'
+  ? !!process.env.NEXT_PUBLIC_LIVEBLOCKS_PUBLIC_KEY
+  : true // Assume true on server to avoid hydration mismatch
 import type { Meeting, Person, Company, TicketStatus, TicketPriority } from '@saif/supabase'
 import { useToast } from '@saif/ui'
 import TagSelector from '../tickets/TagSelector'
@@ -229,7 +234,7 @@ export default function MeetingsClient({ meetings, currentUser, partners }: Meet
         {/* Meeting Notes Area */}
         <div className="lg:col-span-3">
           {selectedMeeting ? (
-            isLiveblocksConfigured ? (
+            hasLiveblocks ? (
               <RoomProvider
                 key={selectedMeeting.id}
                 id={`meeting-${selectedMeeting.id}`}
@@ -238,7 +243,7 @@ export default function MeetingsClient({ meetings, currentUser, partners }: Meet
                   name: currentUser.name || `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || 'Unknown',
                   isTyping: false
                 }}
-                initialStorage={{ draft: selectedMeeting.content || '' }}
+                initialStorage={{ draft: '' }}
               >
                 <ClientSideSuspense
                   fallback={
@@ -326,30 +331,30 @@ function MeetingNotesEditor({
 }) {
   const [saveStatus, setSaveStatus] = useState<'idle' | 'unsaved' | 'saving' | 'saved' | 'error'>('idle')
   const [saveTimer, setSaveTimer] = useState<NodeJS.Timeout | null>(null)
-  const [initialized, setInitialized] = useState(false)
+  const [hasLoadedContent, setHasLoadedContent] = useState(false)
 
   const supabase = createClient()
   const others = useOthers()
-  const draft = useStorage((root) => root.draft) || ''
+  const draft = useStorage((root) => root.draft)
   const updateDraft = useMutation(({ storage }, text: string) => {
     storage.set('draft', text)
   }, [])
 
-  // Initialize Liveblocks draft with database content on first load
+  // Load meeting content into Liveblocks storage on mount (like MeetingNotes.tsx pattern)
   useEffect(() => {
-    if (!initialized) {
-      // If there's content in the database and Liveblocks is empty, load it
+    // Only load content once when the room first connects
+    if (!hasLoadedContent && draft !== undefined) {
+      // If there's database content and the storage is empty, load it
       if (meeting.content && draft === '') {
         updateDraft(meeting.content)
       }
-      // Always mark as initialized so auto-save can start working
-      setInitialized(true)
+      setHasLoadedContent(true)
     }
-  }, [meeting.content, draft, updateDraft, initialized])
+  }, [meeting.content, draft, updateDraft, hasLoadedContent])
 
   // Auto-save draft to database
   useEffect(() => {
-    if (!draft || !initialized) return
+    if (!draft || !hasLoadedContent) return
 
     if (saveStatus !== 'unsaved') {
       setSaveStatus('unsaved')
@@ -385,7 +390,7 @@ function MeetingNotesEditor({
     return () => {
       if (timer) clearTimeout(timer)
     }
-  }, [draft, meeting.id, supabase, initialized])
+  }, [draft, meeting.id, supabase, hasLoadedContent])
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     updateDraft(e.target.value)
@@ -486,7 +491,7 @@ function MeetingNotesEditor({
       {/* Shared Document Editor */}
       <div className="flex-1 p-6 overflow-auto">
         <textarea
-          value={draft}
+          value={draft ?? ''}
           onChange={handleTextChange}
           placeholder="Start typing your meeting notes here... Everyone can edit this document together in real-time!"
           className="w-full min-h-[300px] px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent resize-y font-mono text-sm"
