@@ -1,9 +1,8 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { RoomProvider, useOthers, useUpdateMyPresence, useStorage, useMutation, ClientSideSuspense } from '@/lib/liveblocks'
-import { LiveObject } from '@liveblocks/client'
+import { CollaborativeNoteEditor } from './collaborative'
 
 type InvestmentNote = {
   id: string
@@ -24,347 +23,13 @@ type InvestmentMeetingNotesProps = {
   onClose: () => void
 }
 
-type SaveStatus = 'idle' | 'unsaved' | 'saving' | 'saved' | 'error'
-
-// Collaborative text area component with real-time sync
-function CollaborativeTextArea({
-  userName,
-  onContentChange,
-  onSetDraft,
-}: {
-  userName: string
-  onContentChange: (value: string) => void
-  onSetDraft?: (setter: (value: string) => void) => void
-}) {
-  const updateMyPresence = useUpdateMyPresence()
-  const others = useOthers()
-
-  // Read shared draft from Liveblocks storage
-  const draft = useStorage((root) => root.draft) || ''
-
-  // Mutation to update the shared draft
-  const updateDraft = useMutation(({ storage }, newDraft: string) => {
-    storage.set('draft', newDraft)
-  }, [])
-
-  // Expose the updateDraft function to parent for editing existing notes
-  useEffect(() => {
-    if (onSetDraft) {
-      onSetDraft(updateDraft)
-    }
-  }, [onSetDraft, updateDraft])
-
-  // Get who is typing
-  const typingUsers = others.filter((user) => user.presence.isTyping)
-
-  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const newValue = e.target.value
-    updateDraft(newValue)
-    onContentChange(newValue)
-    updateMyPresence({ isTyping: true })
-  }
-
-  const handleBlur = () => {
-    updateMyPresence({ isTyping: false })
-  }
-
-  // Set initial presence
-  useEffect(() => {
-    updateMyPresence({ name: userName, isTyping: false, cursor: null })
-  }, [userName, updateMyPresence])
-
-  // Sync content changes to parent
-  useEffect(() => {
-    onContentChange(draft)
-  }, [draft, onContentChange])
-
-  return (
-    <div className="relative">
-      <textarea
-        value={draft}
-        onChange={handleChange}
-        onBlur={handleBlur}
-        rows={8}
-        className="input resize-y w-full min-h-[200px]"
-        placeholder="Type your meeting notes here... Changes auto-save every 2 seconds."
-      />
-
-      {/* Typing indicators */}
-      {typingUsers.length > 0 && (
-        <div className="mt-2 text-sm text-gray-500 flex items-center gap-2">
-          <span className="flex gap-1">
-            <span className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-            <span className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-            <span className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-          </span>
-          <span>
-            {typingUsers.map((user) => user.presence.name || 'Someone').join(', ')}
-            {typingUsers.length === 1 ? ' is' : ' are'} typing...
-          </span>
-        </div>
-      )}
-
-      {/* Show connected users */}
-      {others.length > 0 && (
-        <div className="mt-2 flex items-center gap-2">
-          <span className="text-xs text-gray-400">Also here:</span>
-          <div className="flex -space-x-2">
-            {others.slice(0, 5).map((user) => (
-              <div
-                key={user.connectionId}
-                className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center ring-2 ring-white"
-                title={user.presence.name || 'Anonymous'}
-              >
-                <span className="text-white text-xs font-medium">
-                  {(user.presence.name || '?').charAt(0).toUpperCase()}
-                </span>
-              </div>
-            ))}
-            {others.length > 5 && (
-              <div className="w-6 h-6 rounded-full bg-gray-300 flex items-center justify-center ring-2 ring-white">
-                <span className="text-gray-600 text-xs">+{others.length - 5}</span>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// Save status indicator component
-function SaveStatusIndicator({ status }: { status: SaveStatus }) {
-  return (
-    <div className="flex items-center gap-2 text-sm">
-      {status === 'idle' && (
-        <span className="text-gray-400">Ready</span>
-      )}
-      {status === 'unsaved' && (
-        <>
-          <span className="w-2 h-2 bg-yellow-500 rounded-full" />
-          <span className="text-yellow-600">Unsaved changes</span>
-        </>
-      )}
-      {status === 'saving' && (
-        <>
-          <svg className="animate-spin h-4 w-4 text-blue-500" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-          </svg>
-          <span className="text-blue-600">Saving...</span>
-        </>
-      )}
-      {status === 'saved' && (
-        <>
-          <svg className="h-4 w-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-          </svg>
-          <span className="text-green-600">Saved</span>
-        </>
-      )}
-      {status === 'error' && (
-        <>
-          <svg className="h-4 w-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-          <span className="text-red-600">Error saving</span>
-        </>
-      )}
-    </div>
-  )
-}
-
-// Meeting notes input component (inside RoomProvider)
-function MeetingNotesInput({
-  investmentId,
-  userId,
-  userName,
-  editingNote,
-  onEditComplete,
-  onNoteAdded,
-}: {
-  investmentId: string
-  userId: string
-  userName: string
-  editingNote: InvestmentNote | null
-  onEditComplete: () => void
-  onNoteAdded: () => void
-}) {
-  const [meetingDate, setMeetingDate] = useState(() => {
-    return new Date().toISOString().split('T')[0]
-  })
-  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
-  const [lastSavedNoteId, setLastSavedNoteId] = useState<string | null>(null)
-  const [draftVersion, setDraftVersion] = useState(0)
-  const supabase = createClient()
-
-  // Ref to track the latest draft content (fixes sync bug)
-  const draftRef = useRef('')
-  const setDraftRef = useRef<((value: string) => void) | null>(null)
-
-  // Mutation to clear the shared draft
-  const clearDraft = useMutation(({ storage }) => {
-    storage.set('draft', '')
-  }, [])
-
-  // Update meeting date when editing a note
-  useEffect(() => {
-    if (editingNote) {
-      setMeetingDate(editingNote.meeting_date)
-      setLastSavedNoteId(editingNote.id)
-      // Load the note content into the draft
-      if (setDraftRef.current) {
-        setDraftRef.current(editingNote.content)
-      }
-    }
-  }, [editingNote])
-
-  // Auto-save effect with debounce
-  useEffect(() => {
-    const content = draftRef.current
-    if (!content.trim()) {
-      setSaveStatus('idle')
-      return
-    }
-
-    setSaveStatus('unsaved')
-
-    const timer = setTimeout(async () => {
-      await saveNote()
-    }, 2000)
-
-    return () => clearTimeout(timer)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draftVersion, meetingDate])
-
-  const saveNote = async () => {
-    const content = draftRef.current.trim()
-    if (!content) return
-
-    setSaveStatus('saving')
-    try {
-      if (lastSavedNoteId || editingNote) {
-        // Update existing note
-        const noteId = lastSavedNoteId || editingNote!.id
-        const { error } = await supabase
-          .from('saifcrm_investment_notes')
-          .update({
-            content,
-            meeting_date: meetingDate,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', noteId)
-
-        if (error) throw error
-      } else {
-        // Create new note
-        const { data, error } = await supabase
-          .from('saifcrm_investment_notes')
-          .insert({
-            investment_id: investmentId,
-            user_id: userId,
-            content,
-            meeting_date: meetingDate,
-          })
-          .select('id')
-          .single()
-
-        if (error) throw error
-        if (data) {
-          setLastSavedNoteId(data.id)
-        }
-      }
-
-      setSaveStatus('saved')
-      onNoteAdded()
-
-      // Reset to 'idle' after a moment so user knows it's saved
-      setTimeout(() => {
-        if (draftRef.current.trim() === content) {
-          setSaveStatus('saved')
-        }
-      }, 1000)
-    } catch (error) {
-      console.error('Error saving note:', error)
-      setSaveStatus('error')
-    }
-  }
-
-  const handleContentChange = useCallback((value: string) => {
-    draftRef.current = value
-    // Increment version to trigger auto-save effect
-    setDraftVersion((v) => v + 1)
-  }, [])
-
-  const handleSetDraft = useCallback((setter: (value: string) => void) => {
-    setDraftRef.current = setter
-  }, [])
-
-  const handleNewNote = () => {
-    clearDraft()
-    draftRef.current = ''
-    setLastSavedNoteId(null)
-    setMeetingDate(new Date().toISOString().split('T')[0])
-    setSaveStatus('idle')
-    setDraftVersion(0)
-    onEditComplete()
-  }
-
-  return (
-    <div className="bg-gray-50 rounded-xl p-4 space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium text-gray-700">
-          {editingNote ? 'Editing Note' : lastSavedNoteId ? 'Current Note' : 'New Note'}
-        </h3>
-        <div className="flex items-center gap-3">
-          <SaveStatusIndicator status={saveStatus} />
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-            <span className="text-xs text-gray-500">Live sync</span>
-          </div>
-        </div>
-      </div>
-
-      <div className="flex gap-3 items-end">
-        <div className="flex-1">
-          <label className="block text-sm text-gray-500 mb-1">Meeting Date</label>
-          <input
-            type="date"
-            value={meetingDate}
-            onChange={(e) => setMeetingDate(e.target.value)}
-            className="input"
-          />
-        </div>
-        {(editingNote || lastSavedNoteId) && (
-          <button
-            onClick={handleNewNote}
-            className="btn btn-secondary text-sm"
-          >
-            + New Note
-          </button>
-        )}
-      </div>
-
-      <CollaborativeTextArea
-        userName={userName}
-        onContentChange={handleContentChange}
-        onSetDraft={handleSetDraft}
-      />
-    </div>
-  )
-}
-
 // Notes list component with real-time updates
 function NotesList({
   investmentId,
   refreshTrigger,
-  onEditNote,
-  editingNoteId,
 }: {
   investmentId: string
   refreshTrigger: number
-  onEditNote: (note: InvestmentNote) => void
-  editingNoteId: string | null
 }) {
   const [notes, setNotes] = useState<InvestmentNote[]>([])
   const [loading, setLoading] = useState(true)
@@ -435,6 +100,14 @@ function NotesList({
     })
   }
 
+  const formatTime = (dateStr: string) => {
+    const date = new Date(dateStr)
+    return date.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+    })
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -458,47 +131,58 @@ function NotesList({
     )
   }
 
+  // Group notes by date
+  const groupedNotes: { [date: string]: InvestmentNote[] } = {}
+  notes.forEach((note) => {
+    const date = note.meeting_date
+    if (!groupedNotes[date]) {
+      groupedNotes[date] = []
+    }
+    groupedNotes[date].push(note)
+  })
+
   return (
-    <div>
-      <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-3">
+    <div className="space-y-6">
+      <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wide">
         Previous Notes ({notes.length})
       </h3>
-      <div className="space-y-3">
-        {notes.map((note) => (
-          <div
-            key={note.id}
-            onClick={() => onEditNote(note)}
-            className={`bg-white border rounded-xl p-4 cursor-pointer transition-all hover:border-blue-300 hover:shadow-sm ${
-              editingNoteId === note.id ? 'border-blue-500 ring-2 ring-blue-100' : 'border-gray-200'
-            }`}
-          >
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                {note.meeting_date && (
-                  <span className="badge bg-gray-100 text-gray-700">
-                    {formatDate(note.meeting_date)}
-                  </span>
-                )}
-                {note.user_name && (
-                  <span className="text-sm text-gray-500">
-                    by {note.user_name}
-                  </span>
-                )}
+      {Object.entries(groupedNotes).map(([date, dateNotes]) => (
+        <div key={date}>
+          <h4 className="text-sm font-medium text-gray-500 mb-3 flex items-center gap-2">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            {formatDate(date)}
+          </h4>
+          <div className="space-y-3">
+            {dateNotes.map((note) => (
+              <div
+                key={note.id}
+                className="bg-gray-50 rounded-lg p-4 border border-gray-100"
+              >
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-8 h-8 bg-gradient-to-br from-gray-400 to-gray-500 rounded-full flex items-center justify-center">
+                    <span className="text-white text-sm font-medium">
+                      {(note.user_name || 'U').charAt(0).toUpperCase()}
+                    </span>
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-medium text-gray-900">{note.user_name || 'Unknown'}</p>
+                    <p className="text-xs text-gray-500">Last updated {formatTime(note.updated_at || note.created_at)}</p>
+                  </div>
+                </div>
+                <p className="text-gray-700 whitespace-pre-wrap">{note.content}</p>
               </div>
-              <span className="text-xs text-gray-400">Click to edit</span>
-            </div>
-            <p className="text-gray-700 whitespace-pre-wrap text-sm">
-              {note.content}
-            </p>
+            ))}
           </div>
-        ))}
-      </div>
+        </div>
+      ))}
     </div>
   )
 }
 
-// Main component with Liveblocks room
-function InvestmentMeetingNotesContent({
+// Main component - modal wrapper
+export default function InvestmentMeetingNotes({
   investmentId,
   companyName,
   userId,
@@ -506,18 +190,9 @@ function InvestmentMeetingNotesContent({
   onClose,
 }: InvestmentMeetingNotesProps) {
   const [refreshTrigger, setRefreshTrigger] = useState(0)
-  const [editingNote, setEditingNote] = useState<InvestmentNote | null>(null)
 
-  const handleNoteAdded = () => {
+  const handleNoteSaved = () => {
     setRefreshTrigger((prev) => prev + 1)
-  }
-
-  const handleEditNote = (note: InvestmentNote) => {
-    setEditingNote(note)
-  }
-
-  const handleEditComplete = () => {
-    setEditingNote(null)
   }
 
   return (
@@ -548,19 +223,20 @@ function InvestmentMeetingNotesContent({
 
         {/* Modal Content */}
         <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
-          <MeetingNotesInput
-            investmentId={investmentId}
+          <CollaborativeNoteEditor
+            key={investmentId}
+            context={{ type: 'investment', id: investmentId }}
             userId={userId}
             userName={userName}
-            editingNote={editingNote}
-            onEditComplete={handleEditComplete}
-            onNoteAdded={handleNoteAdded}
+            showDatePicker={true}
+            placeholder="Type your meeting notes here... Changes auto-save and sync in real-time with other users."
+            minHeight="200px"
+            onNoteSaved={handleNoteSaved}
           />
+
           <NotesList
             investmentId={investmentId}
             refreshTrigger={refreshTrigger}
-            onEditNote={handleEditNote}
-            editingNoteId={editingNote?.id || null}
           />
         </div>
 
@@ -575,35 +251,5 @@ function InvestmentMeetingNotesContent({
         </div>
       </div>
     </div>
-  )
-}
-
-// Wrapper with RoomProvider
-export default function InvestmentMeetingNotes(props: InvestmentMeetingNotesProps) {
-  const roomId = `investment-notes-${props.investmentId}`
-
-  return (
-    <RoomProvider
-      id={roomId}
-      initialPresence={{ cursor: null, name: props.userName, isTyping: false }}
-      initialStorage={{ draft: new LiveObject({ draft: '' }).toObject().draft || '' }}
-    >
-      <ClientSideSuspense
-        fallback={
-          <div className="modal-backdrop">
-            <div className="modal-content max-w-2xl">
-              <div className="p-6 flex items-center justify-center">
-                <svg className="animate-spin h-8 w-8 text-gray-400" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                </svg>
-              </div>
-            </div>
-          </div>
-        }
-      >
-        <InvestmentMeetingNotesContent {...props} />
-      </ClientSideSuspense>
-    </RoomProvider>
   )
 }
