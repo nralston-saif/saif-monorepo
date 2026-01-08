@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { RoomProvider, useMutation, useStorage, useOthers, ClientSideSuspense } from '@/lib/liveblocks'
+import { RoomProvider, useMutation, useStorage, useOthers, ClientSideSuspense, isLiveblocksConfigured } from '@/lib/liveblocks'
 import type { Meeting, Person, Company, TicketStatus, TicketPriority } from '@saif/supabase'
 import { useToast } from '@saif/ui'
 import TagSelector from '../tickets/TagSelector'
@@ -229,33 +229,45 @@ export default function MeetingsClient({ meetings, currentUser, partners }: Meet
         {/* Meeting Notes Area */}
         <div className="lg:col-span-3">
           {selectedMeeting ? (
-            <RoomProvider
-              id={`meeting-${selectedMeeting.id}`}
-              initialPresence={{
-                cursor: null,
-                name: currentUser.name || `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || 'Unknown',
-                isTyping: false
-              }}
-              initialStorage={{
-                draft: selectedMeeting.content || ''
-              }}
-            >
-              <ClientSideSuspense fallback={<div className="p-8 text-center">Loading...</div>}>
-                {() => (
-                  <MeetingNotesEditor
-                    meeting={selectedMeeting}
-                    currentUser={currentUser}
-                    partners={partners}
-                    onContentSaved={(meetingId, content) => {
-                      // Update the meetings list with the new content for search
-                      setMeetingsList(prev =>
-                        prev.map(m => m.id === meetingId ? { ...m, content } : m)
-                      )
-                    }}
-                  />
-                )}
-              </ClientSideSuspense>
-            </RoomProvider>
+            isLiveblocksConfigured ? (
+              <RoomProvider
+                id={`meeting-${selectedMeeting.id}`}
+                initialPresence={{
+                  cursor: null,
+                  name: currentUser.name || `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || 'Unknown',
+                  isTyping: false
+                }}
+                initialStorage={{
+                  draft: selectedMeeting.content || ''
+                }}
+              >
+                <ClientSideSuspense fallback={<div className="p-8 text-center">Loading collaborative editor...</div>}>
+                  {() => (
+                    <MeetingNotesEditor
+                      meeting={selectedMeeting}
+                      currentUser={currentUser}
+                      partners={partners}
+                      onContentSaved={(meetingId, content) => {
+                        // Update the meetings list with the new content for search
+                        setMeetingsList(prev =>
+                          prev.map(m => m.id === meetingId ? { ...m, content } : m)
+                        )
+                      }}
+                    />
+                  )}
+                </ClientSideSuspense>
+              </RoomProvider>
+            ) : (
+              <SimpleMeetingEditor
+                meeting={selectedMeeting}
+                currentUser={currentUser}
+                onContentSaved={(meetingId, content) => {
+                  setMeetingsList(prev =>
+                    prev.map(m => m.id === meetingId ? { ...m, content } : m)
+                  )
+                }}
+              />
+            )
           ) : (
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-12 text-center">
               <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -472,6 +484,109 @@ function MeetingNotesEditor({
           value={draft}
           onChange={handleTextChange}
           placeholder="Start typing your meeting notes here... Everyone can edit this document together in real-time!"
+          className="w-full h-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent resize-none font-mono text-sm"
+        />
+      </div>
+    </div>
+  )
+}
+
+// Simple Meeting Editor (fallback when Liveblocks is not configured)
+function SimpleMeetingEditor({
+  meeting,
+  currentUser,
+  onContentSaved,
+}: {
+  meeting: Meeting
+  currentUser: Person
+  onContentSaved: (meetingId: string, content: string) => void
+}) {
+  const [content, setContent] = useState(meeting.content || '')
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'unsaved' | 'saving' | 'saved' | 'error'>('idle')
+  const [saveTimer, setSaveTimer] = useState<NodeJS.Timeout | null>(null)
+
+  const supabase = createClient()
+
+  // Reset content when meeting changes
+  useEffect(() => {
+    setContent(meeting.content || '')
+    setSaveStatus('idle')
+  }, [meeting.id, meeting.content])
+
+  // Auto-save
+  useEffect(() => {
+    if (content === meeting.content) return
+
+    setSaveStatus('unsaved')
+
+    if (saveTimer) clearTimeout(saveTimer)
+
+    const timer = setTimeout(async () => {
+      setSaveStatus('saving')
+
+      const { error } = await supabase
+        .from('saif_meetings')
+        .update({ content })
+        .eq('id', meeting.id)
+
+      if (error) {
+        console.error('Error saving:', error)
+        setSaveStatus('error')
+      } else {
+        onContentSaved(meeting.id, content)
+        setSaveStatus('saved')
+        setTimeout(() => setSaveStatus('idle'), 2000)
+      }
+    }, 2000)
+
+    setSaveTimer(timer)
+
+    return () => {
+      if (timer) clearTimeout(timer)
+    }
+  }, [content, meeting.id, supabase])
+
+  const formatMeetingDate = (dateString: string) => {
+    const [year, month, day] = dateString.split('T')[0].split('-')
+    const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
+    return date.toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    })
+  }
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full">
+      <div className="p-6 border-b border-gray-100">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900">{meeting.title}</h2>
+            <p className="text-sm text-gray-500 mt-1">{formatMeetingDate(meeting.meeting_date)}</p>
+          </div>
+          <div className="flex items-center gap-3">
+            {saveStatus !== 'idle' && (
+              <span className={`text-xs ${
+                saveStatus === 'saved' ? 'text-green-600' :
+                saveStatus === 'saving' ? 'text-blue-600' :
+                saveStatus === 'error' ? 'text-red-600' :
+                'text-gray-500'
+              }`}>
+                {saveStatus === 'saved' && '✓ Saved'}
+                {saveStatus === 'saving' && 'Saving...'}
+                {saveStatus === 'error' && '⚠ Error saving'}
+                {saveStatus === 'unsaved' && 'Unsaved changes'}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+      <div className="flex-1 p-6 overflow-hidden">
+        <textarea
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          placeholder="Start typing your meeting notes here..."
           className="w-full h-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent resize-none font-mono text-sm"
         />
       </div>
