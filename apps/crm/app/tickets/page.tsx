@@ -55,6 +55,7 @@ export default async function TicketsPage() {
       tags,
       created_at,
       updated_at,
+      archived_at,
       assigned_partner:saif_people!saif_tickets_assigned_to_fkey(id, first_name, last_name, email, avatar_url),
       creator:saif_people!saif_tickets_created_by_fkey(id, first_name, last_name, email, avatar_url),
       company:saif_companies!saif_tickets_related_company_fkey(id, name, logo_url),

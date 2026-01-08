@@ -29,21 +29,21 @@ export default async function PortfolioPage() {
   // Get all investments
   const { data: investments } = await supabase
     .from('saifcrm_investments')
-    .select('id, company_name, company_id, investment_date, amount, stage, notes, created_at, updated_at')
+    .select('id, company_name, investment_date, amount, terms, stealthy, contact_email, contact_name, website, description, founders, other_funders, notes, created_at, updated_at')
     .order('investment_date', { ascending: false })
     .limit(200)
 
-  // Get company logos from saif_companies (keyed by id for FK lookup)
+  // Get company logos from saif_companies (keyed by name for matching)
   const { data: companies } = await supabase
     .from('saif_companies')
-    .select('id, logo_url')
+    .select('name, logo_url')
     .not('logo_url', 'is', null)
 
-  // Create map of company id -> logo_url
+  // Create map of company name (lowercase) -> logo_url
   const logoMap: Record<string, string> = {}
   companies?.forEach(company => {
     if (company.logo_url) {
-      logoMap[company.id] = company.logo_url
+      logoMap[company.name.toLowerCase()] = company.logo_url
     }
   })
 
@@ -56,7 +56,7 @@ export default async function PortfolioPage() {
       stage,
       deliberation:saifcrm_deliberations(thoughts)
     `)
-    .in('stage', ['invested', 'portfolio'])
+    .eq('stage', 'invested')
     .limit(500)
 
   // Get meeting notes separately for these applications
@@ -68,7 +68,7 @@ export default async function PortfolioPage() {
     .limit(1000)
 
   // Get people for these meeting notes
-  const userIds = [...new Set(meetingNotes?.map(note => note.user_id).filter(Boolean))] || []
+  const userIds = [...new Set(meetingNotes?.map(note => note.user_id).filter(Boolean) || [])]
   const { data: people } = await supabase
     .from('saif_people')
     .select('id, name')
@@ -129,14 +129,12 @@ export default async function PortfolioPage() {
   // Attach application data and logos to investments
   const investmentsWithNotes = (investments || []).map(inv => {
     const appData = companyAppMap[inv.company_name.toLowerCase()]
-    // Use company_id FK for logo lookup (falls back to null if no company linked)
-    const companyId = (inv as any).company_id as string | null
     return {
       ...inv,
       applicationId: appData?.applicationId || null,
       deliberationNotes: appData?.deliberationNotes || null,
       meetingNotes: appData?.meetingNotes || [],
-      logo_url: companyId ? logoMap[companyId] || null : null,
+      logo_url: logoMap[inv.company_name.toLowerCase()] || null,
     }
   })
 
