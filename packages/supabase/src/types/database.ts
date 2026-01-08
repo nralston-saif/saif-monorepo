@@ -16,6 +16,8 @@ export type RelationshipType = 'founder' | 'employee' | 'advisor' | 'board_membe
 export type ApplicationStage = 'new' | 'voting' | 'deliberation' | 'invested' | 'rejected'
 export type VoteType = 'initial' | 'final'
 export type DeliberationDecision = 'pending' | 'maybe' | 'yes' | 'no'
+export type TicketStatus = 'open' | 'in_progress' | 'archived'
+export type TicketPriority = 'high' | 'medium' | 'low'
 
 export interface Database {
   public: {
@@ -626,6 +628,193 @@ export interface Database {
           }
         ]
       }
+      saif_tickets: {
+        Row: {
+          id: string
+          title: string
+          description: string | null
+          status: TicketStatus
+          priority: TicketPriority
+          due_date: string | null
+          created_at: string
+          updated_at: string
+          archived_at: string | null
+          assigned_to: string | null
+          created_by: string
+          related_company: string | null
+          related_person: string | null
+          tags: string[] | null
+        }
+        Insert: {
+          id?: string
+          title: string
+          description?: string | null
+          status?: TicketStatus
+          priority?: TicketPriority
+          due_date?: string | null
+          created_at?: string
+          updated_at?: string
+          archived_at?: string | null
+          assigned_to?: string | null
+          created_by: string
+          related_company?: string | null
+          related_person?: string | null
+          tags?: string[] | null
+        }
+        Update: {
+          id?: string
+          title?: string
+          description?: string | null
+          status?: TicketStatus
+          priority?: TicketPriority
+          due_date?: string | null
+          created_at?: string
+          updated_at?: string
+          archived_at?: string | null
+          assigned_to?: string | null
+          created_by?: string
+          related_company?: string | null
+          related_person?: string | null
+          tags?: string[] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saif_tickets_assigned_to_fkey"
+            columns: ["assigned_to"]
+            referencedRelation: "saif_people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "saif_tickets_created_by_fkey"
+            columns: ["created_by"]
+            referencedRelation: "saif_people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "saif_tickets_related_company_fkey"
+            columns: ["related_company"]
+            referencedRelation: "saif_companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "saif_tickets_related_person_fkey"
+            columns: ["related_person"]
+            referencedRelation: "saif_people"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      saif_tags: {
+        Row: {
+          id: string
+          name: string
+          color: string
+          created_at: string
+          created_by: string | null
+          usage_count: number
+        }
+        Insert: {
+          id?: string
+          name: string
+          color?: string
+          created_at?: string
+          created_by?: string | null
+          usage_count?: number
+        }
+        Update: {
+          id?: string
+          name?: string
+          color?: string
+          created_at?: string
+          created_by?: string | null
+          usage_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saif_tags_created_by_fkey"
+            columns: ["created_by"]
+            referencedRelation: "saif_people"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      saif_meetings: {
+        Row: {
+          id: string
+          title: string
+          meeting_date: string
+          content: string
+          created_by: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          title: string
+          meeting_date: string
+          content?: string
+          created_by: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          title?: string
+          meeting_date?: string
+          content?: string
+          created_by?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saif_meetings_created_by_fkey"
+            columns: ["created_by"]
+            referencedRelation: "saif_people"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      saif_meeting_notes: {
+        Row: {
+          id: string
+          meeting_id: string
+          author_id: string
+          content: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          meeting_id: string
+          author_id: string
+          content: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          meeting_id?: string
+          author_id?: string
+          content?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saif_meeting_notes_meeting_id_fkey"
+            columns: ["meeting_id"]
+            referencedRelation: "saif_meetings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "saif_meeting_notes_author_id_fkey"
+            columns: ["author_id"]
+            referencedRelation: "saif_people"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -666,6 +855,10 @@ export type Person = Database['public']['Tables']['saif_people']['Row']
 export type Company = Database['public']['Tables']['saif_companies']['Row']
 export type CompanyPerson = Database['public']['Tables']['saif_company_people']['Row']
 export type Investment = Database['public']['Tables']['saif_investments']['Row']
+export type Ticket = Database['public']['Tables']['saif_tickets']['Row']
+export type Tag = Database['public']['Tables']['saif_tags']['Row']
+export type Meeting = Database['public']['Tables']['saif_meetings']['Row']
+export type MeetingNote = Database['public']['Tables']['saif_meeting_notes']['Row']
 
 // CRM types
 export type Application = Database['public']['Tables']['saifcrm_applications']['Row']

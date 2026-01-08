@@ -1,22 +1,16 @@
 import { createClient, Client } from "@liveblocks/client";
 import { createRoomContext } from "@liveblocks/react";
 
-// Check if Liveblocks is configured
+// Check if Liveblocks is configured with a valid key
 const publicApiKey = process.env.NEXT_PUBLIC_LIVEBLOCKS_PUBLIC_KEY;
-export const isLiveblocksConfigured = !!publicApiKey;
+const isValidKey = publicApiKey && publicApiKey.startsWith('pk_');
+export const isLiveblocksConfigured = isValidKey;
 
-// Create the Liveblocks client only if configured
-let client: Client;
-if (publicApiKey) {
-  client = createClient({ publicApiKey });
-} else {
-  // Create a minimal client that won't crash but won't work for real-time features
-  // This is a workaround to allow the app to load without Liveblocks
-  client = createClient({
-    authEndpoint: "/api/liveblocks-auth",
-    // This will fail gracefully when someone tries to join a room
-  });
-}
+// Create the Liveblocks client using auth endpoint for better security
+const client: Client = createClient({
+  authEndpoint: '/api/liveblocks-auth',
+  throttle: 100,
+});
 
 // Presence represents the user's current state
 type Presence = {

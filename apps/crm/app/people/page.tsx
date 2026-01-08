@@ -33,7 +33,7 @@ export default async function PeoplePage({
   // Get user profile with role
   const { data: profile } = await supabase
     .from('saif_people')
-    .select('*')
+    .select('id, first_name, last_name, name, email, role, status')
     .eq('auth_user_id', user.id)
     .single()
 
@@ -45,27 +45,61 @@ export default async function PeoplePage({
 
   // For partners, show the full CRM people view with notes
   if (isPartner) {
-    // Get all people with their company associations
+    // Get all people (limit columns, no nested associations yet)
     const { data: people } = await supabase
       .from('saif_people')
-      .select(`
-        *,
-        company_associations:saif_company_people(
-          relationship_type,
-          title,
-          company:saif_companies(id, name)
-        )
-      `)
+      .select('id, first_name, last_name, name, email, role, status, avatar_url, linkedin_url, created_at')
       .order('first_name', { ascending: true })
+      .limit(500)
+
+    // Get company associations separately
+    const personIds = people?.map(p => p.id) || []
+    const { data: associations } = await supabase
+      .from('saif_company_people')
+      .select('user_id, relationship_type, title, company_id')
+      .in('user_id', personIds)
+      .limit(2000)
+
+    // Get companies for these associations
+    const companyIds = [...new Set(associations?.map(a => a.company_id))] || []
+    const { data: companies } = await supabase
+      .from('saif_companies')
+      .select('id, name')
+      .in('id', companyIds as string[])
+
+    // Create company map
+    const companyMap: Record<string, { id: string; name: string }> = {}
+    companies?.forEach(c => {
+      companyMap[c.id] = c
+    })
+
+    // Create association map by person
+    const associationsByPerson: Record<string, Array<{
+      relationship_type: string
+      title: string | null
+      company: { id: string; name: string } | null
+    }>> = {}
+
+    associations?.forEach(assoc => {
+      if (!associationsByPerson[assoc.user_id]) {
+        associationsByPerson[assoc.user_id] = []
+      }
+      associationsByPerson[assoc.user_id].push({
+        relationship_type: assoc.relationship_type,
+        title: assoc.title,
+        company: assoc.company_id ? companyMap[assoc.company_id] : null,
+      })
+    })
 
     // Get note counts for each person
-    const { data: noteCounts } = await supabase
+    const { data: notes } = await supabase
       .from('saifcrm_people_notes')
       .select('person_id')
+      .in('person_id', personIds)
 
     // Create a map of person_id -> note count
     const noteCountMap: Record<string, number> = {}
-    noteCounts?.forEach(note => {
+    notes?.forEach(note => {
       noteCountMap[note.person_id] = (noteCountMap[note.person_id] || 0) + 1
     })
 
@@ -73,11 +107,13 @@ export default async function PeoplePage({
     const { data: investments } = await supabase
       .from('saifcrm_investments')
       .select('id, company_name')
+      .limit(500)
 
     // Get applications (pipeline and deliberation)
     const { data: applications } = await supabase
       .from('saifcrm_applications')
       .select('id, company_name, stage')
+      .limit(1000)
 
     // Build company location map: company_name (lowercase) -> { page, id }
     const companyLocationMap: Record<string, { page: string; id: string }> = {}
@@ -95,7 +131,7 @@ export default async function PeoplePage({
       companyLocationMap[key] = { page: 'portfolio', id: inv.id }
     })
 
-    // Attach note counts and construct display name
+    // Attach associations, note counts, and construct display name
     const peopleWithNotes = (people || []).map(person => {
       const displayName = person.first_name && person.last_name
         ? `${person.first_name} ${person.last_name}`
@@ -103,6 +139,7 @@ export default async function PeoplePage({
 
       return {
         ...person,
+        company_associations: associationsByPerson[person.id] || [],
         displayName,
         noteCount: noteCountMap[person.id] || 0,
       }
@@ -128,7 +165,15 @@ export default async function PeoplePage({
   const { data: people, error: peopleError } = await supabase
     .from('saif_people')
     .select(`
-      *,
+      id,
+      first_name,
+      last_name,
+      name,
+      email,
+      role,
+      status,
+      avatar_url,
+      linkedin_url,
       companies:saif_company_people(
         id,
         relationship_type,
@@ -144,6 +189,7 @@ export default async function PeoplePage({
       )
     `)
     .order('first_name')
+    .limit(500)
 
   if (peopleError) {
     console.error('Error fetching people:', peopleError)

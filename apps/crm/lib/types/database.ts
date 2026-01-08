@@ -10,6 +10,8 @@ export type UserRole = 'partner' | 'founder' | 'advisor' | 'employee' | 'board_m
 export type UserStatus = 'active' | 'pending' | 'tracked' | 'inactive'
 export type CompanyStage = 'portfolio' | 'prospect' | 'diligence' | 'passed' | 'archived' | 'saif'
 export type RelationshipType = 'founder' | 'employee' | 'advisor' | 'board_member' | 'partner'
+export type TicketStatus = 'open' | 'in_progress' | 'archived'
+export type TicketPriority = 'high' | 'medium' | 'low'
 
 export interface Database {
   public: {
@@ -268,6 +270,82 @@ export interface Database {
           }
         ]
       }
+      saif_tickets: {
+        Row: {
+          id: string
+          title: string
+          description: string | null
+          status: TicketStatus
+          priority: TicketPriority
+          due_date: string | null
+          created_at: string
+          updated_at: string
+          archived_at: string | null
+          assigned_to: string | null
+          created_by: string
+          related_company: string | null
+          related_person: string | null
+          tags: string[] | null
+        }
+        Insert: {
+          id?: string
+          title: string
+          description?: string | null
+          status?: TicketStatus
+          priority?: TicketPriority
+          due_date?: string | null
+          created_at?: string
+          updated_at?: string
+          archived_at?: string | null
+          assigned_to?: string | null
+          created_by: string
+          related_company?: string | null
+          related_person?: string | null
+          tags?: string[] | null
+        }
+        Update: {
+          id?: string
+          title?: string
+          description?: string | null
+          status?: TicketStatus
+          priority?: TicketPriority
+          due_date?: string | null
+          created_at?: string
+          updated_at?: string
+          archived_at?: string | null
+          assigned_to?: string | null
+          created_by?: string
+          related_company?: string | null
+          related_person?: string | null
+          tags?: string[] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saif_tickets_assigned_to_fkey"
+            columns: ["assigned_to"]
+            referencedRelation: "saif_people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "saif_tickets_created_by_fkey"
+            columns: ["created_by"]
+            referencedRelation: "saif_people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "saif_tickets_related_company_fkey"
+            columns: ["related_company"]
+            referencedRelation: "saif_companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "saif_tickets_related_person_fkey"
+            columns: ["related_person"]
+            referencedRelation: "saif_people"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -304,6 +382,7 @@ export type Person = Database['public']['Tables']['saif_people']['Row']
 export type Company = Database['public']['Tables']['saif_companies']['Row']
 export type CompanyPerson = Database['public']['Tables']['saif_company_people']['Row']
 export type Investment = Database['public']['Tables']['saif_investments']['Row']
+export type Ticket = Database['public']['Tables']['saif_tickets']['Row']
 
 // Helper type for person with company info
 export type PersonWithCompany = Person & {
@@ -317,4 +396,12 @@ export type CompanyWithPeople = Company & {
   people?: (CompanyPerson & {
     person: Person
   })[]
+}
+
+// Helper type for ticket with relationships
+export type TicketWithRelations = Ticket & {
+  assigned_partner?: Person | null
+  creator?: Person | null
+  company?: Company | null
+  person?: Person | null
 }

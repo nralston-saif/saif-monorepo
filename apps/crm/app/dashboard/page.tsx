@@ -135,31 +135,6 @@ export default async function DashboardPage() {
     submitted_at: app.submitted_at,
   })) || []
 
-  // Get applications assigned to current user for email follow-up (use person id)
-  const { data: myEmailAssignments } = await supabase
-    .from('saifcrm_applications')
-    .select('id, company_name, founder_names, primary_email, stage, email_sent')
-    .eq('email_sender_id', profile?.id || '')
-    .in('stage', ['deliberation', 'rejected'])
-    .order('submitted_at', { ascending: false })
-
-  // Get ALL email assignments (from all users) for the team view
-  const { data: allEmailAssignments } = await supabase
-    .from('saifcrm_applications')
-    .select(`
-      id,
-      company_name,
-      founder_names,
-      primary_email,
-      stage,
-      email_sent,
-      email_sender_id,
-      saif_people!applications_email_sender_id_fkey(name)
-    `)
-    .not('email_sender_id', 'is', null)
-    .in('stage', ['deliberation', 'rejected'])
-    .order('submitted_at', { ascending: false })
-
   // Get companies in deliberation needing decision
   const { data: deliberationApps } = await supabase
     .from('saifcrm_applications')
@@ -197,6 +172,32 @@ export default async function DashboardPage() {
     rejected: allApps?.filter(a => a.stage === 'rejected').length || 0,
   }
 
+  // Get active tickets assigned to user or unassigned
+  const { data: myActiveTickets } = await supabase
+    .from('saif_tickets')
+    .select(`
+      id,
+      title,
+      description,
+      priority,
+      due_date,
+      status,
+      tags,
+      company:related_company(name)
+    `)
+    .in('status', ['open', 'in_progress'])
+    .or(`assigned_to.eq.${profile?.id},assigned_to.is.null`)
+    .order('priority', { ascending: true })
+    .order('due_date', { ascending: true, nullsFirst: false })
+    .limit(10)
+
+  // Count overdue tickets
+  const { count: overdueTicketsCount } = await supabase
+    .from('saif_tickets')
+    .select('*', { count: 'exact', head: true })
+    .in('status', ['open', 'in_progress'])
+    .lt('due_date', new Date().toISOString().split('T')[0])
+
   // Notifications - cleared for fresh start
   const notifications: { id: string; company_name: string; type: 'ready' | 'notes'; updated_at?: string }[] = []
 
@@ -205,12 +206,9 @@ export default async function DashboardPage() {
       <Navigation userName={profile?.name || user.email || 'User'} />
       <DashboardClient
         needsVote={needsVote}
-        myEmailAssignments={myEmailAssignments || []}
-        allEmailAssignments={allEmailAssignments?.map(app => ({
-          ...app,
-          assignedTo: (app.saif_people as any)?.name || 'Unknown'
-        })) || []}
         needsDecision={needsDecision}
+        myActiveTickets={myActiveTickets || []}
+        overdueTicketsCount={overdueTicketsCount || 0}
         stats={stats}
         notifications={notifications}
         userId={profile?.id || ''}

@@ -29,8 +29,9 @@ export default async function PortfolioPage() {
   // Get all investments
   const { data: investments } = await supabase
     .from('saifcrm_investments')
-    .select('*')
+    .select('id, company_name, company_id, investment_date, amount, stage, notes, created_at, updated_at')
     .order('investment_date', { ascending: false })
+    .limit(200)
 
   // Get company logos from saif_companies (keyed by id for FK lookup)
   const { data: companies } = await supabase
@@ -46,15 +47,60 @@ export default async function PortfolioPage() {
     }
   })
 
-  // Get applications with deliberation notes and meeting notes to map to investments by company name
+  // Get applications with deliberation notes (no meeting notes to avoid nested joins)
   const { data: applications } = await supabase
     .from('saifcrm_applications')
     .select(`
       id,
       company_name,
-      deliberation:saifcrm_deliberations(thoughts),
-      meeting_notes:saifcrm_meeting_notes(id, content, meeting_date, created_at, user_id, saif_people(name))
+      stage,
+      deliberation:saifcrm_deliberations(thoughts)
     `)
+    .in('stage', ['invested', 'portfolio'])
+    .limit(500)
+
+  // Get meeting notes separately for these applications
+  const applicationIds = applications?.map(app => app.id) || []
+  const { data: meetingNotes } = await supabase
+    .from('saifcrm_meeting_notes')
+    .select('id, application_id, content, meeting_date, created_at, user_id')
+    .in('application_id', applicationIds)
+    .limit(1000)
+
+  // Get people for these meeting notes
+  const userIds = [...new Set(meetingNotes?.map(note => note.user_id).filter(Boolean))] || []
+  const { data: people } = await supabase
+    .from('saif_people')
+    .select('id, name')
+    .in('id', userIds as string[])
+
+  // Create people map
+  const peopleMap: Record<string, string> = {}
+  people?.forEach(person => {
+    peopleMap[person.id] = person.name || 'Unknown'
+  })
+
+  // Create map of application_id -> meeting notes
+  const appMeetingNotesMap: Record<string, Array<{
+    id: string
+    content: string
+    meeting_date: string | null
+    created_at: string
+    user_name: string | null
+  }>> = {}
+
+  meetingNotes?.forEach(note => {
+    if (!appMeetingNotesMap[note.application_id]) {
+      appMeetingNotesMap[note.application_id] = []
+    }
+    appMeetingNotesMap[note.application_id].push({
+      id: note.id,
+      content: note.content,
+      meeting_date: note.meeting_date,
+      created_at: note.created_at,
+      user_name: note.user_id ? peopleMap[note.user_id] : null,
+    })
+  })
 
   // Create maps for company name -> application data
   const companyAppMap: Record<string, {
@@ -71,20 +117,7 @@ export default async function PortfolioPage() {
 
   applications?.forEach(app => {
     const deliberation = Array.isArray(app.deliberation) ? app.deliberation[0] : app.deliberation
-    const meetingNotes = (app.meeting_notes || []).map((note: {
-      id: string
-      content: string
-      meeting_date: string | null
-      created_at: string
-      user_id: string
-      saif_people: { name: string | null }
-    }) => ({
-      id: note.id,
-      content: note.content,
-      meeting_date: note.meeting_date,
-      created_at: note.created_at,
-      user_name: note.saif_people?.name || null,
-    }))
+    const meetingNotes = appMeetingNotesMap[app.id] || []
 
     companyAppMap[app.company_name.toLowerCase()] = {
       applicationId: app.id,

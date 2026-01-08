@@ -300,6 +300,7 @@ export default function PipelineClient({
     try {
       const newStage = action === 'deliberation' ? 'deliberation' : 'rejected'
 
+      // Update application stage and assign email sender
       const { error } = await supabase
         .from('saifcrm_applications')
         .update({
@@ -314,6 +315,25 @@ export default function PipelineClient({
         showToast(`Error: ${error.message}`, 'error')
         setMovingToDelib(null)
         return
+      }
+
+      // Create a ticket for the email follow-up task
+      const stageLabel = action === 'deliberation' ? 'deliberation' : 'rejection'
+      const { error: ticketError } = await supabase
+        .from('saif_tickets')
+        .insert({
+          title: `Send follow-up email to ${app.company_name}`,
+          description: `Send ${stageLabel} follow-up email to ${app.company_name}${app.primary_email ? ` (${app.primary_email})` : ''}${app.founder_names ? `\n\nFounders: ${app.founder_names}` : ''}`,
+          status: 'open',
+          priority: 'medium',
+          assigned_to: selectedEmailSender,
+          created_by: userId,
+          tags: ['email-follow-up', newStage],
+        })
+
+      if (ticketError) {
+        console.error('Error creating ticket:', ticketError)
+        // Don't fail the whole operation if ticket creation fails
       }
 
       const message = action === 'deliberation' ? 'Moved to deliberation' : 'Marked as rejected'
