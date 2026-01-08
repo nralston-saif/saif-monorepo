@@ -6,10 +6,36 @@ import FounderNavigation from '@/components/FounderNavigation'
 import PeopleClient from './PeopleClient'
 import PeopleGrid from './PeopleGrid'
 import type { Database } from '@/lib/types/database'
+import type { UserRole, UserStatus } from '@saif/supabase'
 
 type Person = Database['public']['Tables']['saif_people']['Row']
 type CompanyPerson = Database['public']['Tables']['saif_company_people']['Row']
 type Company = Database['public']['Tables']['saif_companies']['Row']
+
+// Type that matches what PeopleClient expects
+type PersonWithNotes = {
+  id: string
+  name: string | null
+  first_name: string | null
+  last_name: string | null
+  displayName: string | null
+  email: string | null
+  role: UserRole
+  status: UserStatus
+  title: string | null
+  bio: string | null
+  linkedin_url: string | null
+  twitter_url: string | null
+  mobile_phone: string | null
+  location: string | null
+  created_at: string
+  company_associations: {
+    relationship_type: string
+    title: string | null
+    company: { id: string; name: string } | null
+  }[]
+  noteCount: number
+}
 
 // Force dynamic rendering to ensure searchParams are always fresh
 export const dynamic = 'force-dynamic'
@@ -132,15 +158,28 @@ export default async function PeoplePage({
     })
 
     // Attach associations, note counts, and construct display name
-    const peopleWithNotes = (people || []).map(person => {
+    const peopleWithNotes: PersonWithNotes[] = (people || []).map(person => {
       const displayName = person.first_name && person.last_name
         ? `${person.first_name} ${person.last_name}`
         : person.first_name || person.last_name || person.name || null
 
       return {
-        ...person,
-        company_associations: associationsByPerson[person.id] || [],
+        id: person.id,
+        name: person.name,
+        first_name: person.first_name,
+        last_name: person.last_name,
         displayName,
+        email: person.email,
+        role: person.role,
+        status: person.status,
+        title: person.title,
+        bio: person.bio,
+        linkedin_url: person.linkedin_url,
+        twitter_url: person.twitter_url,
+        mobile_phone: person.mobile_phone,
+        location: person.location,
+        created_at: person.created_at,
+        company_associations: associationsByPerson[person.id] || [],
         noteCount: noteCountMap[person.id] || 0,
       }
     })

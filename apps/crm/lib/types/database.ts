@@ -25,6 +25,7 @@ export interface Database {
           status: UserStatus
           first_name: string | null
           last_name: string | null
+          name: string | null
           title: string | null
           bio: string | null
           avatar_url: string | null
@@ -44,6 +45,7 @@ export interface Database {
           status?: UserStatus
           first_name?: string | null
           last_name?: string | null
+          name?: string | null
           title?: string | null
           bio?: string | null
           avatar_url?: string | null
@@ -63,6 +65,7 @@ export interface Database {
           status?: UserStatus
           first_name?: string | null
           last_name?: string | null
+          name?: string | null
           title?: string | null
           bio?: string | null
           avatar_url?: string | null
