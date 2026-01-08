@@ -1,3 +1,4 @@
+// Database type definitions for SAIF CRM
 export type Json =
   | string
   | number
