@@ -61,7 +61,7 @@ export default async function PeoplePage({
       .limit(2000)
 
     // Get companies for these associations
-    const companyIds = [...new Set(associations?.map(a => a.company_id))] || []
+    const companyIds = [...new Set(associations?.map(a => a.company_id) ?? [])]
     const { data: companies } = await supabase
       .from('saif_companies')
       .select('id, name')
