@@ -3,11 +3,6 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { RoomProvider, useMutation, useStorage, useOthers, ClientSideSuspense } from '@/lib/liveblocks'
-
-// Check if Liveblocks is configured (same pattern as MeetingNotes.tsx that works)
-const hasLiveblocks = typeof window !== 'undefined'
-  ? !!process.env.NEXT_PUBLIC_LIVEBLOCKS_PUBLIC_KEY
-  : true // Assume true on server to avoid hydration mismatch
 import type { Meeting, Person, Company, TicketStatus, TicketPriority } from '@saif/supabase'
 import { useToast } from '@saif/ui'
 import TagSelector from '../tickets/TagSelector'
@@ -28,6 +23,9 @@ export default function MeetingsClient({ meetings, currentUser, partners }: Meet
   const [searchTerm, setSearchTerm] = useState('')
 
   const supabase = createClient()
+
+  // Check if Liveblocks is configured (same pattern as MeetingNotes.tsx)
+  const hasLiveblocks = !!process.env.NEXT_PUBLIC_LIVEBLOCKS_PUBLIC_KEY
 
   // Fetch meetings with full content on mount (client-side to avoid serialization issues)
   useEffect(() => {
@@ -235,38 +233,17 @@ export default function MeetingsClient({ meetings, currentUser, partners }: Meet
         <div className="lg:col-span-3">
           {selectedMeeting ? (
             hasLiveblocks ? (
-              <RoomProvider
+              <LiveblocksWrapper
                 key={selectedMeeting.id}
-                id={`meeting-${selectedMeeting.id}`}
-                initialPresence={{
-                  cursor: null,
-                  name: currentUser.name || `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || 'Unknown',
-                  isTyping: false
+                meeting={selectedMeeting}
+                currentUser={currentUser}
+                partners={partners}
+                onContentSaved={(meetingId, content) => {
+                  setMeetingsList(prev =>
+                    prev.map(m => m.id === meetingId ? { ...m, content } : m)
+                  )
                 }}
-                initialStorage={{ draft: '' }}
-              >
-                <ClientSideSuspense
-                  fallback={
-                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 animate-pulse">
-                      <div className="h-8 bg-gray-200 rounded w-1/3 mb-4" />
-                      <div className="h-64 bg-gray-200 rounded" />
-                    </div>
-                  }
-                >
-                  {() => (
-                    <MeetingNotesEditor
-                      meeting={selectedMeeting}
-                      currentUser={currentUser}
-                      partners={partners}
-                      onContentSaved={(meetingId, content) => {
-                        setMeetingsList(prev =>
-                          prev.map(m => m.id === meetingId ? { ...m, content } : m)
-                        )
-                      }}
-                    />
-                  )}
-                </ClientSideSuspense>
-              </RoomProvider>
+              />
             ) : (
               <SimpleMeetingEditor
                 meeting={selectedMeeting}
@@ -313,6 +290,151 @@ export default function MeetingsClient({ meetings, currentUser, partners }: Meet
           people={people}
         />
       )}
+    </div>
+  )
+}
+
+// Liveblocks wrapper with error handling and timeout
+function LiveblocksWrapper({
+  meeting,
+  currentUser,
+  partners,
+  onContentSaved,
+}: {
+  meeting: Meeting
+  currentUser: Person
+  partners: Person[]
+  onContentSaved: (meetingId: string, content: string) => void
+}) {
+  const [hasTimedOut, setHasTimedOut] = useState(false)
+
+  // Timeout after 15 seconds
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setHasTimedOut(true)
+    }, 15000)
+
+    return () => clearTimeout(timer)
+  }, [meeting.id])
+
+  // If timed out, show error with fallback option
+  if (hasTimedOut) {
+    return (
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+        <div className="text-center mb-4">
+          <p className="text-amber-600 mb-2">Real-time collaboration is taking longer than expected to connect.</p>
+          <p className="text-gray-500 text-sm">You can continue editing without real-time sync:</p>
+        </div>
+        <SimpleMeetingEditorInner
+          meeting={meeting}
+          currentUser={currentUser}
+          onContentSaved={onContentSaved}
+        />
+      </div>
+    )
+  }
+
+  return (
+    <RoomProvider
+      id={`meeting-${meeting.id}`}
+      initialPresence={{
+        cursor: null,
+        name: currentUser.name || `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || 'Unknown',
+        isTyping: false
+      }}
+      initialStorage={{ draft: '' }}
+    >
+      <ClientSideSuspense
+        fallback={
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="animate-spin h-5 w-5 border-2 border-gray-300 border-t-black rounded-full" />
+              <span className="text-gray-600">Connecting to real-time collaboration...</span>
+            </div>
+            <div className="animate-pulse">
+              <div className="h-8 bg-gray-200 rounded w-1/3 mb-4" />
+              <div className="h-64 bg-gray-200 rounded" />
+            </div>
+          </div>
+        }
+      >
+        {() => (
+          <MeetingNotesEditor
+            meeting={meeting}
+            currentUser={currentUser}
+            partners={partners}
+            onContentSaved={onContentSaved}
+          />
+        )}
+      </ClientSideSuspense>
+    </RoomProvider>
+  )
+}
+
+// Simple editor for inside the wrapper (reuses SimpleMeetingEditor logic)
+function SimpleMeetingEditorInner({
+  meeting,
+  currentUser,
+  onContentSaved,
+}: {
+  meeting: Meeting
+  currentUser: Person
+  onContentSaved: (meetingId: string, content: string) => void
+}) {
+  const [content, setContent] = useState(meeting.content || '')
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'unsaved' | 'saving' | 'saved' | 'error'>('idle')
+  const supabase = createClient()
+
+  // Auto-save
+  useEffect(() => {
+    if (content === meeting.content) return
+
+    setSaveStatus('unsaved')
+
+    const timer = setTimeout(async () => {
+      setSaveStatus('saving')
+
+      const { error } = await supabase
+        .from('saif_meetings')
+        .update({ content })
+        .eq('id', meeting.id)
+
+      if (error) {
+        console.error('Error saving:', error)
+        setSaveStatus('error')
+      } else {
+        onContentSaved(meeting.id, content)
+        setSaveStatus('saved')
+        setTimeout(() => setSaveStatus('idle'), 2000)
+      }
+    }, 2000)
+
+    return () => clearTimeout(timer)
+  }, [content, meeting.id, meeting.content, supabase, onContentSaved])
+
+  return (
+    <div>
+      <div className="flex justify-end mb-2">
+        {saveStatus !== 'idle' && (
+          <span className={`text-xs ${
+            saveStatus === 'saved' ? 'text-green-600' :
+            saveStatus === 'saving' ? 'text-blue-600' :
+            saveStatus === 'error' ? 'text-red-600' :
+            'text-gray-500'
+          }`}>
+            {saveStatus === 'saved' && '✓ Saved'}
+            {saveStatus === 'saving' && 'Saving...'}
+            {saveStatus === 'error' && '⚠ Error saving'}
+            {saveStatus === 'unsaved' && 'Unsaved changes'}
+          </span>
+        )}
+      </div>
+      <textarea
+        value={content}
+        onChange={(e) => setContent(e.target.value)}
+        placeholder="Start typing your meeting notes here..."
+        className="w-full min-h-[300px] px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent resize-y font-mono text-sm"
+      />
     </div>
   )
 }
