@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useToast } from '@saif/ui'
 import PersonMeetingNotes from '@/components/PersonMeetingNotes'
-import type { UserRole, UserStatus } from '@saif/supabase'
+import type { UserRole, UserStatus, RelationshipType } from '@saif/supabase'
 
 type CompanyAssociation = {
   relationship_type: string
@@ -99,10 +99,28 @@ export default function PeopleClient({
   const [loading, setLoading] = useState(false)
   const [potentialDuplicates, setPotentialDuplicates] = useState<Person[]>([])
   const [showDuplicateWarning, setShowDuplicateWarning] = useState(false)
+  const [companies, setCompanies] = useState<{ id: string; name: string }[]>([])
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string>('')
+  const [relationshipType, setRelationshipType] = useState<string>('employee')
 
   const router = useRouter()
   const supabase = createClient()
   const { showToast } = useToast()
+
+  // Fetch companies for the dropdown
+  useEffect(() => {
+    const fetchCompanies = async () => {
+      const { data } = await supabase
+        .from('saif_companies')
+        .select('id, name')
+        .order('name')
+
+      if (data) {
+        setCompanies(data)
+      }
+    }
+    fetchCompanies()
+  }, [supabase])
 
   // Sync URL search param to state (handles client-side navigation)
   useEffect(() => {
@@ -191,6 +209,8 @@ export default function PeopleClient({
       mobile_phone: '',
       location: '',
     })
+    setSelectedCompanyId('')
+    setRelationshipType('employee')
     setShowAddModal(true)
   }
 
@@ -293,20 +313,44 @@ export default function PeopleClient({
         showToast('Person updated', 'success')
       } else {
         // Create new person
-        const { error } = await supabase
+        const { data: newPerson, error } = await supabase
           .from('saif_people')
           .insert(dataToSave)
+          .select('id')
+          .single()
 
         if (error) {
           showToast('Error creating person: ' + error.message, 'error')
           setLoading(false)
           return
         }
-        showToast('Person added', 'success')
+
+        // Link to company if selected
+        if (selectedCompanyId && newPerson?.id) {
+          const { error: linkError } = await supabase
+            .from('saif_company_people')
+            .insert({
+              company_id: selectedCompanyId,
+              user_id: newPerson.id,
+              relationship_type: relationshipType as RelationshipType,
+              title: formData.title || null,
+            })
+
+          if (linkError) {
+            console.error('Error linking to company:', linkError)
+            // Person was created, just show partial success
+            showToast('Person added, but failed to link to company', 'warning')
+          } else {
+            showToast('Person added and linked to company', 'success')
+          }
+        } else {
+          showToast('Person added', 'success')
+        }
       }
 
       setShowAddModal(false)
       setFormData({})
+      setSelectedCompanyId('')
       setPotentialDuplicates([])
       router.refresh()
     } catch (err) {
@@ -903,6 +947,52 @@ export default function PeopleClient({
                   placeholder="Job title or role"
                 />
               </div>
+
+              {/* Company Linking - only shown when creating new person */}
+              {!formData.id && (
+                <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 space-y-4">
+                  <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                    <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                    </svg>
+                    Link to Company (Optional)
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600 mb-1.5">
+                        Company
+                      </label>
+                      <select
+                        value={selectedCompanyId}
+                        onChange={(e) => setSelectedCompanyId(e.target.value)}
+                        className="input"
+                      >
+                        <option value="">No company</option>
+                        {companies.map(company => (
+                          <option key={company.id} value={company.id}>{company.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600 mb-1.5">
+                        Relationship
+                      </label>
+                      <select
+                        value={relationshipType}
+                        onChange={(e) => setRelationshipType(e.target.value)}
+                        className="input"
+                        disabled={!selectedCompanyId}
+                      >
+                        <option value="employee">Employee</option>
+                        <option value="founder">Founder</option>
+                        <option value="advisor">Advisor</option>
+                        <option value="board_member">Board Member</option>
+                        <option value="partner">Partner</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">

@@ -228,12 +228,21 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
       if (newFounder.email) {
         const { data: existingPerson } = await supabase
           .from('saif_people')
-          .select('id')
+          .select('id, role')
           .eq('email', newFounder.email)
           .single()
 
         if (existingPerson) {
           personId = existingPerson.id
+
+          // Update role to 'founder' if they're not already a founder or partner
+          // (partner is a higher-priority role that shouldn't be downgraded)
+          if (existingPerson.role !== 'founder' && existingPerson.role !== 'partner') {
+            await supabase
+              .from('saif_people')
+              .update({ role: 'founder' })
+              .eq('id', existingPerson.id)
+          }
         }
       }
 
@@ -255,18 +264,44 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
         personId = createdPerson.id
       }
 
-      // Link founder to company
-      const { error: linkError } = await supabase
+      // Check if person is already linked as a founder to this company
+      const { data: existingLink } = await supabase
         .from('saif_company_people')
-        .insert({
-          company_id: company.id,
-          user_id: personId,
-          relationship_type: 'founder',
-          title: newFounder.title || null,
-          is_primary_contact: false,
-        })
+        .select('id, end_date')
+        .eq('company_id', company.id)
+        .eq('user_id', personId)
+        .eq('relationship_type', 'founder')
+        .single()
 
-      if (linkError) throw linkError
+      if (existingLink && !existingLink.end_date) {
+        // Already an active founder
+        setError('This person is already listed as a founder of this company.')
+        setAddingFounder(false)
+        return
+      }
+
+      if (existingLink && existingLink.end_date) {
+        // Was a former founder - reactivate by clearing end_date
+        const { error: reactivateError } = await supabase
+          .from('saif_company_people')
+          .update({ end_date: null, title: newFounder.title || null })
+          .eq('id', existingLink.id)
+
+        if (reactivateError) throw reactivateError
+      } else {
+        // Link founder to company (new relationship)
+        const { error: linkError } = await supabase
+          .from('saif_company_people')
+          .insert({
+            company_id: company.id,
+            user_id: personId,
+            relationship_type: 'founder',
+            title: newFounder.title || null,
+            is_primary_contact: false,
+          })
+
+        if (linkError) throw linkError
+      }
 
       setSuccess('Founder added successfully!')
       setShowAddFounder(false)
