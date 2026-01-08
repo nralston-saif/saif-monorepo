@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { RoomProvider, useMutation, useStorage, useOthers, ClientSideSuspense, useStatus } from '@/lib/liveblocks'
 import type { Meeting, Person, Company, TicketStatus, TicketPriority } from '@saif/supabase'
@@ -318,7 +318,8 @@ function LiveblocksWrapper({
   onContentSaved: (meetingId: string, content: string) => void
 }) {
   const [hasTimedOut, setHasTimedOut] = useState(false)
-  const [connectionError, setConnectionError] = useState<string | null>(null)
+  const [isConnected, setIsConnected] = useState(false)
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Debug logging
   useEffect(() => {
@@ -329,15 +330,31 @@ function LiveblocksWrapper({
     })
   }, [meeting.id])
 
-  // Timeout after 15 seconds
+  // Timeout after 15 seconds - only if not connected
   useEffect(() => {
-    const timer = setTimeout(() => {
-      console.log('[Meetings Liveblocks] Connection timed out after 15s')
-      setHasTimedOut(true)
+    if (isConnected) return // Don't set timeout if already connected
+
+    timeoutRef.current = setTimeout(() => {
+      if (!isConnected) {
+        console.log('[Meetings Liveblocks] Connection timed out after 15s')
+        setHasTimedOut(true)
+      }
     }, 15000)
 
-    return () => clearTimeout(timer)
-  }, [meeting.id])
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current)
+    }
+  }, [meeting.id, isConnected])
+
+  // Callback to mark as connected (called when editor mounts)
+  const onConnected = () => {
+    console.log('[Meetings Liveblocks] Connected successfully')
+    setIsConnected(true)
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current)
+      timeoutRef.current = null
+    }
+  }
 
   // If timed out, show error with fallback option
   if (hasTimedOut) {
@@ -387,6 +404,7 @@ function LiveblocksWrapper({
             currentUser={currentUser}
             partners={partners}
             onContentSaved={onContentSaved}
+            onConnected={onConnected}
           />
         )}
       </ClientSideSuspense>
@@ -468,11 +486,13 @@ function MeetingNotesEditor({
   currentUser,
   partners,
   onContentSaved,
+  onConnected,
 }: {
   meeting: Meeting
   currentUser: Person
   partners: Person[]
   onContentSaved: (meetingId: string, content: string) => void
+  onConnected?: () => void
 }) {
   const [saveStatus, setSaveStatus] = useState<'idle' | 'unsaved' | 'saving' | 'saved' | 'error'>('idle')
   const [saveTimer, setSaveTimer] = useState<NodeJS.Timeout | null>(null)
@@ -484,6 +504,11 @@ function MeetingNotesEditor({
   const updateDraft = useMutation(({ storage }, text: string) => {
     storage.set('draft', text)
   }, [])
+
+  // Signal that we're connected when this component mounts
+  useEffect(() => {
+    onConnected?.()
+  }, [onConnected])
 
   // Load meeting content into Liveblocks storage on mount (like MeetingNotes.tsx pattern)
   useEffect(() => {
