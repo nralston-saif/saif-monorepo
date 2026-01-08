@@ -236,6 +236,9 @@ export default function MeetingsClient({ meetings, currentUser, partners }: Meet
                 name: currentUser.name || `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || 'Unknown',
                 isTyping: false
               }}
+              initialStorage={{
+                draft: selectedMeeting.content || ''
+              }}
             >
               <ClientSideSuspense fallback={<div className="p-8 text-center">Loading...</div>}>
                 {() => (
