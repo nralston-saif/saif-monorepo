@@ -231,13 +231,14 @@ export default function MeetingsClient({ meetings, currentUser, partners }: Meet
           {selectedMeeting ? (
             isLiveblocksConfigured ? (
               <RoomProvider
+                key={selectedMeeting.id}
                 id={`meeting-${selectedMeeting.id}`}
                 initialPresence={{
                   cursor: null,
                   name: currentUser.name || `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || 'Unknown',
                   isTyping: false
                 }}
-                initialStorage={{ draft: '' }}
+                initialStorage={{ draft: selectedMeeting.content || '' }}
               >
                 <ClientSideSuspense
                   fallback={
