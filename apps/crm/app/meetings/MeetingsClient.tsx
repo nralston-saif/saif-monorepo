@@ -1,73 +1,11 @@
 'use client'
 
-import { useState, useEffect, Component, ReactNode } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { RoomProvider, useMutation, useStorage, useOthers, ClientSideSuspense, isLiveblocksConfigured } from '@/lib/liveblocks'
 import type { Meeting, Person, Company, TicketStatus, TicketPriority } from '@saif/supabase'
 import { useToast } from '@saif/ui'
 import TagSelector from '../tickets/TagSelector'
-
-// Error boundary to catch Liveblocks errors
-class LiveblocksErrorBoundary extends Component<
-  { children: ReactNode; fallback: ReactNode },
-  { hasError: boolean }
-> {
-  constructor(props: { children: ReactNode; fallback: ReactNode }) {
-    super(props)
-    this.state = { hasError: false }
-  }
-
-  static getDerivedStateFromError() {
-    return { hasError: true }
-  }
-
-  componentDidCatch(error: Error) {
-    console.error('[Liveblocks] Error:', error)
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return this.props.fallback
-    }
-    return this.props.children
-  }
-}
-
-// Suspense wrapper with timeout fallback
-function SuspenseWithTimeout({
-  children,
-  fallback,
-  loadingFallback,
-  timeoutMs = 10000
-}: {
-  children: ReactNode
-  fallback: ReactNode
-  loadingFallback?: ReactNode
-  timeoutMs?: number
-}) {
-  const [timedOut, setTimedOut] = useState(false)
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      console.log('[Liveblocks] Connection timed out after', timeoutMs, 'ms')
-      setTimedOut(true)
-    }, timeoutMs)
-
-    return () => clearTimeout(timer)
-  }, [timeoutMs])
-
-  if (timedOut) {
-    return <>{fallback}</>
-  }
-
-  return (
-    <ClientSideSuspense
-      fallback={loadingFallback || <div className="p-8 text-center text-gray-500">Connecting to collaborative editor...</div>}
-    >
-      {() => <>{children}</>}
-    </ClientSideSuspense>
-  )
-}
 
 type MeetingsClientProps = {
   meetings: Meeting[]
@@ -292,44 +230,26 @@ export default function MeetingsClient({ meetings, currentUser, partners }: Meet
         <div className="lg:col-span-3">
           {selectedMeeting ? (
             isLiveblocksConfigured ? (
-              <LiveblocksErrorBoundary
-                fallback={
-                  <SimpleMeetingEditor
-                    meeting={selectedMeeting}
-                    currentUser={currentUser}
-                    onContentSaved={(meetingId, content) => {
-                      setMeetingsList(prev =>
-                        prev.map(m => m.id === meetingId ? { ...m, content } : m)
-                      )
-                    }}
-                  />
-                }
+              <RoomProvider
+                id={`meeting-${selectedMeeting.id}`}
+                initialPresence={{
+                  cursor: null,
+                  name: currentUser.name || `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || 'Unknown',
+                  isTyping: false
+                }}
+                initialStorage={{
+                  draft: selectedMeeting.content || ''
+                }}
               >
-                <RoomProvider
-                  id={`meeting-${selectedMeeting.id}`}
-                  initialPresence={{
-                    cursor: null,
-                    name: currentUser.name || `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || 'Unknown',
-                    isTyping: false
-                  }}
-                  initialStorage={{
-                    draft: selectedMeeting.content || ''
-                  }}
+                <ClientSideSuspense
+                  fallback={
+                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 animate-pulse">
+                      <div className="h-8 bg-gray-200 rounded w-1/3 mb-4" />
+                      <div className="h-64 bg-gray-200 rounded" />
+                    </div>
+                  }
                 >
-                  <SuspenseWithTimeout
-                    fallback={
-                      <SimpleMeetingEditor
-                        meeting={selectedMeeting}
-                        currentUser={currentUser}
-                        onContentSaved={(meetingId, content) => {
-                          setMeetingsList(prev =>
-                            prev.map(m => m.id === meetingId ? { ...m, content } : m)
-                          )
-                        }}
-                      />
-                    }
-                    timeoutMs={10000}
-                  >
+                  {() => (
                     <MeetingNotesEditor
                       meeting={selectedMeeting}
                       currentUser={currentUser}
@@ -340,9 +260,9 @@ export default function MeetingsClient({ meetings, currentUser, partners }: Meet
                         )
                       }}
                     />
-                  </SuspenseWithTimeout>
-                </RoomProvider>
-              </LiveblocksErrorBoundary>
+                  )}
+                </ClientSideSuspense>
+              </RoomProvider>
             ) : (
               <SimpleMeetingEditor
                 meeting={selectedMeeting}
@@ -570,7 +490,7 @@ function MeetingNotesEditor({
           value={draft}
           onChange={handleTextChange}
           placeholder="Start typing your meeting notes here... Everyone can edit this document together in real-time!"
-          className="w-full min-h-[500px] px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent resize-y font-mono text-sm"
+          className="w-full min-h-[300px] px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent resize-y font-mono text-sm"
         />
       </div>
     </div>
@@ -673,7 +593,7 @@ function SimpleMeetingEditor({
           value={content}
           onChange={(e) => setContent(e.target.value)}
           placeholder="Start typing your meeting notes here..."
-          className="w-full min-h-[500px] px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent resize-y font-mono text-sm"
+          className="w-full min-h-[300px] px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent resize-y font-mono text-sm"
         />
       </div>
     </div>
