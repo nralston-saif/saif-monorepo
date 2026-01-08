@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Navigation from '@/components/Navigation'
 import MeetingsClient from './MeetingsClient'
-import type { Meeting, MeetingNote, Person } from '@saif/supabase/types'
+import type { Meeting, MeetingNote, Person } from '@saif/supabase'
 
 export default async function MeetingsPage() {
   const supabase = await createClient()
