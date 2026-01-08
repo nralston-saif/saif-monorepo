@@ -231,7 +231,11 @@ export default function MeetingsClient({ meetings, currentUser, partners }: Meet
           {selectedMeeting ? (
             <RoomProvider
               id={`meeting-${selectedMeeting.id}`}
-              initialPresence={{ cursor: null }}
+              initialPresence={{
+                cursor: null,
+                name: currentUser.name || `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || 'Unknown',
+                isTyping: false
+              }}
             >
               <ClientSideSuspense fallback={<div className="p-8 text-center">Loading...</div>}>
                 {() => (
