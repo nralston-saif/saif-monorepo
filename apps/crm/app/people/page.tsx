@@ -48,7 +48,7 @@ export default async function PeoplePage({
     // Get all people (limit columns, no nested associations yet)
     const { data: people } = await supabase
       .from('saif_people')
-      .select('id, first_name, last_name, name, email, role, status, avatar_url, linkedin_url, created_at')
+      .select('id, auth_user_id, first_name, last_name, name, email, role, status, avatar_url, linkedin_url, title, bio, twitter_url, mobile_phone, location, tags, created_at, updated_at')
       .order('first_name', { ascending: true })
       .limit(500)
 
