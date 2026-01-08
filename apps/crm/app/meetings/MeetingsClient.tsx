@@ -323,7 +323,7 @@ function LiveblocksWrapper({
   // Debug logging
   useEffect(() => {
     console.log('[Meetings Liveblocks] Attempting to connect:', {
-      roomId: `meeting-${meeting.id}`,
+      roomId: `notes-meeting-${meeting.id}`,
       hasPublicKey: !!process.env.NEXT_PUBLIC_LIVEBLOCKS_PUBLIC_KEY,
       keyPrefix: process.env.NEXT_PUBLIC_LIVEBLOCKS_PUBLIC_KEY?.substring(0, 10),
     })
@@ -358,7 +358,7 @@ function LiveblocksWrapper({
 
   return (
     <RoomProvider
-      id={`meeting-${meeting.id}`}
+      id={`notes-meeting-${meeting.id}`}
       initialPresence={{
         cursor: null,
         name: currentUser.name || `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || 'Unknown',
@@ -366,7 +366,7 @@ function LiveblocksWrapper({
       }}
       initialStorage={{ draft: '' }}
     >
-      <ConnectionStatusLogger roomId={`meeting-${meeting.id}`} />
+      <ConnectionStatusLogger roomId={`notes-meeting-${meeting.id}`} />
       <ClientSideSuspense
         fallback={
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
