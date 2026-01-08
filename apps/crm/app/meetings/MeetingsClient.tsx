@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { RoomProvider, useMutation, useStorage, useOthers, ClientSideSuspense } from '@/lib/liveblocks'
+import { RoomProvider, useMutation, useStorage, useOthers, ClientSideSuspense, useStatus } from '@/lib/liveblocks'
 import type { Meeting, Person, Company, TicketStatus, TicketPriority } from '@saif/supabase'
 import { useToast } from '@saif/ui'
 import TagSelector from '../tickets/TagSelector'
@@ -294,6 +294,17 @@ export default function MeetingsClient({ meetings, currentUser, partners }: Meet
   )
 }
 
+// Connection status logger (must be inside RoomProvider)
+function ConnectionStatusLogger({ roomId }: { roomId: string }) {
+  const status = useStatus()
+
+  useEffect(() => {
+    console.log(`[Meetings Liveblocks] Room "${roomId}" status:`, status)
+  }, [status, roomId])
+
+  return null
+}
+
 // Liveblocks wrapper with error handling and timeout
 function LiveblocksWrapper({
   meeting,
@@ -307,10 +318,21 @@ function LiveblocksWrapper({
   onContentSaved: (meetingId: string, content: string) => void
 }) {
   const [hasTimedOut, setHasTimedOut] = useState(false)
+  const [connectionError, setConnectionError] = useState<string | null>(null)
+
+  // Debug logging
+  useEffect(() => {
+    console.log('[Meetings Liveblocks] Attempting to connect:', {
+      roomId: `meeting-${meeting.id}`,
+      hasPublicKey: !!process.env.NEXT_PUBLIC_LIVEBLOCKS_PUBLIC_KEY,
+      keyPrefix: process.env.NEXT_PUBLIC_LIVEBLOCKS_PUBLIC_KEY?.substring(0, 10),
+    })
+  }, [meeting.id])
 
   // Timeout after 15 seconds
   useEffect(() => {
     const timer = setTimeout(() => {
+      console.log('[Meetings Liveblocks] Connection timed out after 15s')
       setHasTimedOut(true)
     }, 15000)
 
@@ -344,6 +366,7 @@ function LiveblocksWrapper({
       }}
       initialStorage={{ draft: '' }}
     >
+      <ConnectionStatusLogger roomId={`meeting-${meeting.id}`} />
       <ClientSideSuspense
         fallback={
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
