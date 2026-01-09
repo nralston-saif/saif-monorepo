@@ -124,10 +124,13 @@ export function UncontrolledSyncTextarea({
     const newValue = remoteValue
 
     console.log('[UncontrolledSync] Remote change detected:', {
+      oldValue: oldValue.slice(0, 50) + (oldValue.length > 50 ? '...' : ''),
+      newValue: newValue.slice(0, 50) + (newValue.length > 50 ? '...' : ''),
       oldLen: oldValue.length,
       newLen: newValue.length,
       isFocused: document.activeElement === textarea,
       cursorBefore: textarea.selectionStart,
+      textareaValueBefore: textarea.value.slice(0, 50),
     })
 
     // If textarea is focused, preserve cursor position
@@ -149,6 +152,11 @@ export function UncontrolledSyncTextarea({
 
       // Restore cursor/selection
       textarea.setSelectionRange(newStart, newEnd)
+
+      console.log('[UncontrolledSync] After setSelectionRange:', {
+        actualCursor: textarea.selectionStart,
+        expected: newStart,
+      })
     } else {
       // Not focused - just update value, no cursor concern
       textarea.value = newValue
