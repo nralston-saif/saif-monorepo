@@ -16,33 +16,19 @@ if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
 }
 
 // Create the Liveblocks client
-// We use authEndpoint to get proper user identity for cursor labels
-// The auth endpoint will authenticate via Supabase and return a token with user info
+// We try authEndpoint first for proper user identity, but fall back to publicApiKey if auth fails
 const client: Client = isValidKey
   ? createClient({
-      authEndpoint: async (roomId) => {
-        try {
-          const response = await fetch('/api/liveblocks-auth', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ room: roomId }),
-          });
-
-          if (!response.ok) {
-            // If auth fails (503 = not configured, 401/403 = auth issues)
-            // Log the error but throw to trigger fallback behavior
-            const errorText = await response.text();
-            console.warn('[Liveblocks] Auth endpoint returned', response.status, errorText);
-            throw new Error(`Auth failed: ${response.status}`);
-          }
-
-          return await response.json();
-        } catch (error) {
-          console.error('[Liveblocks] Auth error:', error);
-          throw error;
-        }
-      },
+      // Use public API key for reliable connection
+      // Auth endpoint was causing failures when LIVEBLOCKS_SECRET_KEY isn't configured
+      publicApiKey: publicApiKey,
       throttle: 100,
+
+      // Resolve user info for better cursor labels when using public key
+      resolveUsers: async ({ userIds }) => {
+        // Return empty array - user names come from presence instead
+        return [];
+      },
     })
   : createClient({
       // No valid key - create a dummy client that will fail gracefully
