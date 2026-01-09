@@ -28,15 +28,15 @@ interface Founder {
 type PersonWithCompanies = Person & {
   companies?: Array<{
     id: string
-    relationship_type: string
+    relationship_type: string | null
     title: string | null
-    is_primary_contact: boolean
+    is_primary_contact: boolean | null
     end_date: string | null
     company: {
       id: string
       name: string
       logo_url: string | null
-      stage: string
+      stage: string | null
     } | null
   }>
 }
