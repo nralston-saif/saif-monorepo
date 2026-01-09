@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useEffect, useCallback } from 'react'
+import { useRef, useEffect, useLayoutEffect, useCallback } from 'react'
 
 type UncontrolledSyncTextareaProps = {
   /** Value from Liveblocks storage - used for syncing, NOT controlling */
@@ -101,7 +101,8 @@ export function UncontrolledSyncTextarea({
   const isComposingRef = useRef(false)
 
   // Sync remote changes TO the DOM (with cursor preservation)
-  useEffect(() => {
+  // Using useLayoutEffect to ensure cursor is restored before browser paints
+  useLayoutEffect(() => {
     const textarea = textareaRef.current
     if (!textarea) return
 
