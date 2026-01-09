@@ -7,7 +7,9 @@ import {
   useOthers,
   useUpdateMyPresence,
   ClientSideSuspense,
-  useSelf
+  useSelf,
+  useStorage,
+  useMutation,
 } from '@/lib/liveblocks'
 import { CollaborativeTiptapEditor } from './CollaborativeTiptapEditor'
 
@@ -161,10 +163,12 @@ function EditorContent({
   // Local content state - Yjs handles real-time sync, this is for database saving
   const [content, setContent] = useState('')
 
-  // Local state
-  const [meetingDate, setMeetingDate] = useState(() => new Date().toISOString().split('T')[0])
+  // Shared state via Liveblocks storage - all collaborators see the same note ID
+  const sharedNoteId = useStorage((root) => root.sharedNoteId)
+  const storedMeetingDate = useStorage((root) => root.meetingDate)
+
+  // Local state for UI
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
-  const [sharedNoteId, setSharedNoteId] = useState<string | null>(null)
   const [isInitialized, setIsInitialized] = useState(false)
   const [clearTrigger, setClearTrigger] = useState(0)
 
@@ -172,6 +176,21 @@ function EditorContent({
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const lastSavedContentRef = useRef<string>('')
   const isSavingRef = useRef(false)
+
+  // Mutations to update shared storage
+  const setSharedNoteId = useMutation(({ storage }, noteId: string | null) => {
+    storage.set('sharedNoteId', noteId)
+  }, [])
+
+  const setStoredMeetingDate = useMutation(({ storage }, date: string) => {
+    storage.set('meetingDate', date)
+  }, [])
+
+  // Use stored meeting date or default to today
+  const meetingDate = storedMeetingDate || new Date().toISOString().split('T')[0]
+  const setMeetingDate = useCallback((date: string) => {
+    setStoredMeetingDate(date)
+  }, [setStoredMeetingDate])
 
   // Set initial presence
   useEffect(() => {
@@ -195,8 +214,9 @@ function EditorContent({
 
     const trimmedContent = content.trim()
 
-    // Nothing to save
-    if (!trimmedContent && !sharedNoteId) {
+    // Nothing to save - empty content should never trigger a save
+    // This prevents blank notes being created when Save & New clears the editor
+    if (!trimmedContent) {
       setSaveStatus('idle')
       return
     }
@@ -228,6 +248,9 @@ function EditorContent({
 
   // Save note function with conflict prevention
   const saveNote = async (content: string) => {
+    // Never save empty content
+    if (!content.trim()) return
+
     // Prevent concurrent saves
     if (isSavingRef.current) return
     isSavingRef.current = true
@@ -351,16 +374,16 @@ function EditorContent({
       // Clear the Tiptap editor (this will sync to all users via Yjs)
       setClearTrigger(prev => prev + 1)
 
-      // Reset state for a new note
+      // Reset shared state for a new note (syncs to all users via Liveblocks)
       setSharedNoteId(null)
-      setMeetingDate(new Date().toISOString().split('T')[0])
+      setStoredMeetingDate(new Date().toISOString().split('T')[0])
       lastSavedContentRef.current = ''
       setSaveStatus('idle')
 
       // Trigger refresh of notes list
       onNoteSaved?.()
     }
-  }, [content, onNoteSaved, saveNote])
+  }, [content, onNoteSaved, saveNote, setSharedNoteId, setStoredMeetingDate])
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-4">
@@ -461,7 +484,7 @@ function EditorWithRoom(props: CollaborativeNoteEditorProps) {
       <RoomProvider
         id={roomId}
         initialPresence={{ cursor: null, name: props.userName, isTyping: false }}
-        initialStorage={{ draft: '' }}
+        initialStorage={{ draft: '', sharedNoteId: null, meetingDate: new Date().toISOString().split('T')[0] }}
       >
         <ClientSideSuspense fallback={
           <div className="bg-white rounded-xl border border-gray-200 p-4 animate-pulse">

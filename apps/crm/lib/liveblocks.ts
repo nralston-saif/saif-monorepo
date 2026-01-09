@@ -54,6 +54,8 @@ type Presence = {
 // Storage represents the shared state
 type Storage = {
   draft: string;
+  sharedNoteId: string | null;
+  meetingDate: string;
 };
 
 // User metadata

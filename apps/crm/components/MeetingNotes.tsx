@@ -71,11 +71,34 @@ function NotesList({
     setLoading(false)
   }, [applicationId, supabase])
 
-  // Fetch notes on mount and when refreshTrigger changes (e.g., after Save & New)
-  // Real-time subscription removed to prevent notes from moving to "Previous" during auto-save
+  // Fetch notes on mount and when refreshTrigger changes
   useEffect(() => {
     fetchNotes()
   }, [fetchNotes, refreshTrigger])
+
+  // Real-time subscription for when other users save notes
+  useEffect(() => {
+    const channel = supabase
+      .channel(`meeting-notes-${applicationId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'saifcrm_meeting_notes',
+          filter: `application_id=eq.${applicationId}`,
+        },
+        () => {
+          // Refresh notes when any change happens
+          fetchNotes()
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [applicationId, supabase, fetchNotes])
 
   // Handle note deletion
   const handleDeleteNote = async () => {
@@ -200,19 +223,11 @@ function NotesList({
                 key={note.id}
                 className="bg-gray-50 rounded-lg p-4 border border-gray-100 group"
               >
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="w-8 h-8 bg-gradient-to-br from-gray-400 to-gray-500 rounded-full flex items-center justify-center">
-                    <span className="text-white text-sm font-medium">
-                      {(note.user_name || 'U').charAt(0).toUpperCase()}
-                    </span>
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-medium text-gray-900">{note.user_name || 'Unknown'}</p>
-                    <p className="text-xs text-gray-500">Last updated {formatTime(note.updated_at || note.created_at)}</p>
-                  </div>
+                <div className="flex items-start gap-3">
+                  <p className="text-gray-700 whitespace-pre-wrap break-words overflow-wrap-anywhere flex-1">{note.content}</p>
                   <button
                     onClick={() => setNoteToDelete(note)}
-                    className="opacity-0 group-hover:opacity-100 p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                    className="opacity-0 group-hover:opacity-100 p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all flex-shrink-0"
                     title="Delete note"
                   >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -220,7 +235,6 @@ function NotesList({
                     </svg>
                   </button>
                 </div>
-                <p className="text-gray-700 whitespace-pre-wrap break-words overflow-wrap-anywhere">{note.content}</p>
               </div>
             ))}
           </div>
