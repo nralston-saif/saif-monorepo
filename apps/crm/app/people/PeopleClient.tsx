@@ -8,7 +8,7 @@ import PersonMeetingNotes from '@/components/PersonMeetingNotes'
 import type { UserRole, UserStatus, RelationshipType } from '@saif/supabase'
 
 type CompanyAssociation = {
-  relationship_type: string
+  relationship_type: string | null
   title: string | null
   company: {
     id: string
@@ -35,7 +35,7 @@ type Person = {
   introduced_by: string | null
   introduction_context: string | null
   relationship_notes: string | null
-  created_at: string
+  created_at: string | null
   company_associations: CompanyAssociation[]
   noteCount: number
 }
@@ -179,10 +179,18 @@ export default function PeopleClient({
           return (b.displayName || '').localeCompare(a.displayName || '')
         case 'role':
           return (a.role || '').localeCompare(b.role || '')
-        case 'date-newest':
+        case 'date-newest': {
+          if (!a.created_at && !b.created_at) return 0
+          if (!a.created_at) return 1
+          if (!b.created_at) return -1
           return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        case 'date-oldest':
+        }
+        case 'date-oldest': {
+          if (!a.created_at && !b.created_at) return 0
+          if (!a.created_at) return 1
+          if (!b.created_at) return -1
           return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        }
         default:
           return 0
       }
