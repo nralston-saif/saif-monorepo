@@ -78,6 +78,7 @@ export default function TicketDetailModal({
   companies,
   people,
   currentUserId,
+  currentUserName,
   onClose,
   onUpdate,
 }: {
@@ -86,6 +87,7 @@ export default function TicketDetailModal({
   companies: Company[]
   people: Person[]
   currentUserId: string
+  currentUserName: string
   onClose: () => void
   onUpdate: () => void
 }) {
