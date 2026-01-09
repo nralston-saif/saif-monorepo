@@ -214,7 +214,7 @@ function NotesList({
                 className="bg-gray-50 rounded-lg p-4 border border-gray-100 group"
               >
                 <div className="flex items-start gap-3">
-                  <p className="text-gray-700 whitespace-pre-wrap break-words overflow-wrap-anywhere flex-1">{note.content}</p>
+                  <p className="text-gray-700 whitespace-pre-wrap break-words break-all flex-1">{note.content}</p>
                   <button
                     onClick={() => setNoteToDelete(note)}
                     className="opacity-0 group-hover:opacity-100 p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all flex-shrink-0"

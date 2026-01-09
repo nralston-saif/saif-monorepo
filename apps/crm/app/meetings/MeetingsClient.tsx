@@ -401,7 +401,7 @@ function LiveblocksWrapper({
         name: currentUser.name || `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || 'Unknown',
         isTyping: false
       }}
-      initialStorage={{ draft: '', sharedNoteId: null, meetingDate: new Date().toISOString().split('T')[0] }}
+      initialStorage={{ draft: '', sharedNoteId: null, meetingDate: new Date().toISOString().split('T')[0], creatingNoteBy: null }}
     >
       <ConnectionStatusLogger roomId={`notes-meeting-${meeting.id}`} />
       <ClientSideSuspense

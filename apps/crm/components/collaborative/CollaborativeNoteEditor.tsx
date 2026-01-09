@@ -166,6 +166,7 @@ function EditorContent({
   // Shared state via Liveblocks storage - all collaborators see the same note ID
   const sharedNoteId = useStorage((root) => root.sharedNoteId)
   const storedMeetingDate = useStorage((root) => root.meetingDate)
+  const creatingNoteBy = useStorage((root) => root.creatingNoteBy)
 
   // Local state for UI
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
@@ -184,6 +185,28 @@ function EditorContent({
 
   const setStoredMeetingDate = useMutation(({ storage }, date: string) => {
     storage.set('meetingDate', date)
+  }, [])
+
+  // Atomic mutation to claim creation lock - returns true if we got the lock
+  const tryClaimCreationLock = useMutation(({ storage }, claimingUserId: string): boolean => {
+    const currentLock = storage.get('creatingNoteBy')
+    const currentNoteId = storage.get('sharedNoteId')
+
+    // If there's already a note ID, no need to create
+    if (currentNoteId) return false
+
+    // If someone else is already creating, don't proceed
+    if (currentLock && currentLock !== claimingUserId) return false
+
+    // Claim the lock
+    storage.set('creatingNoteBy', claimingUserId)
+    return true
+  }, [])
+
+  // Release creation lock after note is created
+  const releaseCreationLock = useMutation(({ storage }, noteId: string) => {
+    storage.set('sharedNoteId', noteId)
+    storage.set('creatingNoteBy', null)
   }, [])
 
   // Use stored meeting date or default to today
@@ -290,6 +313,15 @@ function EditorContent({
 
         if (error) throw error
       } else if (content) {
+        // Try to claim the creation lock to prevent duplicate notes
+        const gotLock = tryClaimCreationLock(userId)
+        if (!gotLock) {
+          // Another user is already creating a note, wait for sharedNoteId to sync
+          isSavingRef.current = false
+          setSaveStatus('unsaved')
+          return
+        }
+
         // Create new shared note - use explicit table queries
         let newNoteId: string | null = null
         let error: Error | null = null
@@ -330,7 +362,8 @@ function EditorContent({
 
         if (error) throw error
         if (newNoteId) {
-          setSharedNoteId(newNoteId)
+          // Release lock and set the shared note ID atomically
+          releaseCreationLock(newNoteId)
         }
       }
 
@@ -357,6 +390,13 @@ function EditorContent({
     updateMyPresence({ isTyping: false })
   }, [updateMyPresence])
 
+  // Mutation to reset all shared state for a new note
+  const resetSharedState = useMutation(({ storage }) => {
+    storage.set('sharedNoteId', null)
+    storage.set('creatingNoteBy', null)
+    storage.set('meetingDate', new Date().toISOString().split('T')[0])
+  }, [])
+
   // Save current note and start a fresh one
   const handleSaveAndStartNew = useCallback(async () => {
     const trimmedContent = content.trim()
@@ -374,16 +414,15 @@ function EditorContent({
       // Clear the Tiptap editor (this will sync to all users via Yjs)
       setClearTrigger(prev => prev + 1)
 
-      // Reset shared state for a new note (syncs to all users via Liveblocks)
-      setSharedNoteId(null)
-      setStoredMeetingDate(new Date().toISOString().split('T')[0])
+      // Reset all shared state atomically for a new note (syncs to all users via Liveblocks)
+      resetSharedState()
       lastSavedContentRef.current = ''
       setSaveStatus('idle')
 
       // Trigger refresh of notes list
       onNoteSaved?.()
     }
-  }, [content, onNoteSaved, saveNote, setSharedNoteId, setStoredMeetingDate])
+  }, [content, onNoteSaved, saveNote, resetSharedState])
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-4">
@@ -484,7 +523,7 @@ function EditorWithRoom(props: CollaborativeNoteEditorProps) {
       <RoomProvider
         id={roomId}
         initialPresence={{ cursor: null, name: props.userName, isTyping: false }}
-        initialStorage={{ draft: '', sharedNoteId: null, meetingDate: new Date().toISOString().split('T')[0] }}
+        initialStorage={{ draft: '', sharedNoteId: null, meetingDate: new Date().toISOString().split('T')[0], creatingNoteBy: null }}
       >
         <ClientSideSuspense fallback={
           <div className="bg-white rounded-xl border border-gray-200 p-4 animate-pulse">

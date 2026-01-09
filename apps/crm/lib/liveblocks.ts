@@ -56,6 +56,9 @@ type Storage = {
   draft: string;
   sharedNoteId: string | null;
   meetingDate: string;
+  // Creation lock to prevent duplicate notes when multiple users type simultaneously
+  // Set to the userId of whoever is creating the note, null when not creating
+  creatingNoteBy: string | null;
 };
 
 // User metadata
