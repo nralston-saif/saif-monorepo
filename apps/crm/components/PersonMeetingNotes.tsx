@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { CollaborativeNoteEditor } from './collaborative'
+import DeleteNoteModal from './DeleteNoteModal'
 
 type PersonNote = {
   id: string
@@ -33,6 +34,8 @@ function NotesList({
 }) {
   const [notes, setNotes] = useState<PersonNote[]>([])
   const [loading, setLoading] = useState(true)
+  const [noteToDelete, setNoteToDelete] = useState<PersonNote | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
   const supabase = createClient()
 
   const fetchNotes = useCallback(async () => {
@@ -91,6 +94,26 @@ function NotesList({
       supabase.removeChannel(channel)
     }
   }, [personId, supabase, fetchNotes])
+
+  // Handle note deletion
+  const handleDeleteNote = async () => {
+    if (!noteToDelete) return
+
+    setIsDeleting(true)
+    const { error } = await supabase
+      .from('saifcrm_people_notes')
+      .delete()
+      .eq('id', noteToDelete.id)
+
+    if (error) {
+      console.error('Error deleting note:', error)
+    } else {
+      fetchNotes()
+    }
+
+    setIsDeleting(false)
+    setNoteToDelete(null)
+  }
 
   const formatDate = (date: string) => {
     return new Date(date).toLocaleDateString('en-US', {
@@ -158,7 +181,7 @@ function NotesList({
             {dateNotes.map((note) => (
               <div
                 key={note.id}
-                className="bg-gray-50 rounded-lg p-4 border border-gray-100"
+                className="bg-gray-50 rounded-lg p-4 border border-gray-100 group"
               >
                 <div className="flex items-center gap-3 mb-2">
                   <div className="w-8 h-8 bg-gradient-to-br from-gray-400 to-gray-500 rounded-full flex items-center justify-center">
@@ -170,6 +193,15 @@ function NotesList({
                     <p className="font-medium text-gray-900">{note.user_name || 'Unknown'}</p>
                     <p className="text-xs text-gray-500">Last updated {formatTime(note.updated_at || note.created_at)}</p>
                   </div>
+                  <button
+                    onClick={() => setNoteToDelete(note)}
+                    className="opacity-0 group-hover:opacity-100 p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                    title="Delete note"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
                 </div>
                 <p className="text-gray-700 whitespace-pre-wrap">{note.content}</p>
               </div>
@@ -177,6 +209,14 @@ function NotesList({
           </div>
         </div>
       ))}
+
+      <DeleteNoteModal
+        isOpen={!!noteToDelete}
+        onClose={() => setNoteToDelete(null)}
+        onConfirm={handleDeleteNote}
+        isDeleting={isDeleting}
+        notePreview={noteToDelete?.content}
+      />
     </div>
   )
 }
