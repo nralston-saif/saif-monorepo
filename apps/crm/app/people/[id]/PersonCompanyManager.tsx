@@ -8,7 +8,7 @@ import type { RelationshipType } from '@saif/supabase'
 
 type CompanyAssociation = {
   id: string
-  relationship_type: string
+  relationship_type: string | null
   title: string | null
   is_primary_contact: boolean
   end_date: string | null
