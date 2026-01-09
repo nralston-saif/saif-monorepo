@@ -294,6 +294,8 @@ export default function TicketDetailModal({
       showToast('Ticket archived successfully', 'success')
       setShowArchiveModal(false)
       setFinalComment('')
+      // Close the modal first, then trigger update in background
+      onClose()
       onUpdate()
     }
   }
@@ -404,6 +406,7 @@ export default function TicketDetailModal({
       console.error(error)
     } else {
       showToast('Ticket deleted successfully', 'success')
+      onClose()
       onUpdate()
     }
   }
@@ -950,9 +953,16 @@ export default function TicketDetailModal({
               <textarea
                 value={finalComment}
                 onChange={(e) => setFinalComment(e.target.value)}
-                placeholder="Final summary or resolution notes..."
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                    e.preventDefault()
+                    handleArchiveWithComment()
+                  }
+                }}
+                placeholder="Final summary or resolution notes... (Cmd/Ctrl+Enter to submit)"
                 rows={4}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-gray-900 focus:border-gray-900 mb-4"
+                autoFocus
               />
               <div className="flex gap-3">
                 <button
@@ -970,7 +980,7 @@ export default function TicketDetailModal({
                   className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-medium transition-colors disabled:opacity-50"
                   disabled={loading}
                 >
-                  {loading ? 'Archiving...' : 'Archive Ticket'}
+                  {loading ? 'Archiving...' : 'Archive & Close'}
                 </button>
               </div>
             </div>

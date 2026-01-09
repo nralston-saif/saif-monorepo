@@ -73,12 +73,36 @@ export default function DashboardClient({
 }) {
   const router = useRouter()
   const supabase = createClient()
-  const { openTicket } = useTicketModal()
+  const { openTicket, setOnTicketUpdate } = useTicketModal()
   const [notifications, setNotifications] = useState<Notification[]>(initialNotifications)
   const [dismissingId, setDismissingId] = useState<string | null>(null)
   const [resolvingTicket, setResolvingTicket] = useState<{ id: string; title: string } | null>(null)
   const [resolveComment, setResolveComment] = useState('')
   const [isResolving, setIsResolving] = useState(false)
+  const [activeTickets, setActiveTickets] = useState<ActiveTicket[]>(myActiveTickets)
+
+  // Sync tickets state with prop changes (e.g., after creating new ticket)
+  useEffect(() => {
+    setActiveTickets(myActiveTickets)
+  }, [myActiveTickets])
+
+  // Listen for ticket updates from modal
+  useEffect(() => {
+    if (setOnTicketUpdate) {
+      setOnTicketUpdate((ticketId, status) => {
+        if (status === 'archived') {
+          // Remove archived ticket from active tickets list
+          setActiveTickets(prev => prev.filter(t => t.id !== ticketId))
+        }
+      })
+    }
+
+    return () => {
+      if (setOnTicketUpdate) {
+        setOnTicketUpdate(null)
+      }
+    }
+  }, [setOnTicketUpdate])
 
   // Check if notification is ticket-related
   const isTicketNotification = (type: NotificationType): boolean => {
@@ -230,12 +254,17 @@ export default function DashboardClient({
   const handleResolveSubmit = async () => {
     if (!resolvingTicket) return
 
-    setIsResolving(true)
+    const ticketId = resolvingTicket.id
 
-    // Add comment if provided
+    // Optimistically remove ticket from UI immediately
+    setActiveTickets(prevTickets => prevTickets.filter(t => t.id !== ticketId))
+    setResolvingTicket(null)
+    setResolveComment('')
+
+    // Make API calls in background
     if (resolveComment.trim()) {
       await (supabase as any).from('saifcrm_ticket_comments').insert({
-        ticket_id: resolvingTicket.id,
+        ticket_id: ticketId,
         author_id: userId,
         content: resolveComment.trim(),
       })
@@ -245,13 +274,10 @@ export default function DashboardClient({
     const { error } = await supabase
       .from('saif_tickets')
       .update({ status: 'archived' })
-      .eq('id', resolvingTicket.id)
+      .eq('id', ticketId)
 
-    setIsResolving(false)
-    setResolvingTicket(null)
-    setResolveComment('')
-
-    if (!error) {
+    // Refresh in background to sync data (only if error to restore correct state)
+    if (error) {
       router.refresh()
     }
   }
@@ -504,7 +530,7 @@ export default function DashboardClient({
               <div>
                 <h2 className="text-lg font-semibold text-gray-900">My To-do</h2>
                 <p className="text-sm text-gray-500">
-                  {myActiveTickets.length} task{myActiveTickets.length !== 1 ? 's' : ''} assigned to you
+                  {activeTickets.length} task{activeTickets.length !== 1 ? 's' : ''} assigned to you
                   {overdueTicketsCount > 0 && (
                     <span className="ml-2 text-red-600 font-medium">
                       {overdueTicketsCount} overdue
@@ -516,7 +542,7 @@ export default function DashboardClient({
           </div>
 
           <div className="divide-y divide-gray-100 max-h-80 overflow-y-auto">
-            {myActiveTickets.length === 0 ? (
+            {activeTickets.length === 0 ? (
               <div className="p-6 text-center">
                 <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-3">
                   <span className="text-emerald-600 text-xl">✓</span>
@@ -525,7 +551,7 @@ export default function DashboardClient({
                 <p className="text-sm text-gray-400">All caught up</p>
               </div>
             ) : (
-              myActiveTickets.map((ticket) => {
+              activeTickets.map((ticket) => {
                 const isOverdue = ticket.due_date && new Date(ticket.due_date) < new Date()
                 const priorityColors: Record<string, string> = {
                   high: 'bg-red-100 text-red-700',
@@ -534,9 +560,9 @@ export default function DashboardClient({
                 }
 
                 return (
-                  <Link
+                  <div
                     key={ticket.id}
-                    href={`/tickets?id=${ticket.id}`}
+                    onClick={() => openTicket(ticket.id)}
                     className="block p-4 hover:bg-gray-50 transition-colors cursor-pointer"
                   >
                     <div className="flex items-start justify-between gap-4">
@@ -584,7 +610,10 @@ export default function DashboardClient({
                           </div>
                         )}
                         <button
-                          onClick={(e) => handleResolveClick(ticket.id, ticket.title, e)}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleResolveClick(ticket.id, ticket.title, e)
+                          }}
                           className="px-3 py-1.5 text-xs font-medium text-green-700 bg-green-50 hover:bg-green-100 rounded-lg transition-colors"
                           title="Resolve ticket"
                         >
@@ -592,13 +621,13 @@ export default function DashboardClient({
                         </button>
                       </div>
                     </div>
-                  </Link>
+                  </div>
                 )
               })
             )}
           </div>
 
-          {myActiveTickets.length > 0 && (
+          {activeTickets.length > 0 && (
             <div className="p-4 bg-gray-50 border-t border-gray-100">
               <Link
                 href="/tickets"

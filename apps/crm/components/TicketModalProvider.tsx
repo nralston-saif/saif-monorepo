@@ -63,6 +63,7 @@ type TicketModalContextType = {
   openTicket: (ticketId: string) => void
   closeTicket: () => void
   isOpen: boolean
+  setOnTicketUpdate?: (callback: ((ticketId: string, status: TicketStatus) => void) | null) => void
 }
 
 const TicketModalContext = createContext<TicketModalContextType | null>(null)
@@ -84,6 +85,7 @@ export default function TicketModalProvider({ children }: { children: ReactNode 
   const [currentUserName, setCurrentUserName] = useState<string>('')
   const [loading, setLoading] = useState(false)
   const [isOpen, setIsOpen] = useState(false)
+  const [onTicketUpdateCallback, setOnTicketUpdateCallback] = useState<{ fn: ((ticketId: string, status: TicketStatus) => void) | null }>({ fn: null })
 
   const supabase = createClient()
 
@@ -180,15 +182,46 @@ export default function TicketModalProvider({ children }: { children: ReactNode 
     setTicket(null)
   }, [])
 
-  const handleUpdate = useCallback(() => {
-    // Refresh ticket data
+  const handleUpdate = useCallback(async () => {
+    // Refresh ticket data and notify callback
     if (ticket) {
-      openTicket(ticket.id)
+      const ticketId = ticket.id
+
+      // Fetch updated ticket to get current status (or check if deleted)
+      const { data: updatedTicket, error } = await supabase
+        .from('saif_tickets')
+        .select('id, status')
+        .eq('id', ticketId)
+        .single()
+
+      // If ticket was deleted (not found), notify callback with 'archived' status to trigger removal
+      if (error && error.code === 'PGRST116') {
+        // Ticket was deleted
+        if (onTicketUpdateCallback.fn) {
+          onTicketUpdateCallback.fn(ticketId, 'archived' as TicketStatus)
+        }
+        return
+      }
+
+      // Notify callback with updated status
+      if (onTicketUpdateCallback.fn && updatedTicket) {
+        onTicketUpdateCallback.fn(updatedTicket.id, updatedTicket.status)
+      }
+
+      // Only refresh full ticket data if it's still open (not archived)
+      // If archived or deleted, the modal should stay closed
+      if (updatedTicket && updatedTicket.status !== 'archived') {
+        openTicket(ticketId)
+      }
     }
-  }, [ticket, openTicket])
+  }, [ticket, openTicket, onTicketUpdateCallback, supabase])
+
+  const setOnTicketUpdate = useCallback((callback: ((ticketId: string, status: TicketStatus) => void) | null) => {
+    setOnTicketUpdateCallback({ fn: callback })
+  }, [])
 
   return (
-    <TicketModalContext.Provider value={{ openTicket, closeTicket, isOpen }}>
+    <TicketModalContext.Provider value={{ openTicket, closeTicket, isOpen, setOnTicketUpdate }}>
       {children}
 
       {/* Loading overlay */}

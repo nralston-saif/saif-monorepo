@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import type { TicketStatus, TicketPriority, Ticket as BaseTicket, TicketComment as BaseTicketComment } from '@saif/supabase'
 import CreateTicketModal from './CreateTicketModal'
 import TicketDetailModal from './TicketDetailModal'
+import { useTicketModal } from '@/components/TicketModalProvider'
 
 type Partner = {
   id: string
@@ -67,12 +68,19 @@ export default function TicketsClient({
 
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [selectedTicket, setSelectedTicket] = useState<TicketWithRelations | null>(null)
+  const [localTickets, setLocalTickets] = useState<TicketWithRelations[]>(tickets)
+
+  // Sync local tickets with prop changes
+  useEffect(() => {
+    setLocalTickets(tickets)
+  }, [tickets])
   const [resolvingTicket, setResolvingTicket] = useState<{ id: string; title: string } | null>(null)
   const [resolveComment, setResolveComment] = useState('')
   const [isResolving, setIsResolving] = useState(false)
 
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { setOnTicketUpdate } = useTicketModal()
 
   // Handle opening ticket from URL parameter (e.g., from dashboard)
   useEffect(() => {
@@ -87,9 +95,26 @@ export default function TicketsClient({
     }
   }, [searchParams, tickets, router])
 
+  // Listen for ticket updates from modal (deletions)
+  useEffect(() => {
+    if (setOnTicketUpdate) {
+      setOnTicketUpdate((ticketId, status) => {
+        if (status === 'archived') {
+          // Remove deleted ticket from list
+          setLocalTickets(prev => prev.filter(t => t.id !== ticketId))
+        }
+      })
+    }
+    return () => {
+      if (setOnTicketUpdate) {
+        setOnTicketUpdate(null)
+      }
+    }
+  }, [setOnTicketUpdate])
+
   // Filter and sort tickets
   const filteredTickets = useMemo(() => {
-    let filtered = tickets
+    let filtered = localTickets
 
     // Status filter
     if (statusFilter === 'active') {
@@ -145,21 +170,21 @@ export default function TicketsClient({
     })
 
     return filtered
-  }, [tickets, statusFilter, priorityFilter, assignedFilter, searchQuery, sortOption])
+  }, [localTickets, statusFilter, priorityFilter, assignedFilter, searchQuery, sortOption])
 
   // Stats
   const stats = useMemo(() => ({
-    total: tickets.length,
-    open: tickets.filter(t => t.status === 'open').length,
-    inProgress: tickets.filter(t => t.status === 'in_progress').length,
-    archived: tickets.filter(t => t.status === 'archived').length,
-    unassigned: tickets.filter(t => !t.assigned_to).length,
-    overdue: tickets.filter(t =>
+    total: localTickets.length,
+    open: localTickets.filter(t => t.status === 'open').length,
+    inProgress: localTickets.filter(t => t.status === 'in_progress').length,
+    archived: localTickets.filter(t => t.status === 'archived').length,
+    unassigned: localTickets.filter(t => !t.assigned_to).length,
+    overdue: localTickets.filter(t =>
       t.due_date &&
       new Date(t.due_date) < new Date() &&
       t.status !== 'archived'
     ).length,
-  }), [tickets])
+  }), [localTickets])
 
   // Helper functions
   const formatDate = (dateString: string) => {
