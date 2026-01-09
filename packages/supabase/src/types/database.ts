@@ -1658,6 +1658,7 @@ export type NotificationWithActor = Notification & {
 // Additional shared types
 export type Investment = Database['public']['Tables']['saif_investments']['Row']
 export type Ticket = Database['public']['Tables']['saif_tickets']['Row']
+export type TicketComment = Database['public']['Tables']['saif_ticket_comments']['Row']
 export type Tag = Database['public']['Tables']['saif_tags']['Row']
 
 // CRM types

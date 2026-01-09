@@ -12,6 +12,7 @@ export type {
   CompanyPerson,
   Investment,
   Ticket,
+  TicketComment,
   Tag,
   Meeting,
   MeetingNote,
