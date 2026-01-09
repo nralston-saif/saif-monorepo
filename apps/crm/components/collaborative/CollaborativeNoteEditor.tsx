@@ -6,12 +6,10 @@ import {
   RoomProvider,
   useOthers,
   useUpdateMyPresence,
-  useStorage,
-  useMutation,
   ClientSideSuspense,
   useSelf
 } from '@/lib/liveblocks'
-import { UncontrolledSyncTextarea } from './UncontrolledSyncTextarea'
+import { CollaborativeTiptapEditor } from './CollaborativeTiptapEditor'
 
 // ============================================================================
 // TYPES
@@ -158,13 +156,8 @@ function EditorContent({
   const supabase = createClient()
   const updateMyPresence = useUpdateMyPresence()
 
-  // Get shared draft from Liveblocks storage
-  const draft = useStorage((root) => root.draft) || ''
-
-  // Mutation to update shared draft
-  const updateDraft = useMutation(({ storage }, newDraft: string) => {
-    storage.set('draft', newDraft)
-  }, [])
+  // Local content state - Yjs handles real-time sync, this is for database saving
+  const [content, setContent] = useState('')
 
   // Local state
   const [meetingDate, setMeetingDate] = useState(() => new Date().toISOString().split('T')[0])
@@ -231,10 +224,8 @@ function EditorContent({
         if (data.meeting_date) {
           setMeetingDate(data.meeting_date)
         }
-        // Only update draft if it's empty (don't overwrite ongoing edits)
-        if (!draft) {
-          updateDraft(data.content || '')
-        }
+        // Note: Yjs will handle syncing the content from the shared document
+        // We just need to track the last saved content for comparison
         lastSavedContentRef.current = data.content || ''
       }
 
@@ -242,22 +233,22 @@ function EditorContent({
     }
 
     loadExistingNote()
-  }, [context.id, context.type, supabase, updateDraft, draft])
+  }, [context.id, context.type, supabase])
 
-  // Auto-save with debounce - triggered by draft changes
+  // Auto-save with debounce - triggered by content changes
   useEffect(() => {
     if (!isInitialized) return
 
-    const content = draft.trim()
+    const trimmedContent = content.trim()
 
     // Nothing to save
-    if (!content && !sharedNoteId) {
+    if (!trimmedContent && !sharedNoteId) {
       setSaveStatus('idle')
       return
     }
 
     // Content unchanged from last save
-    if (content === lastSavedContentRef.current) {
+    if (trimmedContent === lastSavedContentRef.current) {
       setSaveStatus('saved')
       return
     }
@@ -271,7 +262,7 @@ function EditorContent({
 
     // Set new save timeout
     saveTimeoutRef.current = setTimeout(() => {
-      saveNote(content)
+      saveNote(trimmedContent)
     }, 2000)
 
     return () => {
@@ -279,7 +270,7 @@ function EditorContent({
         clearTimeout(saveTimeoutRef.current)
       }
     }
-  }, [draft, isInitialized, sharedNoteId, meetingDate])
+  }, [content, isInitialized, sharedNoteId, meetingDate])
 
   // Save note function with conflict prevention
   const saveNote = async (content: string) => {
@@ -378,11 +369,11 @@ function EditorContent({
     }
   }
 
-  // Handle content change from textarea
+  // Handle content change from Tiptap editor
   const handleContentChange = useCallback((value: string) => {
-    updateDraft(value)
-    updateMyPresence({ isTyping: true })
-  }, [updateDraft, updateMyPresence])
+    setContent(value)
+    // Typing presence is now handled by the Tiptap editor itself
+  }, [])
 
   const handleBlur = useCallback(() => {
     updateMyPresence({ isTyping: false })
@@ -390,17 +381,17 @@ function EditorContent({
 
   // Save current note and start a fresh one
   const handleSaveAndStartNew = useCallback(async () => {
-    const content = draft.trim()
+    const trimmedContent = content.trim()
 
     // If there's content, make sure it's saved first
-    if (content && content !== lastSavedContentRef.current) {
-      await saveNote(content)
+    if (trimmedContent && trimmedContent !== lastSavedContentRef.current) {
+      await saveNote(trimmedContent)
     }
 
     // Only start new if there was actually content
-    if (content) {
-      // Clear the Liveblocks draft
-      updateDraft('')
+    if (trimmedContent) {
+      // Clear the local content (Yjs document will need to be cleared separately if needed)
+      setContent('')
 
       // Reset state for a new note
       setSharedNoteId(null)
@@ -411,7 +402,7 @@ function EditorContent({
       // Trigger refresh of notes list
       onNoteSaved?.()
     }
-  }, [draft, updateDraft, onNoteSaved])
+  }, [content, onNoteSaved])
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-4">
@@ -436,7 +427,7 @@ function EditorContent({
             <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
             <span className="text-sm text-gray-500">Live sync</span>
           </div>
-          {draft.trim() && (
+          {content.trim() && (
             <button
               onClick={handleSaveAndStartNew}
               className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
@@ -448,10 +439,9 @@ function EditorContent({
         </div>
       </div>
 
-      {/* Collaborative textarea */}
-      <UncontrolledSyncTextarea
-        remoteValue={draft}
-        onLocalChange={handleContentChange}
+      {/* Collaborative Tiptap editor with Yjs */}
+      <CollaborativeTiptapEditor
+        onContentChange={handleContentChange}
         onBlur={handleBlur}
         placeholder={placeholder}
         minHeight={minHeight}

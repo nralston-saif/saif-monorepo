@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { RoomProvider, useMutation, useStorage, useOthers, ClientSideSuspense, useStatus } from '@/lib/liveblocks'
-import { UncontrolledSyncTextarea } from '@/components/collaborative'
+import { RoomProvider, useOthers, ClientSideSuspense, useStatus } from '@/lib/liveblocks'
+import { CollaborativeTiptapEditor } from '@/components/collaborative'
 import type { Meeting, Person, Company, TicketStatus, TicketPriority } from '@saif/supabase'
 import { useToast } from '@saif/ui'
 import TagSelector from '../tickets/TagSelector'
@@ -500,7 +500,7 @@ function SimpleMeetingEditorInner({
   )
 }
 
-// Meeting Notes Editor Component (with Liveblocks)
+// Meeting Notes Editor Component (with Liveblocks + Tiptap)
 function MeetingNotesEditor({
   meeting,
   currentUser,
@@ -516,39 +516,22 @@ function MeetingNotesEditor({
 }) {
   const [saveStatus, setSaveStatus] = useState<'idle' | 'unsaved' | 'saving' | 'saved' | 'error'>('idle')
   const [saveTimer, setSaveTimer] = useState<NodeJS.Timeout | null>(null)
-  const [hasLoadedContent, setHasLoadedContent] = useState(false)
+  const [currentContent, setCurrentContent] = useState(meeting.content || '')
 
   const supabase = createClient()
   const others = useOthers()
-  const draft = useStorage((root) => root.draft)
-  const updateDraft = useMutation(({ storage }, text: string) => {
-    storage.set('draft', text)
-  }, [])
 
   // Signal that we're connected when this component mounts
   useEffect(() => {
     onConnected?.()
   }, [onConnected])
 
-  // Load meeting content into Liveblocks storage on mount (like MeetingNotes.tsx pattern)
-  useEffect(() => {
-    // Only load content once when the room first connects
-    if (!hasLoadedContent && draft !== undefined) {
-      // If there's database content and the storage is empty, load it
-      if (meeting.content && draft === '') {
-        updateDraft(meeting.content)
-      }
-      setHasLoadedContent(true)
-    }
-  }, [meeting.content, draft, updateDraft, hasLoadedContent])
+  // Handle content changes from Tiptap editor
+  const handleContentChange = (content: string) => {
+    setCurrentContent(content)
 
-  // Auto-save draft to database
-  useEffect(() => {
-    if (!draft || !hasLoadedContent) return
-
-    if (saveStatus !== 'unsaved') {
-      setSaveStatus('unsaved')
-    }
+    // Auto-save logic
+    setSaveStatus('unsaved')
 
     // Clear existing timer
     if (saveTimer) {
@@ -561,7 +544,7 @@ function MeetingNotesEditor({
 
       const { error } = await supabase
         .from('saif_meetings')
-        .update({ content: draft })
+        .update({ content })
         .eq('id', meeting.id)
 
       if (error) {
@@ -569,18 +552,21 @@ function MeetingNotesEditor({
         setSaveStatus('error')
       } else {
         // Update the meetings list so search works immediately
-        onContentSaved(meeting.id, draft)
+        onContentSaved(meeting.id, content)
         setSaveStatus('saved')
         setTimeout(() => setSaveStatus('idle'), 2000)
       }
     }, 2000)
 
     setSaveTimer(timer)
+  }
 
+  // Cleanup timer on unmount
+  useEffect(() => {
     return () => {
-      if (timer) clearTimeout(timer)
+      if (saveTimer) clearTimeout(saveTimer)
     }
-  }, [draft, meeting.id, supabase, hasLoadedContent])
+  }, [saveTimer])
 
   const formatMeetingDate = (dateString: string) => {
     // Parse date without timezone issues by treating it as local time
@@ -676,12 +662,10 @@ function MeetingNotesEditor({
 
       {/* Shared Document Editor */}
       <div className="flex-1 p-6 overflow-auto">
-        <UncontrolledSyncTextarea
-          remoteValue={draft ?? ''}
-          onLocalChange={(value) => updateDraft(value)}
+        <CollaborativeTiptapEditor
+          onContentChange={handleContentChange}
           placeholder="Start typing your meeting notes here... Everyone can edit this document together in real-time!"
-          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent resize-y font-mono text-sm"
-          minHeight="300px"
+          minHeight="400px"
         />
       </div>
     </div>
