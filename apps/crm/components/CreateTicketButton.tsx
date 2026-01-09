@@ -164,15 +164,9 @@ function QuickTicketModal({
   }
 
   return (
-    <>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-black bg-opacity-50 z-50"
-        onClick={onClose}
-      />
-
+    <div className="modal-backdrop" onClick={onClose}>
       {/* Modal */}
-      <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-white rounded-xl shadow-[0_0_50px_rgba(0,0,0,0.3)] z-50 max-h-[85vh] overflow-y-auto border-2 border-gray-200">
+      <div className="bg-white rounded-xl shadow-[0_0_50px_rgba(0,0,0,0.3)] w-full max-w-md max-h-[85vh] overflow-y-auto border-2 border-gray-200" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="sticky top-0 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between rounded-t-xl">
           <h2 className="text-base font-semibold text-gray-900">Create Ticket</h2>
@@ -356,6 +350,6 @@ function QuickTicketModal({
           </div>
         </form>
       </div>
-    </>
+    </div>
   )
 }
