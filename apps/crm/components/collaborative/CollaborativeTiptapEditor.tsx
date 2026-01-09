@@ -1,11 +1,15 @@
 'use client'
 
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useEffect, useImperativeHandle, forwardRef } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import { useLiveblocksExtension } from '@liveblocks/react-tiptap'
 import { useSelf, useUpdateMyPresence } from '@/lib/liveblocks'
+
+export type CollaborativeTiptapEditorHandle = {
+  clearContent: () => void
+}
 
 type CollaborativeTiptapEditorProps = {
   /** Callback when content changes (plain text for database saving) */
@@ -20,6 +24,8 @@ type CollaborativeTiptapEditorProps = {
   minHeight?: string
   /** Additional CSS class */
   className?: string
+  /** Trigger to clear the editor content */
+  clearTrigger?: number
 }
 
 // Generate a consistent color for a user based on their name
@@ -43,6 +49,7 @@ export function CollaborativeTiptapEditor({
   placeholder = 'Start typing your notes...',
   minHeight = '300px',
   className = '',
+  clearTrigger = 0,
 }: CollaborativeTiptapEditorProps) {
   const self = useSelf()
   const updateMyPresence = useUpdateMyPresence()
@@ -92,6 +99,13 @@ export function CollaborativeTiptapEditor({
     onBlur: handleBlurCallback,
     immediatelyRender: false,
   })
+
+  // Clear editor content when clearTrigger changes
+  useEffect(() => {
+    if (clearTrigger > 0 && editor) {
+      editor.commands.clearContent()
+    }
+  }, [clearTrigger, editor])
 
   return (
     <div

@@ -166,6 +166,7 @@ function EditorContent({
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
   const [sharedNoteId, setSharedNoteId] = useState<string | null>(null)
   const [isInitialized, setIsInitialized] = useState(false)
+  const [clearTrigger, setClearTrigger] = useState(0)
 
   // Refs for save coordination
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -398,8 +399,11 @@ function EditorContent({
 
     // Only start new if there was actually content
     if (trimmedContent) {
-      // Clear the local content (Yjs document will need to be cleared separately if needed)
+      // Clear the local content
       setContent('')
+
+      // Clear the Tiptap editor (this will sync to all users via Yjs)
+      setClearTrigger(prev => prev + 1)
 
       // Reset state for a new note
       setSharedNoteId(null)
@@ -410,7 +414,7 @@ function EditorContent({
       // Trigger refresh of notes list
       onNoteSaved?.()
     }
-  }, [content, onNoteSaved])
+  }, [content, onNoteSaved, saveNote])
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-4">
@@ -453,6 +457,7 @@ function EditorContent({
         onBlur={handleBlur}
         placeholder={placeholder}
         minHeight={minHeight}
+        clearTrigger={clearTrigger}
       />
 
       {/* Presence indicators */}
