@@ -188,7 +188,7 @@ export default function FounderDashboard({ person, userEmail, company, founders,
         {/* SAIF Community */}
         <div className="mt-8">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">SAIF Community</h3>
-          <PeopleGrid people={community} isPartner={false} />
+          <PeopleGrid people={community as Person[]} isPartner={false} />
         </div>
 
       </main>
