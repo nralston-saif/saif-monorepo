@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@saif/ui'
 import type { TicketStatus, TicketPriority } from '@/lib/types/database'
@@ -27,6 +27,17 @@ type Person = {
   email: string | null
 }
 
+type TicketComment = {
+  id: string
+  ticket_id: string
+  author_id: string
+  content: string
+  is_final_comment: boolean
+  created_at: string
+  updated_at: string
+  author?: Partner | null
+}
+
 type Ticket = {
   id: string
   title: string
@@ -46,6 +57,7 @@ type Ticket = {
   creator?: Partner | null
   company?: Company | null
   person?: Person | null
+  comments?: TicketComment[]
 }
 
 type FormData = {
@@ -65,6 +77,7 @@ export default function TicketDetailModal({
   partners,
   companies,
   people,
+  currentUserId,
   onClose,
   onUpdate,
 }: {
@@ -72,11 +85,13 @@ export default function TicketDetailModal({
   partners: Partner[]
   companies: Company[]
   people: Person[]
+  currentUserId: string
   onClose: () => void
   onUpdate: () => void
 }) {
   const [isEditing, setIsEditing] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showArchiveModal, setShowArchiveModal] = useState(false)
   const [formData, setFormData] = useState<FormData>({
     title: ticket.title,
     description: ticket.description || '',
@@ -89,6 +104,15 @@ export default function TicketDetailModal({
     tags: ticket.tags || [],
   })
   const [loading, setLoading] = useState(false)
+
+  // Comment state
+  const [comments, setComments] = useState<TicketComment[]>(ticket.comments || [])
+  const [newComment, setNewComment] = useState('')
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false)
+  const [finalComment, setFinalComment] = useState('')
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null)
+  const [editContent, setEditContent] = useState('')
+  const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null)
 
   const supabase = createClient()
   const { showToast } = useToast()
@@ -145,6 +169,151 @@ export default function TicketDetailModal({
         return 'bg-amber-100 text-amber-700'
       case 'archived':
         return 'bg-emerald-100 text-emerald-700'
+    }
+  }
+
+  // Fetch comments and subscribe to real-time updates
+  useEffect(() => {
+    fetchComments()
+
+    const channel = supabase
+      .channel(`ticket_comments:${ticket.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'saif_ticket_comments',
+          filter: `ticket_id=eq.${ticket.id}`,
+        },
+        () => {
+          fetchComments()
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [ticket.id])
+
+  const fetchComments = async () => {
+    const { data, error } = await supabase
+      .from('saif_ticket_comments')
+      .select(`
+        *,
+        author:saif_people!saif_ticket_comments_author_id_fkey(
+          id, first_name, last_name, email, avatar_url
+        )
+      `)
+      .eq('ticket_id', ticket.id)
+      .order('created_at', { ascending: true })
+
+    if (!error && data) {
+      setComments(data)
+    }
+  }
+
+  const handleAddComment = async () => {
+    if (!newComment.trim()) return
+
+    setIsSubmittingComment(true)
+    const { error } = await supabase.from('saif_ticket_comments').insert({
+      ticket_id: ticket.id,
+      author_id: currentUserId,
+      content: newComment.trim(),
+      is_final_comment: false,
+    })
+
+    setIsSubmittingComment(false)
+
+    if (error) {
+      showToast('Failed to add comment', 'error')
+      console.error(error)
+    } else {
+      setNewComment('')
+      showToast('Comment added', 'success')
+      // Manually refetch to ensure immediate update
+      await fetchComments()
+    }
+  }
+
+  const handleEditComment = async (commentId: string) => {
+    if (!editContent.trim()) return
+
+    const { error } = await supabase
+      .from('saif_ticket_comments')
+      .update({ content: editContent.trim() })
+      .eq('id', commentId)
+
+    if (error) {
+      showToast('Failed to edit comment', 'error')
+      console.error(error)
+    } else {
+      setEditingCommentId(null)
+      setEditContent('')
+      showToast('Comment updated', 'success')
+      // Manually refetch to ensure immediate update
+      await fetchComments()
+    }
+  }
+
+  const handleDeleteComment = async () => {
+    if (!deletingCommentId) return
+
+    const { error } = await supabase
+      .from('saif_ticket_comments')
+      .delete()
+      .eq('id', deletingCommentId)
+
+    if (error) {
+      showToast('Failed to delete comment', 'error')
+      console.error(error)
+    } else {
+      showToast('Comment deleted', 'success')
+      // Manually refetch to ensure immediate update
+      await fetchComments()
+    }
+
+    setDeletingCommentId(null)
+  }
+
+  const handleArchiveWithComment = async () => {
+    setLoading(true)
+
+    // Add final comment if provided
+    if (finalComment.trim()) {
+      const { error: commentError } = await supabase.from('saif_ticket_comments').insert({
+        ticket_id: ticket.id,
+        author_id: currentUserId,
+        content: finalComment.trim(),
+        is_final_comment: true,
+      })
+
+      if (commentError) {
+        showToast('Failed to save final comment', 'error')
+        console.error(commentError)
+        setLoading(false)
+        return
+      }
+    }
+
+    // Update ticket status to archived
+    const { error } = await supabase
+      .from('saif_tickets')
+      .update({ status: 'archived' })
+      .eq('id', ticket.id)
+
+    setLoading(false)
+
+    if (error) {
+      showToast('Failed to archive ticket', 'error')
+      console.error(error)
+    } else {
+      showToast('Ticket archived successfully', 'success')
+      setShowArchiveModal(false)
+      setFinalComment('')
+      onUpdate()
     }
   }
 
@@ -420,7 +589,7 @@ export default function TicketDetailModal({
                     </button>
                   )}
                   <button
-                    onClick={() => handleQuickStatusChange('archived')}
+                    onClick={() => setShowArchiveModal(true)}
                     className="px-3 py-1.5 bg-emerald-100 text-emerald-700 rounded-lg text-sm font-medium hover:bg-emerald-200 transition-colors"
                     disabled={loading}
                   >
@@ -466,6 +635,144 @@ export default function TicketDetailModal({
                 </div>
               </div>
             )}
+
+            {/* Comments Section */}
+            <div className="border-t border-gray-100 pt-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                Comments ({comments.length})
+              </h3>
+
+              {/* Comments List */}
+              <div className="space-y-4 mb-4 max-h-96 overflow-y-auto">
+                {comments.map((comment) => (
+                  <div key={comment.id} className="bg-gray-50 rounded-lg p-4">
+                    {editingCommentId === comment.id ? (
+                      <div className="space-y-2">
+                        <textarea
+                          value={editContent}
+                          onChange={(e) => setEditContent(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-gray-900 focus:border-gray-900"
+                          rows={3}
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleEditComment(comment.id)}
+                            className="px-3 py-1.5 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-black transition-colors"
+                          >
+                            Save
+                          </button>
+                          <button
+                            onClick={() => {
+                              setEditingCommentId(null)
+                              setEditContent('')
+                            }}
+                            className="px-3 py-1.5 border border-gray-300 rounded-lg text-gray-700 text-sm font-medium hover:bg-gray-50 transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-start gap-3">
+                        {comment.author?.avatar_url ? (
+                          <img
+                            src={comment.author.avatar_url}
+                            alt=""
+                            className="w-8 h-8 rounded-full"
+                          />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center">
+                            <span className="text-xs text-gray-600">
+                              {comment.author?.first_name?.[0] || '?'}
+                            </span>
+                          </div>
+                        )}
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between mb-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-gray-900">
+                                {getPartnerName(comment.author)}
+                              </span>
+                              <span className="text-xs text-gray-500">
+                                {formatDate(comment.created_at)}
+                              </span>
+                            </div>
+                            {comment.author_id === currentUserId && (
+                              <div className="flex gap-1">
+                                <button
+                                  onClick={() => {
+                                    setEditingCommentId(comment.id)
+                                    setEditContent(comment.content)
+                                  }}
+                                  className="p-1 text-gray-500 hover:text-gray-700"
+                                  title="Edit comment"
+                                >
+                                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                  </svg>
+                                </button>
+                                {!comment.is_final_comment && (
+                                  <button
+                                    onClick={() => setDeletingCommentId(comment.id)}
+                                    className="p-1 text-gray-500 hover:text-red-600"
+                                    title="Delete comment"
+                                  >
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                          <p className="text-gray-700 whitespace-pre-wrap">
+                            {comment.content}
+                          </p>
+                          <div className="flex gap-2 mt-2">
+                            {comment.is_final_comment && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-emerald-100 text-emerald-700">
+                                Final Comment
+                              </span>
+                            )}
+                            {!comment.is_final_comment && ticket.archived_at && new Date(comment.created_at) > new Date(ticket.archived_at) && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-700">
+                                Post-completion
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                {comments.length === 0 && (
+                  <p className="text-center text-gray-500 py-8">
+                    No comments yet. Add the first comment below.
+                  </p>
+                )}
+              </div>
+
+              {/* Add Comment Form */}
+              <div className="space-y-2">
+                <textarea
+                  value={newComment}
+                  onChange={(e) => setNewComment(e.target.value)}
+                  placeholder="Add a comment..."
+                  rows={3}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-gray-900 focus:border-gray-900"
+                />
+                <div className="flex justify-end">
+                  <button
+                    onClick={handleAddComment}
+                    disabled={!newComment.trim() || isSubmittingComment}
+                    className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-black font-medium transition-colors disabled:opacity-50"
+                  >
+                    {isSubmittingComment ? 'Adding...' : 'Add Comment'}
+                  </button>
+                </div>
+              </div>
+            </div>
 
             {/* Metadata */}
             <div className="pt-6 border-t border-gray-100 space-y-2 text-sm text-gray-500">
@@ -556,6 +863,72 @@ export default function TicketDetailModal({
                   disabled={loading}
                 >
                   {loading ? 'Deleting...' : 'Delete'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Archive Modal */}
+        {showArchiveModal && (
+          <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center rounded-2xl">
+            <div className="bg-white rounded-xl p-6 max-w-lg mx-4 w-full">
+              <h3 className="text-lg font-bold text-gray-900 mb-2">
+                Archive Ticket
+              </h3>
+              <p className="text-gray-600 mb-4">
+                Add a final comment to summarize the outcome (optional).
+              </p>
+              <textarea
+                value={finalComment}
+                onChange={(e) => setFinalComment(e.target.value)}
+                placeholder="Final summary or resolution notes..."
+                rows={4}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-gray-900 focus:border-gray-900 mb-4"
+              />
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setShowArchiveModal(false)
+                    setFinalComment('')
+                  }}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-medium transition-colors"
+                  disabled={loading}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleArchiveWithComment}
+                  className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-medium transition-colors disabled:opacity-50"
+                  disabled={loading}
+                >
+                  {loading ? 'Archiving...' : 'Archive Ticket'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Delete Comment Confirmation */}
+        {deletingCommentId && (
+          <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center rounded-2xl">
+            <div className="bg-white rounded-xl p-6 max-w-sm mx-4">
+              <h3 className="text-lg font-bold text-gray-900 mb-2">Delete Comment?</h3>
+              <p className="text-gray-600 mb-4">
+                Are you sure you want to delete this comment? This action cannot be undone.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setDeletingCommentId(null)}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-medium transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeleteComment}
+                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium transition-colors"
+                >
+                  Delete
                 </button>
               </div>
             </div>

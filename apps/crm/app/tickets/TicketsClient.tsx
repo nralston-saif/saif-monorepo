@@ -27,6 +27,14 @@ type Person = {
   email: string | null
 }
 
+type TicketComment = {
+  id: string
+  content: string
+  is_final_comment: boolean
+  created_at: string
+  author?: Partner | null
+}
+
 type Ticket = {
   id: string
   title: string
@@ -46,6 +54,7 @@ type Ticket = {
   creator?: Partner | null
   company?: Company | null
   person?: Person | null
+  comments?: TicketComment[]
 }
 
 type StatusFilter = 'active' | 'archived' | 'all'
@@ -70,7 +79,7 @@ export default function TicketsClient({
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('active')
   const [priorityFilter, setPriorityFilter] = useState<TicketPriority | 'all'>('all')
-  const [assignedFilter, setAssignedFilter] = useState<string | 'all' | 'unassigned'>('all')
+  const [assignedFilter, setAssignedFilter] = useState<string | 'all' | 'unassigned'>(currentUserId)
   const [sortOption, setSortOption] = useState<SortOption>('date-newest')
 
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -219,9 +228,19 @@ export default function TicketsClient({
         {/* Header */}
         <div className="flex items-start justify-between mb-3">
           <div className="flex-1 min-w-0">
-            <h3 className="font-semibold text-gray-900 truncate mb-1">
-              {ticket.title}
-            </h3>
+            <div className="flex items-center gap-2 mb-1">
+              <h3 className="font-semibold text-gray-900 truncate">
+                {ticket.title}
+              </h3>
+              {ticket.comments && ticket.comments.length > 0 && (
+                <div className="inline-flex items-center gap-1 text-xs text-gray-500" title={`${ticket.comments.length} comment${ticket.comments.length !== 1 ? 's' : ''}`}>
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                  </svg>
+                  {ticket.comments.length}
+                </div>
+              )}
+            </div>
             <div className="flex items-center gap-2 flex-wrap">
               <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium capitalize ${getStatusColor(ticket.status)}`}>
                 {ticket.status.replace('_', ' ')}
@@ -452,6 +471,7 @@ export default function TicketsClient({
           partners={partners}
           companies={companies}
           people={people}
+          currentUserId={currentUserId}
           onClose={() => setSelectedTicket(null)}
           onUpdate={() => {
             setSelectedTicket(null)

@@ -349,6 +349,49 @@ export interface Database {
           }
         ]
       }
+      saif_ticket_comments: {
+        Row: {
+          id: string
+          ticket_id: string
+          author_id: string
+          content: string
+          is_final_comment: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          ticket_id: string
+          author_id: string
+          content: string
+          is_final_comment?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          ticket_id?: string
+          author_id?: string
+          content?: string
+          is_final_comment?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saif_ticket_comments_ticket_id_fkey"
+            columns: ["ticket_id"]
+            referencedRelation: "saif_tickets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "saif_ticket_comments_author_id_fkey"
+            columns: ["author_id"]
+            referencedRelation: "saif_people"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -386,6 +429,7 @@ export type Company = Database['public']['Tables']['saif_companies']['Row']
 export type CompanyPerson = Database['public']['Tables']['saif_company_people']['Row']
 export type Investment = Database['public']['Tables']['saif_investments']['Row']
 export type Ticket = Database['public']['Tables']['saif_tickets']['Row']
+export type TicketComment = Database['public']['Tables']['saif_ticket_comments']['Row']
 
 // Helper type for person with company info
 export type PersonWithCompany = Person & {
@@ -401,10 +445,16 @@ export type CompanyWithPeople = Company & {
   })[]
 }
 
+// Helper type for ticket comment with author
+export type TicketCommentWithAuthor = TicketComment & {
+  author?: Person | null
+}
+
 // Helper type for ticket with relationships
 export type TicketWithRelations = Ticket & {
   assigned_partner?: Person | null
   creator?: Person | null
   company?: Company | null
   person?: Person | null
+  comments?: TicketCommentWithAuthor[]
 }

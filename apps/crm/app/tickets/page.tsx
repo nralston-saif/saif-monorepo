@@ -59,7 +59,15 @@ export default async function TicketsPage() {
       assigned_partner:saif_people!saif_tickets_assigned_to_fkey(id, first_name, last_name, email, avatar_url),
       creator:saif_people!saif_tickets_created_by_fkey(id, first_name, last_name, email, avatar_url),
       company:saif_companies!saif_tickets_related_company_fkey(id, name, logo_url),
-      person:saif_people!saif_tickets_related_person_fkey(id, first_name, last_name, email)
+      person:saif_people!saif_tickets_related_person_fkey(id, first_name, last_name, email),
+      comments:saif_ticket_comments(
+        id,
+        content,
+        is_final_comment,
+        created_at,
+        updated_at,
+        author:saif_people!saif_ticket_comments_author_id_fkey(id, first_name, last_name, email, avatar_url)
+      )
     `)
     .order('created_at', { ascending: false })
     .limit(500)
