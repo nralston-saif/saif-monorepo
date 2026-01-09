@@ -105,7 +105,7 @@ export default async function PeoplePage({
 
     // Create association map by person
     const associationsByPerson: Record<string, Array<{
-      relationship_type: string
+      relationship_type: string | null
       title: string | null
       company: { id: string; name: string } | null
     }>> = {}

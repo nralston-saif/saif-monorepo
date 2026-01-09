@@ -85,7 +85,7 @@ export default async function PortfolioPage() {
     id: string
     content: string
     meeting_date: string | null
-    created_at: string
+    created_at: string | null
     user_name: string | null
   }>> = {}
 
