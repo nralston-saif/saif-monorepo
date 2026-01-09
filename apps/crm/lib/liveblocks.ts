@@ -16,10 +16,31 @@ if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
 }
 
 // Create the Liveblocks client
-// Always use auth endpoint to get proper user info for collaborative cursors
-// The auth endpoint provides user names from the database
+// Use auth endpoint for proper user names, fallback to public key if auth fails
 const client: Client = createClient({
-  authEndpoint: '/api/liveblocks-auth',
+  authEndpoint: async (room) => {
+    try {
+      const response = await fetch('/api/liveblocks-auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ room }),
+      });
+
+      if (!response.ok) {
+        // Auth endpoint failed, throw to trigger fallback
+        throw new Error(`Auth failed: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.warn('[Liveblocks] Auth endpoint failed, using public key fallback:', error);
+      // Return public key auth as fallback
+      if (isValidKey) {
+        return { token: publicApiKey };
+      }
+      throw error;
+    }
+  },
   throttle: 100,
 });
 
