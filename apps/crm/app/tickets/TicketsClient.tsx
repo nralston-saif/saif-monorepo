@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import type { TicketStatus, TicketPriority } from '@saif/supabase'
+import type { TicketStatus, TicketPriority, Ticket as BaseTicket, TicketComment as BaseTicketComment } from '@saif/supabase'
 import CreateTicketModal from './CreateTicketModal'
 import TicketDetailModal from './TicketDetailModal'
 
@@ -27,34 +27,16 @@ type Person = {
   email: string | null
 }
 
-type TicketComment = {
-  id: string
-  content: string
-  is_final_comment: boolean
-  created_at: string
+type TicketCommentWithAuthor = BaseTicketComment & {
   author?: Partner | null
 }
 
-type Ticket = {
-  id: string
-  title: string
-  description: string | null
-  status: TicketStatus
-  priority: TicketPriority
-  due_date: string | null
-  created_at: string
-  updated_at: string
-  archived_at: string | null
-  assigned_to: string | null
-  created_by: string
-  related_company: string | null
-  related_person: string | null
-  tags: string[] | null
+type TicketWithRelations = BaseTicket & {
   assigned_partner?: Partner | null
   creator?: Partner | null
   company?: Company | null
   person?: Person | null
-  comments?: TicketComment[]
+  comments?: TicketCommentWithAuthor[]
 }
 
 type StatusFilter = 'active' | 'archived' | 'all'
@@ -68,7 +50,7 @@ export default function TicketsClient({
   currentUserId,
   userName,
 }: {
-  tickets: Ticket[]
+  tickets: TicketWithRelations[]
   partners: Partner[]
   companies: Company[]
   people: Person[]
@@ -216,7 +198,7 @@ export default function TicketsClient({
   }
 
   // Render ticket card
-  const renderTicketCard = (ticket: Ticket) => {
+  const renderTicketCard = (ticket: TicketWithRelations) => {
     const overdueStatus = isOverdue(ticket.due_date, ticket.status)
 
     return (
