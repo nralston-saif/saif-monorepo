@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@saif/ui'
-import type { TicketStatus, TicketPriority } from '@saif/supabase'
+import type { TicketStatus, TicketPriority, Ticket as BaseTicket, TicketComment as BaseTicketComment } from '@saif/supabase'
 import TagSelector from './TagSelector'
 
 type Partner = {
@@ -27,37 +27,16 @@ type Person = {
   email: string | null
 }
 
-type TicketComment = {
-  id: string
-  ticket_id: string
-  author_id: string
-  content: string
-  is_final_comment: boolean
-  created_at: string
-  updated_at: string
+type TicketCommentWithAuthor = BaseTicketComment & {
   author?: Partner | null
 }
 
-type Ticket = {
-  id: string
-  title: string
-  description: string | null
-  status: TicketStatus
-  priority: TicketPriority
-  due_date: string | null
-  created_at: string
-  updated_at: string
-  archived_at: string | null
-  assigned_to: string | null
-  created_by: string
-  related_company: string | null
-  related_person: string | null
-  tags: string[] | null
+type TicketWithRelations = BaseTicket & {
   assigned_partner?: Partner | null
   creator?: Partner | null
   company?: Company | null
   person?: Person | null
-  comments?: TicketComment[]
+  comments?: TicketCommentWithAuthor[]
 }
 
 type FormData = {
@@ -82,7 +61,7 @@ export default function TicketDetailModal({
   onClose,
   onUpdate,
 }: {
-  ticket: Ticket
+  ticket: TicketWithRelations
   partners: Partner[]
   companies: Company[]
   people: Person[]
@@ -108,7 +87,7 @@ export default function TicketDetailModal({
   const [loading, setLoading] = useState(false)
 
   // Comment state
-  const [comments, setComments] = useState<TicketComment[]>(ticket.comments || [])
+  const [comments, setComments] = useState<TicketCommentWithAuthor[]>(ticket.comments || [])
   const [newComment, setNewComment] = useState('')
   const [isSubmittingComment, setIsSubmittingComment] = useState(false)
   const [finalComment, setFinalComment] = useState('')

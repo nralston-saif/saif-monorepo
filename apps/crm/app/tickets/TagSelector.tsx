@@ -2,12 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
-
-type Tag = {
-  id: string
-  name: string
-  color: string
-}
+import type { Tag } from '@saif/supabase'
 
 type TagSelectorProps = {
   selectedTags: string[]
@@ -204,7 +199,7 @@ export default function TagSelector({ selectedTags, onChange, currentUserId }: T
               >
                 <span
                   className="w-3 h-3 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: tag.color }}
+                  style={{ backgroundColor: tag.color || '#6B7280' }}
                 />
                 <span className="flex-1">{tag.name}</span>
               </button>
