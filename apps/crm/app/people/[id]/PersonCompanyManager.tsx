@@ -10,7 +10,7 @@ type CompanyAssociation = {
   id: string
   relationship_type: string | null
   title: string | null
-  is_primary_contact: boolean
+  is_primary_contact: boolean | null
   end_date: string | null
   company: {
     id: string
@@ -244,7 +244,7 @@ export default function PersonCompanyManager({
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-gray-900">{company.name}</p>
                     <p className="text-sm text-gray-500">
-                      {RELATIONSHIP_LABELS[assoc.relationship_type] || assoc.relationship_type}
+                      {assoc.relationship_type ? (RELATIONSHIP_LABELS[assoc.relationship_type] || assoc.relationship_type) : 'N/A'}
                       {assoc.title && ` - ${assoc.title}`}
                     </p>
                   </div>
@@ -254,7 +254,7 @@ export default function PersonCompanyManager({
                     onClick={() => handleRemoveCompanyLink(
                       assoc.id,
                       company.name,
-                      RELATIONSHIP_LABELS[assoc.relationship_type] || assoc.relationship_type
+                      assoc.relationship_type ? (RELATIONSHIP_LABELS[assoc.relationship_type] || assoc.relationship_type) : 'N/A'
                     )}
                     className="opacity-0 group-hover:opacity-100 p-2 text-gray-400 hover:text-red-600 transition"
                     title="Remove association"
