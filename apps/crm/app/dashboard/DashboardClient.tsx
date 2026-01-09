@@ -10,14 +10,14 @@ type NeedsVoteApp = {
   company_name: string
   founder_names: string | null
   company_description: string | null
-  submitted_at: string
+  submitted_at: string | null
 }
 
 type NeedsDecisionApp = {
   id: string
   company_name: string
   founder_names: string | null
-  submitted_at: string
+  submitted_at: string | null
 }
 
 type Stats = {
