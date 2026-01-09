@@ -11,7 +11,7 @@ type MeetingNote = {
   id: string
   content: string
   meeting_date: string | null
-  created_at: string
+  created_at: string | null
   user_name: string | null
 }
 
@@ -580,7 +580,7 @@ export default function PortfolioClient({
             contact_name: selectedInvestment.contact_name,
             contact_email: selectedInvestment.contact_email,
             notes: selectedInvestment.notes,
-            stealthy: selectedInvestment.stealthy,
+            stealthy: selectedInvestment.stealthy ?? undefined,
           }}
           onClose={() => setSelectedInvestment(null)}
           actions={
