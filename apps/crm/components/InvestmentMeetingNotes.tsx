@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { CollaborativeNoteEditor } from './collaborative'
 import DeleteNoteModal from './DeleteNoteModal'
@@ -75,33 +75,26 @@ function NotesList({
     fetchNotes()
   }, [fetchNotes, refreshTrigger])
 
-  // Real-time subscription for when other users save notes
-  // Debounced to allow Liveblocks storage sync to propagate excludeNoteId
+  // Real-time subscription ONLY for DELETE events
+  // INSERT/UPDATE are handled via Liveblocks sync to avoid race conditions
   useEffect(() => {
-    let debounceTimer: NodeJS.Timeout | null = null
-
     const channel = supabase
       .channel(`investment-notes-${investmentId}`)
       .on(
         'postgres_changes',
         {
-          event: '*',
+          event: 'DELETE',
           schema: 'public',
           table: 'saifcrm_investment_notes',
           filter: `investment_id=eq.${investmentId}`,
         },
         () => {
-          // Debounce to allow Liveblocks state to sync before refreshing
-          if (debounceTimer) clearTimeout(debounceTimer)
-          debounceTimer = setTimeout(() => {
-            fetchNotes()
-          }, 500)
+          fetchNotes()
         }
       )
       .subscribe()
 
     return () => {
-      if (debounceTimer) clearTimeout(debounceTimer)
       supabase.removeChannel(channel)
     }
   }, [investmentId, supabase, fetchNotes])
@@ -261,6 +254,19 @@ export default function InvestmentMeetingNotes({
   const [refreshTrigger, setRefreshTrigger] = useState(0)
   // Use undefined to indicate "not yet initialized" vs null for "no note being edited"
   const [currentNoteId, setCurrentNoteId] = useState<string | null | undefined>(undefined)
+  const prevCurrentNoteIdRef = useRef<string | null | undefined>(undefined)
+
+  // Detect when sharedNoteId transitions from a value to null (Save & New clicked by any user)
+  // This triggers a refetch so all users see the finalized note in Previous Notes
+  useEffect(() => {
+    const prev = prevCurrentNoteIdRef.current
+    prevCurrentNoteIdRef.current = currentNoteId
+
+    // If transitioning from a note ID to null, someone clicked Save & New
+    if (prev && prev !== undefined && currentNoteId === null) {
+      setRefreshTrigger(p => p + 1)
+    }
+  }, [currentNoteId])
 
   const handleNoteSaved = () => {
     setRefreshTrigger((prev) => prev + 1)
