@@ -94,7 +94,7 @@ export default function PeopleClient({
 
   const [searchQuery, setSearchQuery] = useState(initialSearch || urlSearch)
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('all')
-  const [statusFilter, setStatusFilter] = useState<UserStatus | 'all'>('all')
+  const [statusFilter, setStatusFilter] = useState<NonNullable<UserStatus> | 'all'>('all')
   const [sortOption, setSortOption] = useState<SortOption>('name-az')
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null)
   const [notesPersonId, setNotesPersonId] = useState<Person | null>(null)
@@ -509,11 +509,11 @@ export default function PeopleClient({
           <div className="sm:w-40">
             <select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as UserStatus | 'all')}
+              onChange={(e) => setStatusFilter(e.target.value as NonNullable<UserStatus> | 'all')}
               className="input"
             >
               <option value="all">All Status</option>
-              {(Object.keys(STATUS_LABELS) as UserStatus[]).map(status => (
+              {(Object.keys(STATUS_LABELS) as Array<NonNullable<UserStatus>>).map(status => (
                 <option key={status} value={status}>{STATUS_LABELS[status]}</option>
               ))}
             </select>
@@ -692,7 +692,7 @@ export default function PeopleClient({
                         {ROLE_LABELS[selectedPerson.role]}
                       </span>
                       <span className="text-sm text-gray-500">
-                        {STATUS_LABELS[selectedPerson.status]}
+                        {selectedPerson.status ? STATUS_LABELS[selectedPerson.status as NonNullable<UserStatus>] : 'N/A'}
                       </span>
                     </div>
                   </div>
@@ -933,10 +933,10 @@ export default function PeopleClient({
                   </label>
                   <select
                     value={formData.status || 'tracked'}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value as UserStatus })}
+                    onChange={(e) => setFormData({ ...formData, status: e.target.value as NonNullable<UserStatus> })}
                     className="input"
                   >
-                    {(Object.keys(STATUS_LABELS) as UserStatus[]).map(status => (
+                    {(Object.keys(STATUS_LABELS) as Array<NonNullable<UserStatus>>).map(status => (
                       <option key={status} value={status}>{STATUS_LABELS[status]}</option>
                     ))}
                   </select>
