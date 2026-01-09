@@ -240,7 +240,7 @@ export default function TicketsClient({
     }
   }
 
-  // Render ticket card
+  // Render ticket row (compact list view)
   const renderTicketCard = (ticket: TicketWithRelations) => {
     const overdueStatus = isOverdue(ticket.due_date, ticket.status)
 
@@ -248,84 +248,89 @@ export default function TicketsClient({
       <div
         key={ticket.id}
         onClick={() => setSelectedTicket(ticket)}
-        className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition-shadow cursor-pointer"
+        className="p-4 hover:bg-gray-50 transition-colors cursor-pointer"
       >
-        {/* Header */}
-        <div className="flex items-start justify-between mb-3">
+        <div className="flex items-start justify-between gap-4">
+          {/* Left side - Main content */}
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1">
-              <h3 className="font-semibold text-gray-900 truncate">
+            {/* Title, badges, and comment count */}
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
+              <h3 className="font-medium text-gray-900 truncate">
                 {ticket.title}
               </h3>
+              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize ${getStatusColor(ticket.status)}`}>
+                {ticket.status.replace('_', ' ')}
+              </span>
+              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize ${getPriorityColor(ticket.priority)}`}>
+                {ticket.priority}
+              </span>
               {ticket.comments && ticket.comments.length > 0 && (
-                <div className="inline-flex items-center gap-1 text-xs text-gray-500" title={`${ticket.comments.length} comment${ticket.comments.length !== 1 ? 's' : ''}`}>
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 text-xs text-gray-600" title={`${ticket.comments.length} comment${ticket.comments.length !== 1 ? 's' : ''}`}>
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                   </svg>
-                  {ticket.comments.length}
+                  <span>{ticket.comments.length}</span>
                 </div>
               )}
             </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium capitalize ${getStatusColor(ticket.status)}`}>
-                {ticket.status.replace('_', ' ')}
-              </span>
-              <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium capitalize ${getPriorityColor(ticket.priority)}`}>
-                {ticket.priority}
-              </span>
+
+            {/* Description */}
+            {ticket.description && (
+              <p className="text-sm text-gray-600 line-clamp-1 mb-1.5">
+                {ticket.description}
+              </p>
+            )}
+
+            {/* Tags, Company, and Assigned person */}
+            <div className="flex items-center gap-3 flex-wrap text-xs">
+              {/* Tags */}
+              {ticket.tags && ticket.tags.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {ticket.tags.map((tag, index) => (
+                    <span key={index} className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-gray-100 text-gray-700">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* Company */}
+              {ticket.company && (
+                <div className="flex items-center gap-1.5 text-gray-500">
+                  {ticket.company.logo_url && (
+                    <img src={ticket.company.logo_url} alt={ticket.company.name} className="w-4 h-4 rounded object-cover" />
+                  )}
+                  <span className="truncate">📁 {ticket.company.name}</span>
+                </div>
+              )}
+
+              {/* Assigned to */}
+              <div className="flex items-center gap-1.5 text-gray-500">
+                {ticket.assigned_partner?.avatar_url ? (
+                  <img src={ticket.assigned_partner.avatar_url} alt="" className="w-4 h-4 rounded-full" />
+                ) : (
+                  <div className="w-4 h-4 rounded-full bg-gray-200 flex items-center justify-center">
+                    <span className="text-[10px] text-gray-600">
+                      {ticket.assigned_partner?.first_name?.[0] || '?'}
+                    </span>
+                  </div>
+                )}
+                <span className="truncate">👤 {getPartnerName(ticket.assigned_partner)}</span>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Description preview */}
-        {ticket.description && (
-          <p className="text-sm text-gray-600 mb-3 line-clamp-2">
-            {ticket.description}
-          </p>
-        )}
-
-        {/* Company/Person */}
-        {ticket.company && (
-          <div className="flex items-center gap-2 mb-3">
-            {ticket.company.logo_url && (
-              <img src={ticket.company.logo_url} alt={ticket.company.name} className="w-5 h-5 rounded object-cover" />
-            )}
-            <span className="text-sm text-gray-600">{ticket.company.name}</span>
-          </div>
-        )}
-
-        {/* Tags */}
-        {ticket.tags && ticket.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1 mb-3">
-            {ticket.tags.map((tag, index) => (
-              <span key={index} className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-700">
-                {tag}
-              </span>
-            ))}
-          </div>
-        )}
-
-        {/* Footer */}
-        <div className="flex items-center justify-between pt-3 border-t border-gray-100">
-          <div className="flex items-center gap-2">
-            {ticket.assigned_partner?.avatar_url ? (
-              <img src={ticket.assigned_partner.avatar_url} alt="" className="w-6 h-6 rounded-full" />
-            ) : (
-              <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center">
-                <span className="text-xs text-gray-600">
-                  {ticket.assigned_partner?.first_name?.[0] || '?'}
+          {/* Right side - Due date and actions */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {ticket.due_date && (
+              <div className={`flex items-center gap-1 px-2.5 py-1 rounded-lg ${overdueStatus ? 'bg-red-100 text-red-700' : 'bg-blue-50 text-blue-700'}`}>
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <span className="text-xs font-medium whitespace-nowrap">
+                  {overdueStatus ? 'Overdue' : formatDate(ticket.due_date)}
                 </span>
               </div>
-            )}
-            <span className="text-sm text-gray-600">
-              {getPartnerName(ticket.assigned_partner)}
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            {ticket.due_date && (
-              <span className={`text-xs ${overdueStatus ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
-                {overdueStatus ? 'Overdue' : formatDate(ticket.due_date)}
-              </span>
             )}
             {ticket.status !== 'archived' && (
               <button
@@ -344,30 +349,24 @@ export default function TicketsClient({
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Header with stats */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Tickets</h1>
-            <p className="mt-1 text-gray-500">Manage partner tasks and follow-ups</p>
-          </div>
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            + Create Ticket
-          </button>
+      {/* Header */}
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Tickets</h1>
+          <p className="mt-1 text-gray-500">Manage partner tasks and follow-ups</p>
         </div>
-
-        {/* Stats row */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          <StatCard label="Total" value={stats.total} color="gray" />
-          <StatCard label="Open" value={stats.open} color="blue" />
-          <StatCard label="In Progress" value={stats.inProgress} color="amber" />
-          <StatCard label="Archived" value={stats.archived} color="green" />
-          <StatCard label="Overdue" value={stats.overdue} color="red" />
-        </div>
+        <button
+          onClick={() => setShowCreateModal(true)}
+          className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+        >
+          + Create Ticket
+        </button>
       </div>
+
+      {/* Main Layout: Content Left, Stats Right */}
+      <div className="flex gap-6">
+        {/* Left side - Main content */}
+        <div className="flex-1 min-w-0">
 
       {/* Filters & Search */}
       <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6">
@@ -486,10 +485,10 @@ export default function TicketsClient({
         </p>
       </div>
 
-      {/* Tickets Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      {/* Tickets List */}
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         {filteredTickets.length === 0 ? (
-          <div className="col-span-full text-center py-12">
+          <div className="text-center py-12">
             <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
               <span className="text-gray-400 text-xl">🎫</span>
             </div>
@@ -501,8 +500,23 @@ export default function TicketsClient({
             </p>
           </div>
         ) : (
-          filteredTickets.map(renderTicketCard)
+          <div className="divide-y divide-gray-100">
+            {filteredTickets.map(renderTicketCard)}
+          </div>
         )}
+      </div>
+        </div>
+
+        {/* Right side - Stats */}
+        <div className="w-48 flex-shrink-0">
+          <div className="sticky top-6 flex flex-col gap-3">
+            <StatCard label="Total" value={stats.total} color="gray" />
+            <StatCard label="Open" value={stats.open} color="blue" />
+            <StatCard label="In Progress" value={stats.inProgress} color="amber" />
+            <StatCard label="Archived" value={stats.archived} color="green" />
+            <StatCard label="Overdue" value={stats.overdue} color="red" />
+          </div>
+        </div>
       </div>
 
       {/* Modals */}
@@ -601,9 +615,9 @@ function StatCard({ label, value, color }: { label: string; value: number; color
   }
 
   return (
-    <div className={`rounded-xl p-4 ${colorClasses[color] || colorClasses.gray}`}>
-      <div className="text-2xl font-bold">{value}</div>
-      <div className="text-sm font-medium">{label}</div>
+    <div className={`rounded-lg p-3 ${colorClasses[color] || colorClasses.gray}`}>
+      <div className="text-xl font-bold">{value}</div>
+      <div className="text-xs font-medium">{label}</div>
     </div>
   )
 }
