@@ -2,7 +2,12 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import type { Tag } from '@saif/supabase'
+
+type TagData = {
+  id: string
+  name: string
+  color: string | null
+}
 
 type TagSelectorProps = {
   selectedTags: string[]
@@ -11,7 +16,7 @@ type TagSelectorProps = {
 }
 
 export default function TagSelector({ selectedTags, onChange, currentUserId }: TagSelectorProps) {
-  const [availableTags, setAvailableTags] = useState<Tag[]>([])
+  const [availableTags, setAvailableTags] = useState<TagData[]>([])
   const [isOpen, setIsOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [isCreating, setIsCreating] = useState(false)
