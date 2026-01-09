@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { RoomProvider, useMutation, useStorage, useOthers, ClientSideSuspense, useStatus } from '@/lib/liveblocks'
+import { UncontrolledSyncTextarea } from '@/components/collaborative'
 import type { Meeting, Person, Company, TicketStatus, TicketPriority } from '@saif/supabase'
 import { useToast } from '@saif/ui'
 import TagSelector from '../tickets/TagSelector'
@@ -581,10 +582,6 @@ function MeetingNotesEditor({
     }
   }, [draft, meeting.id, supabase, hasLoadedContent])
 
-  const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    updateDraft(e.target.value)
-  }
-
   const formatMeetingDate = (dateString: string) => {
     // Parse date without timezone issues by treating it as local time
     const [year, month, day] = dateString.split('T')[0].split('-')
@@ -679,11 +676,12 @@ function MeetingNotesEditor({
 
       {/* Shared Document Editor */}
       <div className="flex-1 p-6 overflow-auto">
-        <textarea
-          value={draft ?? ''}
-          onChange={handleTextChange}
+        <UncontrolledSyncTextarea
+          remoteValue={draft ?? ''}
+          onLocalChange={(value) => updateDraft(value)}
           placeholder="Start typing your meeting notes here... Everyone can edit this document together in real-time!"
-          className="w-full min-h-[300px] px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent resize-y font-mono text-sm"
+          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent resize-y font-mono text-sm"
+          minHeight="300px"
         />
       </div>
     </div>

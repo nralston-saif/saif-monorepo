@@ -11,6 +11,7 @@ import {
   ClientSideSuspense,
   useSelf
 } from '@/lib/liveblocks'
+import { UncontrolledSyncTextarea } from './UncontrolledSyncTextarea'
 
 // ============================================================================
 // TYPES
@@ -41,96 +42,6 @@ type CollaborativeNoteEditorProps = {
   placeholder?: string
   minHeight?: string
   onNoteSaved?: () => void
-}
-
-// ============================================================================
-// CURSOR-PRESERVING TEXTAREA
-// ============================================================================
-
-/**
- * A textarea that preserves cursor position when content is updated externally.
- * This fixes the "cursor jumping" issue when multiple users are typing.
- */
-function CursorPreservingTextarea({
-  value,
-  onChange,
-  onBlur,
-  placeholder,
-  minHeight = '300px',
-}: {
-  value: string
-  onChange: (value: string, cursorPosition: number) => void
-  onBlur: () => void
-  placeholder?: string
-  minHeight?: string
-}) {
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const lastLocalChangeRef = useRef<{ value: string; cursor: number } | null>(null)
-  const isLocalChangeRef = useRef(false)
-
-  // When value changes from external source (Liveblocks), preserve cursor
-  useEffect(() => {
-    const textarea = textareaRef.current
-    if (!textarea) return
-
-    // If this was a local change, we already handled cursor
-    if (isLocalChangeRef.current) {
-      isLocalChangeRef.current = false
-      return
-    }
-
-    // External change - try to preserve cursor position intelligently
-    const currentCursor = textarea.selectionStart
-    const currentValue = textarea.value
-
-    // If the change is an insertion/deletion elsewhere, adjust cursor
-    if (value !== currentValue) {
-      // Calculate where the change happened
-      let commonPrefixLength = 0
-      const minLen = Math.min(value.length, currentValue.length)
-      while (commonPrefixLength < minLen && value[commonPrefixLength] === currentValue[commonPrefixLength]) {
-        commonPrefixLength++
-      }
-
-      // If cursor was before the change point, keep it
-      // If cursor was at or after, adjust by the length difference
-      let newCursor = currentCursor
-      if (currentCursor > commonPrefixLength) {
-        const lengthDiff = value.length - currentValue.length
-        newCursor = Math.max(0, Math.min(value.length, currentCursor + lengthDiff))
-      }
-
-      // Apply the new value and restore cursor
-      requestAnimationFrame(() => {
-        if (textarea && document.activeElement === textarea) {
-          textarea.setSelectionRange(newCursor, newCursor)
-        }
-      })
-    }
-  }, [value])
-
-  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const newValue = e.target.value
-    const cursorPosition = e.target.selectionStart
-
-    isLocalChangeRef.current = true
-    lastLocalChangeRef.current = { value: newValue, cursor: cursorPosition }
-
-    onChange(newValue, cursorPosition)
-  }
-
-  return (
-    <textarea
-      ref={textareaRef}
-      value={value}
-      onChange={handleChange}
-      onBlur={onBlur}
-      rows={12}
-      className="input resize-y w-full"
-      style={{ minHeight }}
-      placeholder={placeholder}
-    />
-  )
 }
 
 // ============================================================================
@@ -468,7 +379,7 @@ function EditorContent({
   }
 
   // Handle content change from textarea
-  const handleContentChange = useCallback((value: string, _cursorPosition: number) => {
+  const handleContentChange = useCallback((value: string) => {
     updateDraft(value)
     updateMyPresence({ isTyping: true })
   }, [updateDraft, updateMyPresence])
@@ -476,6 +387,31 @@ function EditorContent({
   const handleBlur = useCallback(() => {
     updateMyPresence({ isTyping: false })
   }, [updateMyPresence])
+
+  // Save current note and start a fresh one
+  const handleSaveAndStartNew = useCallback(async () => {
+    const content = draft.trim()
+
+    // If there's content, make sure it's saved first
+    if (content && content !== lastSavedContentRef.current) {
+      await saveNote(content)
+    }
+
+    // Only start new if there was actually content
+    if (content) {
+      // Clear the Liveblocks draft
+      updateDraft('')
+
+      // Reset state for a new note
+      setSharedNoteId(null)
+      setMeetingDate(new Date().toISOString().split('T')[0])
+      lastSavedContentRef.current = ''
+      setSaveStatus('idle')
+
+      // Trigger refresh of notes list
+      onNoteSaved?.()
+    }
+  }, [draft, updateDraft, onNoteSaved])
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-4">
@@ -500,13 +436,22 @@ function EditorContent({
             <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
             <span className="text-sm text-gray-500">Live sync</span>
           </div>
+          {draft.trim() && (
+            <button
+              onClick={handleSaveAndStartNew}
+              className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+              title="Save this note and start a new one"
+            >
+              Save & New
+            </button>
+          )}
         </div>
       </div>
 
       {/* Collaborative textarea */}
-      <CursorPreservingTextarea
-        value={draft}
-        onChange={handleContentChange}
+      <UncontrolledSyncTextarea
+        remoteValue={draft}
+        onLocalChange={handleContentChange}
         onBlur={handleBlur}
         placeholder={placeholder}
         minHeight={minHeight}
@@ -742,6 +687,30 @@ function EditorWithoutLiveblocks({
     }
   }
 
+  // Save current note and start a fresh one
+  const handleSaveAndStartNew = async () => {
+    const noteContent = content.trim()
+
+    // If there's content, make sure it's saved first
+    if (noteContent && noteContent !== lastSavedContentRef.current) {
+      await saveNote()
+    }
+
+    // Only start new if there was actually content
+    if (noteContent) {
+      // Reset state for a new note
+      setContent('')
+      setSharedNoteId(null)
+      setMeetingDate(new Date().toISOString().split('T')[0])
+      contentRef.current = ''
+      lastSavedContentRef.current = ''
+      setSaveStatus('idle')
+
+      // Trigger refresh of notes list
+      onNoteSaved?.()
+    }
+  }
+
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-4">
       <div className="flex items-center gap-4 mb-4">
@@ -758,8 +727,17 @@ function EditorWithoutLiveblocks({
             />
           </div>
         )}
-        <div className={showDatePicker ? 'pt-6' : ''}>
+        <div className={`flex items-center gap-3 ${showDatePicker ? 'pt-6' : ''}`}>
           <SaveStatusIndicator status={saveStatus} />
+          {content.trim() && (
+            <button
+              onClick={handleSaveAndStartNew}
+              className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+              title="Save this note and start a new one"
+            >
+              Save & New
+            </button>
+          )}
         </div>
       </div>
 
