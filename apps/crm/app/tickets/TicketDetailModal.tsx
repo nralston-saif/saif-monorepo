@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@saif/ui'
-import type { TicketStatus, TicketPriority } from '@/lib/types/database'
+import type { TicketStatus, TicketPriority } from '@saif/supabase'
 import TagSelector from './TagSelector'
 
 type Partner = {

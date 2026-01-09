@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import type { TicketStatus, TicketPriority } from '@/lib/types/database'
+import type { TicketStatus, TicketPriority } from '@saif/supabase'
 import CreateTicketModal from './CreateTicketModal'
 import TicketDetailModal from './TicketDetailModal'
 
