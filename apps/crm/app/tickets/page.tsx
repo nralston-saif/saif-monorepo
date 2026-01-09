@@ -62,6 +62,8 @@ export default async function TicketsPage() {
       person:saif_people!saif_tickets_related_person_fkey(id, first_name, last_name, email),
       comments:saif_ticket_comments(
         id,
+        ticket_id,
+        author_id,
         content,
         is_final_comment,
         created_at,

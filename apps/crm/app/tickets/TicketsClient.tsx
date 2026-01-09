@@ -65,7 +65,7 @@ export default function TicketsClient({
   const [sortOption, setSortOption] = useState<SortOption>('date-newest')
 
   const [showCreateModal, setShowCreateModal] = useState(false)
-  const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null)
+  const [selectedTicket, setSelectedTicket] = useState<TicketWithRelations | null>(null)
 
   const router = useRouter()
   const searchParams = useSearchParams()
