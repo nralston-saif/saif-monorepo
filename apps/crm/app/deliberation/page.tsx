@@ -85,11 +85,19 @@ export default async function DeliberationPage() {
   // Sort: Undecided (newest first) at top, Decided (newest first) at bottom
   const undecided = applicationsWithVotes
     .filter(app => !app.deliberation?.decision || app.deliberation.decision === 'pending' || app.deliberation.decision === 'maybe')
-    .sort((a, b) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime())
+    .sort((a, b) => {
+      const dateA = a.submitted_at ? new Date(a.submitted_at).getTime() : 0
+      const dateB = b.submitted_at ? new Date(b.submitted_at).getTime() : 0
+      return dateB - dateA
+    })
 
   const decided = applicationsWithVotes
     .filter(app => app.deliberation?.decision === 'yes' || app.deliberation?.decision === 'no')
-    .sort((a, b) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime())
+    .sort((a, b) => {
+      const dateA = a.submitted_at ? new Date(a.submitted_at).getTime() : 0
+      const dateB = b.submitted_at ? new Date(b.submitted_at).getTime() : 0
+      return dateB - dateA
+    })
 
   return (
     <div className="min-h-screen bg-gray-50">

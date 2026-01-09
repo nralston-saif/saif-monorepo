@@ -34,8 +34,8 @@ type Application = {
   website: string | null
   previous_funding: string | null
   deck_link: string | null
-  submitted_at: string
-  stage: string
+  submitted_at: string | null
+  stage: string | null
   votes: Vote[]
   deliberation: Deliberation
   email_sent: boolean | null
@@ -93,10 +93,16 @@ export default function DeliberationClient({
     // Apply sorting
     const sorted = [...filtered].sort((a, b) => {
       switch (sortOption) {
-        case 'date-newest':
-          return new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime()
-        case 'date-oldest':
-          return new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime()
+        case 'date-newest': {
+          const dateA = a.submitted_at ? new Date(a.submitted_at).getTime() : 0
+          const dateB = b.submitted_at ? new Date(b.submitted_at).getTime() : 0
+          return dateB - dateA
+        }
+        case 'date-oldest': {
+          const dateA = a.submitted_at ? new Date(a.submitted_at).getTime() : 0
+          const dateB = b.submitted_at ? new Date(b.submitted_at).getTime() : 0
+          return dateA - dateB
+        }
         case 'name-az':
           return a.company_name.localeCompare(b.company_name)
         case 'name-za':
