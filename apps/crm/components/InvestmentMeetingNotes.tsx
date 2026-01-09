@@ -76,7 +76,10 @@ function NotesList({
   }, [fetchNotes, refreshTrigger])
 
   // Real-time subscription for when other users save notes
+  // Debounced to allow Liveblocks storage sync to propagate excludeNoteId
   useEffect(() => {
+    let debounceTimer: NodeJS.Timeout | null = null
+
     const channel = supabase
       .channel(`investment-notes-${investmentId}`)
       .on(
@@ -88,13 +91,17 @@ function NotesList({
           filter: `investment_id=eq.${investmentId}`,
         },
         () => {
-          // Refresh notes when any change happens
-          fetchNotes()
+          // Debounce to allow Liveblocks state to sync before refreshing
+          if (debounceTimer) clearTimeout(debounceTimer)
+          debounceTimer = setTimeout(() => {
+            fetchNotes()
+          }, 500)
         }
       )
       .subscribe()
 
     return () => {
+      if (debounceTimer) clearTimeout(debounceTimer)
       supabase.removeChannel(channel)
     }
   }, [investmentId, supabase, fetchNotes])
@@ -252,7 +259,8 @@ export default function InvestmentMeetingNotes({
   onClose,
 }: InvestmentMeetingNotesProps) {
   const [refreshTrigger, setRefreshTrigger] = useState(0)
-  const [currentNoteId, setCurrentNoteId] = useState<string | null>(null)
+  // Use undefined to indicate "not yet initialized" vs null for "no note being edited"
+  const [currentNoteId, setCurrentNoteId] = useState<string | null | undefined>(undefined)
 
   const handleNoteSaved = () => {
     setRefreshTrigger((prev) => prev + 1)
@@ -298,11 +306,14 @@ export default function InvestmentMeetingNotes({
             onCurrentNoteIdChange={setCurrentNoteId}
           />
 
-          <NotesList
-            investmentId={investmentId}
-            refreshTrigger={refreshTrigger}
-            excludeNoteId={currentNoteId}
-          />
+          {/* Only render notes list after Liveblocks state has synced to prevent flash */}
+          {currentNoteId !== undefined && (
+            <NotesList
+              investmentId={investmentId}
+              refreshTrigger={refreshTrigger}
+              excludeNoteId={currentNoteId}
+            />
+          )}
         </div>
 
         {/* Modal Footer */}
