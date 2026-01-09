@@ -152,7 +152,7 @@ export default function ClaimProfilePage() {
       }
 
       // Success! Redirect to profile page
-      router.push(`/people/${selectedPerson}`)
+      router.push(`/people/${profileId}`)
     } catch (err) {
       console.error('Error claiming profile:', err)
       setError('An error occurred. Please try again.')

@@ -10,6 +10,7 @@ export type {
   Person,
   Company,
   CompanyPerson,
+  CompanyStage,
   Investment,
   Ticket,
   TicketComment,

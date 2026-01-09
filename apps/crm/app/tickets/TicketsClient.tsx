@@ -3,7 +3,8 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import type { TicketStatus, TicketPriority, Ticket as BaseTicket, TicketComment as BaseTicketComment } from '@saif/supabase'
+import type { TicketStatus, TicketPriority, TicketComment as BaseTicketComment, Database } from '@/lib/types/database'
+type BaseTicket = Database['public']['Tables']['saif_tickets']['Row']
 import CreateTicketModal from './CreateTicketModal'
 import TicketDetailModal from './TicketDetailModal'
 import { useTicketModal } from '@/components/TicketModalProvider'

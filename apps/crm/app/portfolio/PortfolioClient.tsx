@@ -1,11 +1,9 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import ApplicationDetailModal from '@/components/ApplicationDetailModal'
 import InvestmentMeetingNotes from '@/components/InvestmentMeetingNotes'
-import { useToast } from '@saif/ui'
 import CreateTicketButton from '@/components/CreateTicketButton'
 
 type MeetingNote = {
@@ -55,17 +53,12 @@ export default function PortfolioClient({
 }) {
   const [selectedInvestment, setSelectedInvestment] = useState<Investment | null>(null)
   const [meetingNotesInvestment, setMeetingNotesInvestment] = useState<Investment | null>(null)
-  const [showAddModal, setShowAddModal] = useState(false)
-  const [formData, setFormData] = useState<Partial<Investment>>({})
-  const [loading, setLoading] = useState(false)
 
   // Search and sort state
   const [searchQuery, setSearchQuery] = useState('')
   const [sortOption, setSortOption] = useState<SortOption>('date-newest')
 
   const router = useRouter()
-  const supabase = createClient()
-  const { showToast } = useToast()
 
   // Filter and sort investments
   const filteredInvestments = useMemo(() => {
@@ -110,90 +103,6 @@ export default function PortfolioClient({
 
   const openViewModal = (investment: Investment) => {
     setSelectedInvestment(investment)
-  }
-
-  const openAddModal = () => {
-    setFormData({
-      company_name: '',
-      investment_date: '',
-      amount: null,
-      terms: '',
-      stealthy: false,
-      contact_email: '',
-      contact_name: '',
-      website: '',
-      description: '',
-      founders: '',
-      other_funders: '',
-      notes: '',
-    })
-    setShowAddModal(true)
-  }
-
-  const openEditModal = (investment: Investment) => {
-    setFormData(investment)
-    setShowAddModal(true)
-  }
-
-  const handleSaveInvestment = async () => {
-    if (!formData.company_name) {
-      showToast('Company name is required', 'warning')
-      return
-    }
-
-    setLoading(true)
-
-    try {
-      // Only include valid database columns (exclude computed fields like applicationId, deliberationNotes, meetingNotes, logo_url)
-      const dataToSave = {
-        company_name: formData.company_name,
-        investment_date: formData.investment_date || null,
-        amount: formData.amount ? parseFloat(formData.amount.toString()) : null,
-        terms: formData.terms || null,
-        stealthy: formData.stealthy || false,
-        contact_email: formData.contact_email || null,
-        contact_name: formData.contact_name || null,
-        website: formData.website || null,
-        description: formData.description || null,
-        founders: formData.founders || null,
-        other_funders: formData.other_funders || null,
-        notes: formData.notes || null,
-      }
-
-      if (formData.id) {
-        const { error } = await supabase
-          .from('saifcrm_investments')
-          .update(dataToSave)
-          .eq('id', formData.id)
-
-        if (error) {
-          showToast('Error updating investment: ' + error.message, 'error')
-          setLoading(false)
-          return
-        }
-      } else {
-        // company_name is validated above
-        const { error } = await supabase
-          .from('saifcrm_investments')
-          .insert(dataToSave)
-
-        if (error) {
-          showToast('Error creating investment: ' + error.message, 'error')
-          setLoading(false)
-          return
-        }
-      }
-
-      const isUpdate = !!formData.id
-      setShowAddModal(false)
-      setFormData({})
-      showToast(isUpdate ? 'Investment updated' : 'Investment added to portfolio', 'success')
-      router.refresh()
-    } catch (err) {
-      showToast('An unexpected error occurred', 'error')
-    }
-
-    setLoading(false)
   }
 
   const formatCurrency = (amount: number | null) => {
@@ -526,7 +435,7 @@ export default function PortfolioClient({
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-500">Round</span>
                       <span className="text-gray-700 font-medium">
-                        {[investment.round, investment.type === 'safe' ? 'SAFE' : investment.type?.charAt(0).toUpperCase() + investment.type?.slice(1)].filter(Boolean).join(' • ')}
+                        {[investment.round, investment.type === 'safe' ? 'SAFE' : investment.type ? investment.type.charAt(0).toUpperCase() + investment.type.slice(1) : null].filter(Boolean).join(' • ')}
                       </span>
                     </div>
                   )}
@@ -587,7 +496,7 @@ export default function PortfolioClient({
             investment_date: selectedInvestment.investment_date,
             terms: [
               selectedInvestment.round,
-              selectedInvestment.type === 'safe' ? 'SAFE' : selectedInvestment.type?.charAt(0).toUpperCase() + selectedInvestment.type?.slice(1),
+              selectedInvestment.type === 'safe' ? 'SAFE' : selectedInvestment.type ? selectedInvestment.type.charAt(0).toUpperCase() + selectedInvestment.type.slice(1) : null,
               selectedInvestment.post_money_valuation ? `$${(selectedInvestment.post_money_valuation / 1000000).toFixed(0)}M ${selectedInvestment.type?.toLowerCase() === 'safe' ? 'cap' : 'post'}` : null
             ].filter(Boolean).join(' • ') || null,
             other_funders: null,

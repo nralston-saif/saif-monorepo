@@ -3,7 +3,9 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@saif/ui'
-import type { TicketStatus, TicketPriority, Ticket as BaseTicket, TicketComment as BaseTicketComment } from '@saif/supabase'
+import type { TicketStatus, TicketPriority, TicketComment as BaseTicketComment } from '@/lib/types/database'
+import type { Database } from '@/lib/types/database'
+type BaseTicket = Database['public']['Tables']['saif_tickets']['Row']
 import TagSelector from './TagSelector'
 
 type Partner = {

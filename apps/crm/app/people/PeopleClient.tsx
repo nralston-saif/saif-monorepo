@@ -959,7 +959,7 @@ export default function PeopleClient({
                   </label>
                   <select
                     value={formData.status || 'tracked'}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, status: e.target.value as UserStatus })}
                     className="input"
                   >
                     {Object.keys(STATUS_LABELS).map(status => (

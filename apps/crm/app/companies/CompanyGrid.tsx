@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import type { Database } from '@/lib/types/database'
+import type { Database, CompanyStage } from '@/lib/types/database'
 import PersonModal from '@/components/PersonModal'
 
 // Helper to ensure URL has a protocol
@@ -65,7 +65,7 @@ export default function CompanyGrid({ companies, isPartner = false }: CompanyGri
     country: '',
     founded_year: '',
     yc_batch: '',
-    stage: 'prospect' as string,
+    stage: 'prospect' as CompanyStage,
     is_aisafety_company: false,
   })
 
@@ -106,7 +106,7 @@ export default function CompanyGrid({ companies, isPartner = false }: CompanyGri
         country: '',
         founded_year: '',
         yc_batch: '',
-        stage: 'prospect',
+        stage: 'prospect' as CompanyStage,
         is_aisafety_company: false,
       })
 
@@ -481,8 +481,8 @@ export default function CompanyGrid({ companies, isPartner = false }: CompanyGri
                   <select
                     id="company-stage"
                     required
-                    value={newCompany.stage}
-                    onChange={(e) => setNewCompany({ ...newCompany, stage: e.target.value })}
+                    value={newCompany.stage || ''}
+                    onChange={(e) => setNewCompany({ ...newCompany, stage: e.target.value as CompanyStage })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-gray-900 focus:border-gray-900"
                   >
                     {STAGE_OPTIONS.map((stage) => (
