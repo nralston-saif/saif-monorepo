@@ -151,8 +151,8 @@ export default function ClaimProfilePage() {
         return
       }
 
-      // Success! Redirect to profile edit
-      router.push('/profile/edit')
+      // Success! Redirect to profile page
+      router.push(`/people/${selectedPerson}`)
     } catch (err) {
       console.error('Error claiming profile:', err)
       setError('An error occurred. Please try again.')

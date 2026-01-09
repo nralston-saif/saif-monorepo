@@ -194,7 +194,7 @@ export default async function PeoplePage({
 
     return (
       <div className="min-h-screen bg-gray-50">
-        <Navigation userName={profile?.name || user.email || 'User'} />
+        <Navigation userName={profile?.first_name || 'User'} personId={profile?.id} />
         <Suspense fallback={<div className="p-8 text-center text-gray-500">Loading...</div>}>
           <PeopleClient
             people={peopleWithNotes as any}

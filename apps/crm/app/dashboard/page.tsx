@@ -236,7 +236,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navigation userName={profile?.name || user.email || 'User'} />
+      <Navigation userName={profile?.first_name || 'User'} personId={profile?.id} />
       <DashboardClient
         needsVote={needsVote}
         needsDecision={needsDecision}

@@ -1,3 +1,4 @@
+// Database type definitions for SAIF CRM
 export type Json =
   | string
   | number
@@ -6,1504 +7,874 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
-export type NotificationType =
-  | 'new_application'
-  | 'ready_for_deliberation'
-  | 'new_deliberation_notes'
-  | 'decision_made'
-  | 'ticket_assigned'
-  | 'ticket_archived'
-  | 'ticket_status_changed'
+// Shared enums
+export type UserRole = 'partner' | 'founder' | 'advisor' | 'employee' | 'board_member' | 'investor' | 'contact'
+export type UserStatus = 'active' | 'pending' | 'tracked' | 'inactive'
+export type CompanyStage = 'portfolio' | 'prospect' | 'diligence' | 'passed' | 'archived' | 'saif' | 'tracked'
+export type EntityType = 'for_profit' | 'pbc' | 'nonprofit' | 'government' | 'other'
+export type RelationshipType = 'founder' | 'employee' | 'advisor' | 'board_member' | 'partner'
 
-export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "14.1"
-  }
+// CRM-specific enums
+export type ApplicationStage = 'new' | 'voting' | 'deliberation' | 'invested' | 'rejected'
+export type VoteType = 'initial' | 'final'
+export type DeliberationDecision = 'pending' | 'maybe' | 'yes' | 'no'
+export type TicketStatus = 'open' | 'in_progress' | 'archived'
+export type TicketPriority = 'high' | 'medium' | 'low'
+
+export interface Database {
   public: {
     Tables: {
+      // ========================================
+      // SHARED TABLES (used by both apps)
+      // ========================================
+      saif_people: {
+        Row: {
+          id: string
+          auth_user_id: string | null
+          email: string | null
+          role: UserRole
+          status: UserStatus
+          first_name: string | null
+          last_name: string | null
+          name: string | null // CRM uses 'name' field
+          title: string | null
+          bio: string | null
+          avatar_url: string | null
+          linkedin_url: string | null
+          twitter_url: string | null
+          mobile_phone: string | null
+          location: string | null
+          tags: string[]
+          first_met_date: string | null
+          introduced_by: string | null
+          introduction_context: string | null
+          relationship_notes: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          auth_user_id?: string | null
+          email?: string | null
+          role: UserRole
+          status?: UserStatus
+          first_name?: string | null
+          last_name?: string | null
+          name?: string | null
+          title?: string | null
+          bio?: string | null
+          avatar_url?: string | null
+          linkedin_url?: string | null
+          twitter_url?: string | null
+          mobile_phone?: string | null
+          location?: string | null
+          tags?: string[]
+          first_met_date?: string | null
+          introduced_by?: string | null
+          introduction_context?: string | null
+          relationship_notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          auth_user_id?: string | null
+          email?: string | null
+          role?: UserRole
+          status?: UserStatus
+          first_name?: string | null
+          last_name?: string | null
+          name?: string | null
+          title?: string | null
+          bio?: string | null
+          avatar_url?: string | null
+          linkedin_url?: string | null
+          twitter_url?: string | null
+          mobile_phone?: string | null
+          location?: string | null
+          tags?: string[]
+          first_met_date?: string | null
+          introduced_by?: string | null
+          introduction_context?: string | null
+          relationship_notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saif_people_introduced_by_fkey"
+            columns: ["introduced_by"]
+            referencedRelation: "saif_people"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       saif_companies: {
         Row: {
-          city: string | null
-          country: string | null
-          created_at: string | null
-          entity_type: string | null
-          founded_year: number | null
           id: string
-          industry: string | null
-          is_active: boolean | null
-          is_aisafety_company: boolean | null
-          is_deal_prospect: boolean | null
-          logo_url: string | null
           name: string
           previous_names: string[] | null
           short_description: string | null
-          stage: string | null
-          tags: string[] | null
-          updated_at: string | null
           website: string | null
+          logo_url: string | null
+          industry: string | null
+          founded_year: number | null
+          is_aisafety_company: boolean
           yc_batch: string | null
+          city: string | null
+          country: string | null
+          stage: CompanyStage
+          entity_type: EntityType
+          is_deal_prospect: boolean
+          is_active: boolean
+          tags: string[]
+          created_at: string
+          updated_at: string
         }
         Insert: {
-          city?: string | null
-          country?: string | null
-          created_at?: string | null
-          entity_type?: string | null
-          founded_year?: number | null
           id?: string
-          industry?: string | null
-          is_active?: boolean | null
-          is_aisafety_company?: boolean | null
-          is_deal_prospect?: boolean | null
-          logo_url?: string | null
           name: string
           previous_names?: string[] | null
           short_description?: string | null
-          stage?: string | null
-          tags?: string[] | null
-          updated_at?: string | null
           website?: string | null
+          logo_url?: string | null
+          industry?: string | null
+          founded_year?: number | null
+          is_aisafety_company?: boolean
           yc_batch?: string | null
-        }
-        Update: {
           city?: string | null
           country?: string | null
-          created_at?: string | null
-          entity_type?: string | null
-          founded_year?: number | null
+          stage?: CompanyStage
+          entity_type?: EntityType
+          is_deal_prospect?: boolean
+          is_active?: boolean
+          tags?: string[]
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
           id?: string
-          industry?: string | null
-          is_active?: boolean | null
-          is_aisafety_company?: boolean | null
-          is_deal_prospect?: boolean | null
-          logo_url?: string | null
           name?: string
           previous_names?: string[] | null
           short_description?: string | null
-          stage?: string | null
-          tags?: string[] | null
-          updated_at?: string | null
           website?: string | null
+          logo_url?: string | null
+          industry?: string | null
+          founded_year?: number | null
+          is_aisafety_company?: boolean
           yc_batch?: string | null
+          city?: string | null
+          country?: string | null
+          stage?: CompanyStage
+          entity_type?: EntityType
+          is_deal_prospect?: boolean
+          is_active?: boolean
+          tags?: string[]
+          created_at?: string
+          updated_at?: string
         }
         Relationships: []
       }
       saif_company_people: {
         Row: {
-          company_id: string
-          created_at: string | null
-          end_date: string | null
           id: string
-          is_primary_contact: boolean | null
-          relationship_type: string | null
-          start_date: string | null
-          title: string | null
-          updated_at: string | null
+          company_id: string
           user_id: string
+          relationship_type: RelationshipType
+          title: string | null
+          is_primary_contact: boolean
+          start_date: string | null
+          end_date: string | null
+          created_at: string
+          updated_at: string
         }
         Insert: {
-          company_id: string
-          created_at?: string | null
-          end_date?: string | null
           id?: string
-          is_primary_contact?: boolean | null
-          relationship_type?: string | null
-          start_date?: string | null
-          title?: string | null
-          updated_at?: string | null
+          company_id: string
           user_id: string
+          relationship_type: RelationshipType
+          title?: string | null
+          is_primary_contact?: boolean
+          start_date?: string | null
+          end_date?: string | null
+          created_at?: string
+          updated_at?: string
         }
         Update: {
-          company_id?: string
-          created_at?: string | null
-          end_date?: string | null
           id?: string
-          is_primary_contact?: boolean | null
-          relationship_type?: string | null
-          start_date?: string | null
-          title?: string | null
-          updated_at?: string | null
+          company_id?: string
           user_id?: string
+          relationship_type?: RelationshipType
+          title?: string | null
+          is_primary_contact?: boolean
+          start_date?: string | null
+          end_date?: string | null
+          created_at?: string
+          updated_at?: string
         }
         Relationships: [
           {
             foreignKeyName: "saif_company_people_company_id_fkey"
             columns: ["company_id"]
-            isOneToOne: false
             referencedRelation: "saif_companies"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "saif_company_people_user_id_fkey"
             columns: ["user_id"]
-            isOneToOne: false
             referencedRelation: "saif_people"
             referencedColumns: ["id"]
-          },
+          }
         ]
       }
       saif_investments: {
         Row: {
-          acquirer: string | null
-          amount: number | null
-          common_shares: number | null
-          company_id: string
-          created_at: string | null
-          discount: number | null
-          exit_date: string | null
-          fd_shares: number | null
           id: string
+          company_id: string
           investment_date: string
-          lead_partner_id: string | null
-          post_money_valuation: number | null
-          preferred_shares: number | null
-          round: string | null
-          share_cert_numbers: string[] | null
-          share_location: string | null
-          shares: number | null
-          status: string | null
           type: string | null
-          updated_at: string | null
+          amount: number
+          round: string | null
+          post_money_valuation: number | null
+          discount: number | null
+          shares: number | null
+          common_shares: number | null
+          preferred_shares: number | null
+          FD_shares: number | null
+          share_location: string | null
+          share_cert_numbers: string[] | null
+          lead_partner_id: string | null
+          status: string
+          exit_date: string | null
+          acquirer: string | null
+          created_at: string
+          updated_at: string
         }
         Insert: {
-          acquirer?: string | null
-          amount?: number | null
-          common_shares?: number | null
-          company_id: string
-          created_at?: string | null
-          discount?: number | null
-          exit_date?: string | null
-          fd_shares?: number | null
           id?: string
+          company_id: string
           investment_date: string
-          lead_partner_id?: string | null
-          post_money_valuation?: number | null
-          preferred_shares?: number | null
-          round?: string | null
-          share_cert_numbers?: string[] | null
-          share_location?: string | null
-          shares?: number | null
-          status?: string | null
           type?: string | null
-          updated_at?: string | null
+          amount: number
+          round?: string | null
+          post_money_valuation?: number | null
+          discount?: number | null
+          shares?: number | null
+          common_shares?: number | null
+          preferred_shares?: number | null
+          FD_shares?: number | null
+          share_location?: string | null
+          share_cert_numbers?: string[] | null
+          lead_partner_id?: string | null
+          status?: string
+          exit_date?: string | null
+          acquirer?: string | null
+          created_at?: string
+          updated_at?: string
         }
         Update: {
-          acquirer?: string | null
-          amount?: number | null
-          common_shares?: number | null
-          company_id?: string
-          created_at?: string | null
-          discount?: number | null
-          exit_date?: string | null
-          fd_shares?: number | null
           id?: string
+          company_id?: string
           investment_date?: string
-          lead_partner_id?: string | null
-          post_money_valuation?: number | null
-          preferred_shares?: number | null
-          round?: string | null
-          share_cert_numbers?: string[] | null
-          share_location?: string | null
-          shares?: number | null
-          status?: string | null
           type?: string | null
-          updated_at?: string | null
+          amount?: number
+          round?: string | null
+          post_money_valuation?: number | null
+          discount?: number | null
+          shares?: number | null
+          common_shares?: number | null
+          preferred_shares?: number | null
+          FD_shares?: number | null
+          share_location?: string | null
+          share_cert_numbers?: string[] | null
+          lead_partner_id?: string | null
+          status?: string
+          exit_date?: string | null
+          acquirer?: string | null
+          created_at?: string
+          updated_at?: string
         }
         Relationships: [
           {
             foreignKeyName: "saif_investments_company_id_fkey"
             columns: ["company_id"]
-            isOneToOne: false
             referencedRelation: "saif_companies"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "saif_investments_lead_partner_id_fkey"
             columns: ["lead_partner_id"]
-            isOneToOne: false
             referencedRelation: "saif_people"
             referencedColumns: ["id"]
-          },
+          }
         ]
       }
-      saif_meeting_notes: {
-        Row: {
-          author_id: string
-          content: string
-          created_at: string | null
-          id: string
-          meeting_id: string
-          updated_at: string | null
-        }
-        Insert: {
-          author_id: string
-          content: string
-          created_at?: string | null
-          id?: string
-          meeting_id: string
-          updated_at?: string | null
-        }
-        Update: {
-          author_id?: string
-          content?: string
-          created_at?: string | null
-          id?: string
-          meeting_id?: string
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "saif_meeting_notes_author_id_fkey"
-            columns: ["author_id"]
-            isOneToOne: false
-            referencedRelation: "saif_people"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "saif_meeting_notes_meeting_id_fkey"
-            columns: ["meeting_id"]
-            isOneToOne: false
-            referencedRelation: "saif_meetings"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      saif_meetings: {
-        Row: {
-          content: string | null
-          created_at: string | null
-          created_by: string
-          id: string
-          meeting_date: string
-          title: string
-          updated_at: string | null
-        }
-        Insert: {
-          content?: string | null
-          created_at?: string | null
-          created_by: string
-          id?: string
-          meeting_date: string
-          title: string
-          updated_at?: string | null
-        }
-        Update: {
-          content?: string | null
-          created_at?: string | null
-          created_by?: string
-          id?: string
-          meeting_date?: string
-          title?: string
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "saif_meetings_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "saif_people"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      saif_people: {
-        Row: {
-          auth_user_id: string | null
-          avatar_url: string | null
-          bio: string | null
-          created_at: string | null
-          email: string | null
-          first_met_date: string | null
-          first_name: string | null
-          id: string
-          introduced_by: string | null
-          introduction_context: string | null
-          last_name: string | null
-          linkedin_url: string | null
-          location: string | null
-          mobile_phone: string | null
-          name: string | null
-          relationship_notes: string | null
-          role: string
-          status: string | null
-          tags: string[] | null
-          title: string | null
-          twitter_url: string | null
-          updated_at: string | null
-        }
-        Insert: {
-          auth_user_id?: string | null
-          avatar_url?: string | null
-          bio?: string | null
-          created_at?: string | null
-          email?: string | null
-          first_met_date?: string | null
-          first_name?: string | null
-          id?: string
-          introduced_by?: string | null
-          introduction_context?: string | null
-          last_name?: string | null
-          linkedin_url?: string | null
-          location?: string | null
-          mobile_phone?: string | null
-          name?: string | null
-          relationship_notes?: string | null
-          role: string
-          status?: string | null
-          tags?: string[] | null
-          title?: string | null
-          twitter_url?: string | null
-          updated_at?: string | null
-        }
-        Update: {
-          auth_user_id?: string | null
-          avatar_url?: string | null
-          bio?: string | null
-          created_at?: string | null
-          email?: string | null
-          first_met_date?: string | null
-          first_name?: string | null
-          id?: string
-          introduced_by?: string | null
-          introduction_context?: string | null
-          last_name?: string | null
-          linkedin_url?: string | null
-          location?: string | null
-          mobile_phone?: string | null
-          name?: string | null
-          relationship_notes?: string | null
-          role?: string
-          status?: string | null
-          tags?: string[] | null
-          title?: string | null
-          twitter_url?: string | null
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "saif_people_introduced_by_fkey"
-            columns: ["introduced_by"]
-            isOneToOne: false
-            referencedRelation: "saif_people"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      saif_tags: {
-        Row: {
-          color: string | null
-          created_at: string | null
-          created_by: string | null
-          id: string
-          name: string
-          usage_count: number | null
-        }
-        Insert: {
-          color?: string | null
-          created_at?: string | null
-          created_by?: string | null
-          id?: string
-          name: string
-          usage_count?: number | null
-        }
-        Update: {
-          color?: string | null
-          created_at?: string | null
-          created_by?: string | null
-          id?: string
-          name?: string
-          usage_count?: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "saif_tags_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "saif_people"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      saif_ticket_comments: {
-        Row: {
-          author_id: string
-          content: string
-          created_at: string
-          id: string
-          is_final_comment: boolean
-          ticket_id: string
-          updated_at: string
-        }
-        Insert: {
-          author_id: string
-          content: string
-          created_at?: string
-          id?: string
-          is_final_comment?: boolean
-          ticket_id: string
-          updated_at?: string
-        }
-        Update: {
-          author_id?: string
-          content?: string
-          created_at?: string
-          id?: string
-          is_final_comment?: boolean
-          ticket_id?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "saif_ticket_comments_author_id_fkey"
-            columns: ["author_id"]
-            isOneToOne: false
-            referencedRelation: "saif_people"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "saif_ticket_comments_ticket_id_fkey"
-            columns: ["ticket_id"]
-            isOneToOne: false
-            referencedRelation: "saif_tickets"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      saif_tickets: {
-        Row: {
-          archived_at: string | null
-          assigned_to: string | null
-          created_at: string
-          created_by: string
-          description: string | null
-          due_date: string | null
-          id: string
-          priority: Database["public"]["Enums"]["ticket_priority"]
-          related_company: string | null
-          related_person: string | null
-          status: Database["public"]["Enums"]["ticket_status"]
-          tags: string[] | null
-          title: string
-          updated_at: string
-        }
-        Insert: {
-          archived_at?: string | null
-          assigned_to?: string | null
-          created_at?: string
-          created_by: string
-          description?: string | null
-          due_date?: string | null
-          id?: string
-          priority?: Database["public"]["Enums"]["ticket_priority"]
-          related_company?: string | null
-          related_person?: string | null
-          status?: Database["public"]["Enums"]["ticket_status"]
-          tags?: string[] | null
-          title: string
-          updated_at?: string
-        }
-        Update: {
-          archived_at?: string | null
-          assigned_to?: string | null
-          created_at?: string
-          created_by?: string
-          description?: string | null
-          due_date?: string | null
-          id?: string
-          priority?: Database["public"]["Enums"]["ticket_priority"]
-          related_company?: string | null
-          related_person?: string | null
-          status?: Database["public"]["Enums"]["ticket_status"]
-          tags?: string[] | null
-          title?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "saif_tickets_assigned_to_fkey"
-            columns: ["assigned_to"]
-            isOneToOne: false
-            referencedRelation: "saif_people"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "saif_tickets_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "saif_people"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "saif_tickets_related_company_fkey"
-            columns: ["related_company"]
-            isOneToOne: false
-            referencedRelation: "saif_companies"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "saif_tickets_related_person_fkey"
-            columns: ["related_person"]
-            isOneToOne: false
-            referencedRelation: "saif_people"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
+
+      // ========================================
+      // CRM-SPECIFIC TABLES
+      // ========================================
       saifcrm_applications: {
         Row: {
-          all_votes_in: boolean | null
-          comments: string | null
-          company_description: string | null
-          company_id: string | null
-          company_name: string
-          created_at: string | null
-          deck_link: string | null
-          draft_rejection_email: string | null
-          email_sender_id: string | null
-          email_sent: boolean | null
-          founder_bios: string | null
-          founder_linkedins: string | null
-          founder_names: string | null
           id: string
-          meeting_decision: string | null
-          original_draft_email: string | null
-          previous_funding: string | null
+          company_name: string
+          company_id: string | null
+          founder_names: string | null
+          founder_linkedins: string | null
+          founder_bios: string | null
           primary_email: string | null
-          stage: string | null
-          submission_id: string | null
-          submitted_at: string | null
-          updated_at: string | null
-          votes_revealed: boolean | null
+          company_description: string | null
           website: string | null
+          previous_funding: string | null
+          deck_link: string | null
+          stage: ApplicationStage
+          email_sender_id: string | null
+          email_sent: boolean
+          votes_revealed: boolean
+          submitted_at: string
+          created_at: string
+          updated_at: string
         }
         Insert: {
-          all_votes_in?: boolean | null
-          comments?: string | null
-          company_description?: string | null
-          company_id?: string | null
-          company_name: string
-          created_at?: string | null
-          deck_link?: string | null
-          draft_rejection_email?: string | null
-          email_sender_id?: string | null
-          email_sent?: boolean | null
-          founder_bios?: string | null
-          founder_linkedins?: string | null
-          founder_names?: string | null
           id?: string
-          meeting_decision?: string | null
-          original_draft_email?: string | null
-          previous_funding?: string | null
+          company_name: string
+          company_id?: string | null
+          founder_names?: string | null
+          founder_linkedins?: string | null
+          founder_bios?: string | null
           primary_email?: string | null
-          stage?: string | null
-          submission_id?: string | null
-          submitted_at?: string | null
-          updated_at?: string | null
-          votes_revealed?: boolean | null
+          company_description?: string | null
           website?: string | null
+          previous_funding?: string | null
+          deck_link?: string | null
+          stage?: ApplicationStage
+          email_sender_id?: string | null
+          email_sent?: boolean
+          votes_revealed?: boolean
+          submitted_at?: string
+          created_at?: string
+          updated_at?: string
         }
         Update: {
-          all_votes_in?: boolean | null
-          comments?: string | null
-          company_description?: string | null
-          company_id?: string | null
-          company_name?: string
-          created_at?: string | null
-          deck_link?: string | null
-          draft_rejection_email?: string | null
-          email_sender_id?: string | null
-          email_sent?: boolean | null
-          founder_bios?: string | null
-          founder_linkedins?: string | null
-          founder_names?: string | null
           id?: string
-          meeting_decision?: string | null
-          original_draft_email?: string | null
-          previous_funding?: string | null
+          company_name?: string
+          company_id?: string | null
+          founder_names?: string | null
+          founder_linkedins?: string | null
+          founder_bios?: string | null
           primary_email?: string | null
-          stage?: string | null
-          submission_id?: string | null
-          submitted_at?: string | null
-          updated_at?: string | null
-          votes_revealed?: boolean | null
+          company_description?: string | null
           website?: string | null
+          previous_funding?: string | null
+          deck_link?: string | null
+          stage?: ApplicationStage
+          email_sender_id?: string | null
+          email_sent?: boolean
+          votes_revealed?: boolean
+          submitted_at?: string
+          created_at?: string
+          updated_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "applications_email_sender_id_fkey"
+            foreignKeyName: "saifcrm_applications_email_sender_id_fkey"
             columns: ["email_sender_id"]
-            isOneToOne: false
             referencedRelation: "saif_people"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "saifcrm_applications_company_id_fkey"
             columns: ["company_id"]
-            isOneToOne: false
             referencedRelation: "saif_companies"
             referencedColumns: ["id"]
-          },
+          }
         ]
       }
-      saifcrm_deliberations: {
+      saifcrm_votes: {
         Row: {
-          application_id: string
-          created_at: string | null
-          decision: string | null
           id: string
-          idea_summary: string | null
-          meeting_date: string | null
-          status: string | null
-          thoughts: string | null
-          updated_at: string | null
+          application_id: string
+          user_id: string
+          vote_type: VoteType
+          vote: string | null
+          notes: string | null
+          created_at: string
+          updated_at: string
         }
         Insert: {
-          application_id: string
-          created_at?: string | null
-          decision?: string | null
           id?: string
-          idea_summary?: string | null
-          meeting_date?: string | null
-          status?: string | null
-          thoughts?: string | null
-          updated_at?: string | null
+          application_id: string
+          user_id: string
+          vote_type?: VoteType
+          vote?: string | null
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
         }
         Update: {
-          application_id?: string
-          created_at?: string | null
-          decision?: string | null
           id?: string
-          idea_summary?: string | null
-          meeting_date?: string | null
-          status?: string | null
-          thoughts?: string | null
-          updated_at?: string | null
+          application_id?: string
+          user_id?: string
+          vote_type?: VoteType
+          vote?: string | null
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "deliberations_application_id_fkey"
+            foreignKeyName: "saifcrm_votes_application_id_fkey"
             columns: ["application_id"]
-            isOneToOne: true
-            referencedRelation: "deliberation_queue"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "deliberations_application_id_fkey"
-            columns: ["application_id"]
-            isOneToOne: true
-            referencedRelation: "pipeline"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "deliberations_application_id_fkey"
-            columns: ["application_id"]
-            isOneToOne: true
             referencedRelation: "saifcrm_applications"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "deliberations_application_id_fkey"
+            foreignKeyName: "saifcrm_votes_user_id_fkey"
+            columns: ["user_id"]
+            referencedRelation: "saif_people"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      saifcrm_deliberations: {
+        Row: {
+          id: string
+          application_id: string
+          decision: DeliberationDecision
+          status: string | null
+          notes: string | null
+          meeting_date: string | null
+          idea_summary: string | null
+          thoughts: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          application_id: string
+          decision?: DeliberationDecision
+          status?: string | null
+          notes?: string | null
+          meeting_date?: string | null
+          idea_summary?: string | null
+          thoughts?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          application_id?: string
+          decision?: DeliberationDecision
+          status?: string | null
+          notes?: string | null
+          meeting_date?: string | null
+          idea_summary?: string | null
+          thoughts?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saifcrm_deliberations_application_id_fkey"
             columns: ["application_id"]
-            isOneToOne: true
-            referencedRelation: "vote_summary"
-            referencedColumns: ["application_id"]
+            referencedRelation: "saifcrm_applications"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      saifcrm_investments: {
+        Row: {
+          id: string
+          company_name: string
+          founders: string | null
+          description: string | null
+          website: string | null
+          amount: number | null
+          investment_date: string | null
+          terms: string | null
+          other_funders: string | null
+          contact_name: string | null
+          contact_email: string | null
+          notes: string | null
+          stealthy: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          company_name: string
+          founders?: string | null
+          description?: string | null
+          website?: string | null
+          amount?: number | null
+          investment_date?: string | null
+          terms?: string | null
+          other_funders?: string | null
+          contact_name?: string | null
+          contact_email?: string | null
+          notes?: string | null
+          stealthy?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          company_name?: string
+          founders?: string | null
+          description?: string | null
+          website?: string | null
+          amount?: number | null
+          investment_date?: string | null
+          terms?: string | null
+          other_funders?: string | null
+          contact_name?: string | null
+          contact_email?: string | null
+          notes?: string | null
+          stealthy?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      saifcrm_meeting_notes: {
+        Row: {
+          id: string
+          application_id: string
+          user_id: string
+          content: string
+          meeting_date: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          application_id: string
+          user_id: string
+          content: string
+          meeting_date?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          application_id?: string
+          user_id?: string
+          content?: string
+          meeting_date?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saifcrm_meeting_notes_application_id_fkey"
+            columns: ["application_id"]
+            referencedRelation: "saifcrm_applications"
+            referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "saifcrm_meeting_notes_user_id_fkey"
+            columns: ["user_id"]
+            referencedRelation: "saif_people"
+            referencedColumns: ["id"]
+          }
         ]
       }
       saifcrm_investment_notes: {
         Row: {
-          content: string
-          created_at: string | null
           id: string
           investment_id: string
-          meeting_date: string | null
-          updated_at: string | null
           user_id: string
+          content: string
+          meeting_date: string | null
+          created_at: string
+          updated_at: string
         }
         Insert: {
-          content: string
-          created_at?: string | null
           id?: string
           investment_id: string
-          meeting_date?: string | null
-          updated_at?: string | null
           user_id: string
+          content: string
+          meeting_date?: string | null
+          created_at?: string
+          updated_at?: string
         }
         Update: {
-          content?: string
-          created_at?: string | null
           id?: string
           investment_id?: string
-          meeting_date?: string | null
-          updated_at?: string | null
           user_id?: string
+          content?: string
+          meeting_date?: string | null
+          created_at?: string
+          updated_at?: string
         }
         Relationships: [
           {
             foreignKeyName: "saifcrm_investment_notes_investment_id_fkey"
             columns: ["investment_id"]
-            isOneToOne: false
-            referencedRelation: "portfolio"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "saifcrm_investment_notes_investment_id_fkey"
-            columns: ["investment_id"]
-            isOneToOne: false
             referencedRelation: "saifcrm_investments"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "saifcrm_investment_notes_user_id_fkey"
             columns: ["user_id"]
-            isOneToOne: false
             referencedRelation: "saif_people"
             referencedColumns: ["id"]
-          },
-        ]
-      }
-      saifcrm_investments: {
-        Row: {
-          amount: number | null
-          application_id: string | null
-          company_id: string | null
-          company_name: string
-          contact_email: string | null
-          contact_name: string | null
-          created_at: string | null
-          description: string | null
-          founders: string | null
-          id: string
-          investment_date: string | null
-          notes: string | null
-          other_funders: string | null
-          stealthy: boolean | null
-          terms: string | null
-          updated_at: string | null
-          website: string | null
-        }
-        Insert: {
-          amount?: number | null
-          application_id?: string | null
-          company_id?: string | null
-          company_name: string
-          contact_email?: string | null
-          contact_name?: string | null
-          created_at?: string | null
-          description?: string | null
-          founders?: string | null
-          id?: string
-          investment_date?: string | null
-          notes?: string | null
-          other_funders?: string | null
-          stealthy?: boolean | null
-          terms?: string | null
-          updated_at?: string | null
-          website?: string | null
-        }
-        Update: {
-          amount?: number | null
-          application_id?: string | null
-          company_id?: string | null
-          company_name?: string
-          contact_email?: string | null
-          contact_name?: string | null
-          created_at?: string | null
-          description?: string | null
-          founders?: string | null
-          id?: string
-          investment_date?: string | null
-          notes?: string | null
-          other_funders?: string | null
-          stealthy?: boolean | null
-          terms?: string | null
-          updated_at?: string | null
-          website?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "investments_application_id_fkey"
-            columns: ["application_id"]
-            isOneToOne: true
-            referencedRelation: "deliberation_queue"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "investments_application_id_fkey"
-            columns: ["application_id"]
-            isOneToOne: true
-            referencedRelation: "pipeline"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "investments_application_id_fkey"
-            columns: ["application_id"]
-            isOneToOne: true
-            referencedRelation: "saifcrm_applications"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "investments_application_id_fkey"
-            columns: ["application_id"]
-            isOneToOne: true
-            referencedRelation: "vote_summary"
-            referencedColumns: ["application_id"]
-          },
-          {
-            foreignKeyName: "saifcrm_investments_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "saif_companies"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      saifcrm_meeting_notes: {
-        Row: {
-          application_id: string
-          content: string
-          created_at: string | null
-          id: string
-          meeting_date: string | null
-          user_id: string
-        }
-        Insert: {
-          application_id: string
-          content: string
-          created_at?: string | null
-          id?: string
-          meeting_date?: string | null
-          user_id: string
-        }
-        Update: {
-          application_id?: string
-          content?: string
-          created_at?: string | null
-          id?: string
-          meeting_date?: string | null
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "meeting_notes_application_id_fkey"
-            columns: ["application_id"]
-            isOneToOne: false
-            referencedRelation: "deliberation_queue"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "meeting_notes_application_id_fkey"
-            columns: ["application_id"]
-            isOneToOne: false
-            referencedRelation: "pipeline"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "meeting_notes_application_id_fkey"
-            columns: ["application_id"]
-            isOneToOne: false
-            referencedRelation: "saifcrm_applications"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "meeting_notes_application_id_fkey"
-            columns: ["application_id"]
-            isOneToOne: false
-            referencedRelation: "vote_summary"
-            referencedColumns: ["application_id"]
-          },
-          {
-            foreignKeyName: "meeting_notes_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "saif_people"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      saifcrm_notifications: {
-        Row: {
-          actor_id: string | null
-          application_id: string | null
-          created_at: string | null
-          dismissed_at: string | null
-          expires_at: string | null
-          id: string
-          link: string | null
-          message: string | null
-          read_at: string | null
-          recipient_id: string
-          ticket_id: string | null
-          title: string
-          type: NotificationType
-        }
-        Insert: {
-          actor_id?: string | null
-          application_id?: string | null
-          created_at?: string | null
-          dismissed_at?: string | null
-          expires_at?: string | null
-          id?: string
-          link?: string | null
-          message?: string | null
-          read_at?: string | null
-          recipient_id: string
-          ticket_id?: string | null
-          title: string
-          type: NotificationType
-        }
-        Update: {
-          actor_id?: string | null
-          application_id?: string | null
-          created_at?: string | null
-          dismissed_at?: string | null
-          expires_at?: string | null
-          id?: string
-          link?: string | null
-          message?: string | null
-          read_at?: string | null
-          recipient_id?: string
-          ticket_id?: string | null
-          title?: string
-          type?: NotificationType
-        }
-        Relationships: [
-          {
-            foreignKeyName: "saifcrm_notifications_actor_id_fkey"
-            columns: ["actor_id"]
-            isOneToOne: false
-            referencedRelation: "saif_people"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "saifcrm_notifications_application_id_fkey"
-            columns: ["application_id"]
-            isOneToOne: false
-            referencedRelation: "deliberation_queue"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "saifcrm_notifications_application_id_fkey"
-            columns: ["application_id"]
-            isOneToOne: false
-            referencedRelation: "pipeline"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "saifcrm_notifications_application_id_fkey"
-            columns: ["application_id"]
-            isOneToOne: false
-            referencedRelation: "saifcrm_applications"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "saifcrm_notifications_application_id_fkey"
-            columns: ["application_id"]
-            isOneToOne: false
-            referencedRelation: "vote_summary"
-            referencedColumns: ["application_id"]
-          },
-          {
-            foreignKeyName: "saifcrm_notifications_recipient_id_fkey"
-            columns: ["recipient_id"]
-            isOneToOne: false
-            referencedRelation: "saif_people"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "saifcrm_notifications_ticket_id_fkey"
-            columns: ["ticket_id"]
-            isOneToOne: false
-            referencedRelation: "saif_tickets"
-            referencedColumns: ["id"]
-          },
+          }
         ]
       }
       saifcrm_people_notes: {
         Row: {
-          content: string
-          created_at: string | null
           id: string
-          meeting_date: string | null
           person_id: string
-          updated_at: string | null
           user_id: string
+          content: string
+          meeting_date: string | null
+          created_at: string
+          updated_at: string
         }
         Insert: {
-          content: string
-          created_at?: string | null
           id?: string
-          meeting_date?: string | null
           person_id: string
-          updated_at?: string | null
           user_id: string
+          content: string
+          meeting_date?: string | null
+          created_at?: string
+          updated_at?: string
         }
         Update: {
-          content?: string
-          created_at?: string | null
           id?: string
-          meeting_date?: string | null
           person_id?: string
-          updated_at?: string | null
           user_id?: string
+          content?: string
+          meeting_date?: string | null
+          created_at?: string
+          updated_at?: string
         }
         Relationships: [
           {
             foreignKeyName: "saifcrm_people_notes_person_id_fkey"
             columns: ["person_id"]
-            isOneToOne: false
             referencedRelation: "saif_people"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "saifcrm_people_notes_user_id_fkey"
             columns: ["user_id"]
-            isOneToOne: false
             referencedRelation: "saif_people"
             referencedColumns: ["id"]
-          },
+          }
         ]
       }
-      saifcrm_votes: {
+      saif_tickets: {
         Row: {
-          application_id: string
-          created_at: string | null
           id: string
-          is_revealed: boolean | null
-          notes: string | null
-          user_id: string
-          vote: string
-          vote_type: string
-        }
-        Insert: {
-          application_id: string
-          created_at?: string | null
-          id?: string
-          is_revealed?: boolean | null
-          notes?: string | null
-          user_id: string
-          vote: string
-          vote_type: string
-        }
-        Update: {
-          application_id?: string
-          created_at?: string | null
-          id?: string
-          is_revealed?: boolean | null
-          notes?: string | null
-          user_id?: string
-          vote?: string
-          vote_type?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "votes_application_id_fkey"
-            columns: ["application_id"]
-            isOneToOne: false
-            referencedRelation: "deliberation_queue"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "votes_application_id_fkey"
-            columns: ["application_id"]
-            isOneToOne: false
-            referencedRelation: "pipeline"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "votes_application_id_fkey"
-            columns: ["application_id"]
-            isOneToOne: false
-            referencedRelation: "saifcrm_applications"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "votes_application_id_fkey"
-            columns: ["application_id"]
-            isOneToOne: false
-            referencedRelation: "vote_summary"
-            referencedColumns: ["application_id"]
-          },
-          {
-            foreignKeyName: "votes_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "saif_people"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      users: {
-        Row: {
+          title: string
+          description: string | null
+          status: TicketStatus
+          priority: TicketPriority
+          due_date: string | null
           created_at: string
-          email: string
-          id: string
-          name: string | null
-          role: string
+          updated_at: string
+          archived_at: string | null
+          assigned_to: string | null
+          created_by: string
+          related_company: string | null
+          related_person: string | null
+          tags: string[] | null
         }
         Insert: {
+          id?: string
+          title: string
+          description?: string | null
+          status?: TicketStatus
+          priority?: TicketPriority
+          due_date?: string | null
           created_at?: string
-          email: string
-          id: string
-          name?: string | null
-          role?: string
+          updated_at?: string
+          archived_at?: string | null
+          assigned_to?: string | null
+          created_by: string
+          related_company?: string | null
+          related_person?: string | null
+          tags?: string[] | null
         }
         Update: {
-          created_at?: string
-          email?: string
           id?: string
-          name?: string | null
-          role?: string
-        }
-        Relationships: []
-      }
-      website_blog_posts: {
-        Row: {
-          author_id: string | null
-          content: string | null
-          created_at: string | null
-          excerpt: string | null
-          id: string
-          published: boolean | null
-          published_at: string | null
-          slug: string
-          source: string | null
-          source_url: string | null
-          title: string
-        }
-        Insert: {
-          author_id?: string | null
-          content?: string | null
-          created_at?: string | null
-          excerpt?: string | null
-          id?: string
-          published?: boolean | null
-          published_at?: string | null
-          slug: string
-          source?: string | null
-          source_url?: string | null
-          title: string
-        }
-        Update: {
-          author_id?: string | null
-          content?: string | null
-          created_at?: string | null
-          excerpt?: string | null
-          id?: string
-          published?: boolean | null
-          published_at?: string | null
-          slug?: string
-          source?: string | null
-          source_url?: string | null
           title?: string
+          description?: string | null
+          status?: TicketStatus
+          priority?: TicketPriority
+          due_date?: string | null
+          created_at?: string
+          updated_at?: string
+          archived_at?: string | null
+          assigned_to?: string | null
+          created_by?: string
+          related_company?: string | null
+          related_person?: string | null
+          tags?: string[] | null
         }
         Relationships: [
           {
-            foreignKeyName: "website_blog_posts_author_id_fkey"
-            columns: ["author_id"]
-            isOneToOne: false
-            referencedRelation: "website_team_members"
+            foreignKeyName: "saif_tickets_assigned_to_fkey"
+            columns: ["assigned_to"]
+            referencedRelation: "saif_people"
             referencedColumns: ["id"]
           },
-        ]
-      }
-      website_investment_themes: {
-        Row: {
-          created_at: string | null
-          description: string | null
-          id: string
-          name: string
-          sort_order: number | null
-        }
-        Insert: {
-          created_at?: string | null
-          description?: string | null
-          id?: string
-          name: string
-          sort_order?: number | null
-        }
-        Update: {
-          created_at?: string | null
-          description?: string | null
-          id?: string
-          name?: string
-          sort_order?: number | null
-        }
-        Relationships: []
-      }
-      website_portfolio_companies: {
-        Row: {
-          company_id: string | null
-          created_at: string | null
-          description: string | null
-          featured: boolean | null
-          id: string
-          logo_url: string | null
-          name: string
-          sort_order: number | null
-          tagline: string | null
-          theme_id: string | null
-          website_url: string | null
-        }
-        Insert: {
-          company_id?: string | null
-          created_at?: string | null
-          description?: string | null
-          featured?: boolean | null
-          id?: string
-          logo_url?: string | null
-          name: string
-          sort_order?: number | null
-          tagline?: string | null
-          theme_id?: string | null
-          website_url?: string | null
-        }
-        Update: {
-          company_id?: string | null
-          created_at?: string | null
-          description?: string | null
-          featured?: boolean | null
-          id?: string
-          logo_url?: string | null
-          name?: string
-          sort_order?: number | null
-          tagline?: string | null
-          theme_id?: string | null
-          website_url?: string | null
-        }
-        Relationships: [
           {
-            foreignKeyName: "website_portfolio_companies_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
+            foreignKeyName: "saif_tickets_created_by_fkey"
+            columns: ["created_by"]
+            referencedRelation: "saif_people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "saif_tickets_related_company_fkey"
+            columns: ["related_company"]
             referencedRelation: "saif_companies"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "website_portfolio_companies_theme_id_fkey"
-            columns: ["theme_id"]
-            isOneToOne: false
-            referencedRelation: "website_investment_themes"
+            foreignKeyName: "saif_tickets_related_person_fkey"
+            columns: ["related_person"]
+            referencedRelation: "saif_people"
             referencedColumns: ["id"]
-          },
+          }
         ]
       }
-      website_team_members: {
+      saif_tags: {
         Row: {
-          bio: string | null
-          created_at: string | null
           id: string
-          linkedin_url: string | null
           name: string
-          photo_url: string | null
-          role: string
-          sort_order: number | null
-          twitter_url: string | null
+          color: string
+          created_at: string
+          created_by: string | null
+          usage_count: number
         }
         Insert: {
-          bio?: string | null
-          created_at?: string | null
           id?: string
-          linkedin_url?: string | null
           name: string
-          photo_url?: string | null
-          role: string
-          sort_order?: number | null
-          twitter_url?: string | null
+          color?: string
+          created_at?: string
+          created_by?: string | null
+          usage_count?: number
         }
         Update: {
-          bio?: string | null
-          created_at?: string | null
           id?: string
-          linkedin_url?: string | null
           name?: string
-          photo_url?: string | null
-          role?: string
-          sort_order?: number | null
-          twitter_url?: string | null
+          color?: string
+          created_at?: string
+          created_by?: string | null
+          usage_count?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "saif_tags_created_by_fkey"
+            columns: ["created_by"]
+            referencedRelation: "saif_people"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      saif_meetings: {
+        Row: {
+          id: string
+          title: string
+          meeting_date: string
+          content: string
+          created_by: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          title: string
+          meeting_date: string
+          content?: string
+          created_by: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          title?: string
+          meeting_date?: string
+          content?: string
+          created_by?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saif_meetings_created_by_fkey"
+            columns: ["created_by"]
+            referencedRelation: "saif_people"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      saif_meeting_notes: {
+        Row: {
+          id: string
+          meeting_id: string
+          author_id: string
+          content: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          meeting_id: string
+          author_id: string
+          content: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          meeting_id?: string
+          author_id?: string
+          content?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saif_meeting_notes_meeting_id_fkey"
+            columns: ["meeting_id"]
+            referencedRelation: "saif_meetings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "saif_meeting_notes_author_id_fkey"
+            columns: ["author_id"]
+            referencedRelation: "saif_people"
+            referencedColumns: ["id"]
+          }
+        ]
       }
     }
     Views: {
-      deliberation_queue: {
-        Row: {
-          company_description: string | null
-          company_name: string | null
-          decision: string | null
-          id: string | null
-          idea_summary: string | null
-          meeting_date: string | null
-          primary_email: string | null
-          status: string | null
-          thoughts: string | null
-        }
-        Relationships: []
-      }
-      pipeline: {
-        Row: {
-          all_votes_in: boolean | null
-          comments: string | null
-          company_description: string | null
-          company_name: string | null
-          created_at: string | null
-          deck_link: string | null
-          founder_bios: string | null
-          founder_linkedins: string | null
-          founder_names: string | null
-          id: string | null
-          meeting_decision: string | null
-          previous_funding: string | null
-          primary_email: string | null
-          stage: string | null
-          submission_id: string | null
-          submitted_at: string | null
-          updated_at: string | null
-          vote_count: number | null
-          votes_revealed: boolean | null
-          website: string | null
-        }
-        Relationships: []
-      }
-      portfolio: {
-        Row: {
-          amount: number | null
-          application_id: string | null
-          company_description: string | null
-          company_name: string | null
-          contact_email: string | null
-          contact_name: string | null
-          created_at: string | null
-          description: string | null
-          founder_bios: string | null
-          founder_names: string | null
-          founders: string | null
-          id: string | null
-          investment_date: string | null
-          notes: string | null
-          other_funders: string | null
-          stealthy: boolean | null
-          terms: string | null
-          updated_at: string | null
-          website: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "investments_application_id_fkey"
-            columns: ["application_id"]
-            isOneToOne: true
-            referencedRelation: "deliberation_queue"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "investments_application_id_fkey"
-            columns: ["application_id"]
-            isOneToOne: true
-            referencedRelation: "pipeline"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "investments_application_id_fkey"
-            columns: ["application_id"]
-            isOneToOne: true
-            referencedRelation: "saifcrm_applications"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "investments_application_id_fkey"
-            columns: ["application_id"]
-            isOneToOne: true
-            referencedRelation: "vote_summary"
-            referencedColumns: ["application_id"]
-          },
-        ]
-      }
-      saif_investments_with_ownership: {
-        Row: {
-          acquirer: string | null
-          amount: number | null
-          common_shares: number | null
-          company_id: string | null
-          company_name: string | null
-          created_at: string | null
-          discount: number | null
-          exit_date: string | null
-          fd_shares: number | null
-          id: string | null
-          investment_date: string | null
-          lead_partner_id: string | null
-          ownership_percentage: number | null
-          post_money_valuation: number | null
-          preferred_shares: number | null
-          round: string | null
-          share_cert_numbers: string[] | null
-          share_location: string | null
-          shares: number | null
-          status: string | null
-          type: string | null
-          updated_at: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "saif_investments_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "saif_companies"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "saif_investments_lead_partner_id_fkey"
-            columns: ["lead_partner_id"]
-            isOneToOne: false
-            referencedRelation: "saif_people"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      vote_summary: {
-        Row: {
-          application_id: string | null
-          company_name: string | null
-          maybe_votes: number | null
-          no_votes: number | null
-          total_votes: number | null
-          votes_revealed: boolean | null
-          yes_votes: number | null
-        }
-        Relationships: []
-      }
+      [_ in never]: never
     }
     Functions: {
-      clean_founder_name: { Args: { name: string }; Returns: string }
-      get_auth_email: { Args: never; Returns: string }
-      get_person_id: { Args: never; Returns: string }
-      get_portfolio_company_ids: {
-        Args: never
-        Returns: {
-          company_id: string
-        }[]
+      get_user_role: {
+        Args: Record<PropertyKey, never>
+        Returns: UserRole
       }
-      get_user_company_ids: {
-        Args: never
-        Returns: {
-          company_id: string
-        }[]
+      is_partner: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
       }
-      get_user_founder_company_ids: {
-        Args: never
-        Returns: {
-          company_id: string
-        }[]
+      is_founder: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
       }
-      get_user_role: { Args: never; Returns: string }
-      increment_tag_usage: { Args: { tag_name: string }; Returns: undefined }
-      is_founder: { Args: never; Returns: boolean }
-      is_partner: { Args: never; Returns: boolean }
+      get_person_id: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
     }
     Enums: {
-      ticket_priority: "high" | "medium" | "low"
-      ticket_status: "open" | "in_progress" | "archived"
+      [_ in never]: never
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1511,155 +882,19 @@ export type Database = {
   }
 }
 
-type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+// ========================================
+// HELPER TYPES
+// ========================================
 
-type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
-
-export type Tables<
-  DefaultSchemaTableNameOrOptions extends
-    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
-    | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
-  }
-    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
-> = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
-}
-  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
-      Row: infer R
-    }
-    ? R
-    : never
-  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
-        DefaultSchema["Views"])
-    ? (DefaultSchema["Tables"] &
-        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
-        Row: infer R
-      }
-      ? R
-      : never
-    : never
-
-export type TablesInsert<
-  DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema["Tables"]
-    | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
-  }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
-> = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
-}
-  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-      Insert: infer I
-    }
-    ? I
-    : never
-  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-        Insert: infer I
-      }
-      ? I
-      : never
-    : never
-
-export type TablesUpdate<
-  DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema["Tables"]
-    | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
-  }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
-> = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
-}
-  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-      Update: infer U
-    }
-    ? U
-    : never
-  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-        Update: infer U
-      }
-      ? U
-      : never
-    : never
-
-export type Enums<
-  DefaultSchemaEnumNameOrOptions extends
-    | keyof DefaultSchema["Enums"]
-    | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
-  }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
-> = DefaultSchemaEnumNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
-}
-  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
-  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
-    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
-    : never
-
-export type CompositeTypes<
-  PublicCompositeTypeNameOrOptions extends
-    | keyof DefaultSchema["CompositeTypes"]
-    | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
-  }
-    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
-> = PublicCompositeTypeNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
-}
-  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
-  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
-    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
-    : never
-
-export const Constants = {
-  public: {
-    Enums: {
-      ticket_priority: ["high", "medium", "low"],
-      ticket_status: ["open", "in_progress", "archived"],
-    },
-  },
-} as const
-
-// Helper types
-export type Meeting = Database['public']['Tables']['saif_meetings']['Row']
-export type MeetingNote = Database['public']['Tables']['saif_meeting_notes']['Row']
+// Shared types
 export type Person = Database['public']['Tables']['saif_people']['Row']
 export type Company = Database['public']['Tables']['saif_companies']['Row']
 export type CompanyPerson = Database['public']['Tables']['saif_company_people']['Row']
-export type RelationshipType = Database['public']['Tables']['saif_company_people']['Row']['relationship_type']
-export type UserRole = Database['public']['Tables']['saif_people']['Row']['role']
-export type UserStatus = Database['public']['Tables']['saif_people']['Row']['status']
-export type TicketStatus = Database['public']['Tables']['saif_tickets']['Row']['status']
-export type TicketPriority = Database['public']['Tables']['saif_tickets']['Row']['priority']
-export type Notification = Database['public']['Tables']['saifcrm_notifications']['Row']
-
-// Helper type for notification with actor info
-export type NotificationWithActor = Notification & {
-  actor?: Database['public']['Tables']['saif_people']['Row'] | null
-}
-
-// Additional shared types
 export type Investment = Database['public']['Tables']['saif_investments']['Row']
 export type Ticket = Database['public']['Tables']['saif_tickets']['Row']
-export type TicketComment = Database['public']['Tables']['saif_ticket_comments']['Row']
 export type Tag = Database['public']['Tables']['saif_tags']['Row']
+export type Meeting = Database['public']['Tables']['saif_meetings']['Row']
+export type MeetingNote = Database['public']['Tables']['saif_meeting_notes']['Row']
 
 // CRM types
 export type Application = Database['public']['Tables']['saifcrm_applications']['Row']
@@ -1686,5 +921,4 @@ export type ApplicationWithVotes = Application & {
   saifcrm_votes?: Vote[]
   saifcrm_deliberations?: Deliberation[]
   saif_people?: Person
-  saif_companies?: Company
 }

@@ -1,14 +1,36 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { Database } from '@/lib/types/database'
 import CreateTicketButton from '@/components/CreateTicketButton'
+import PersonModal from '@/components/PersonModal'
 
 type Company = Database['public']['Tables']['saif_companies']['Row']
 type Person = Database['public']['Tables']['saif_people']['Row']
 type CompanyPerson = Database['public']['Tables']['saif_company_people']['Row']
+
+// Database stores lowercase values for type
+const INVESTMENT_TYPES = [
+  { value: 'note', label: 'Note' },
+  { value: 'safe', label: 'SAFE' },
+  { value: 'equity', label: 'Equity' },
+  { value: 'option', label: 'Option' },
+  { value: 'other', label: 'Other' },
+] as const
+
+const INVESTMENT_ROUNDS = [
+  { value: 'Pre-Seed', label: 'Pre-Seed' },
+  { value: 'Seed', label: 'Seed' },
+  { value: 'Series A', label: 'Series A' },
+  { value: 'Series B', label: 'Series B' },
+  { value: 'Series C', label: 'Series C' },
+  { value: 'Series D', label: 'Series D' },
+  { value: 'Series E', label: 'Series E' },
+  { value: 'Series F', label: 'Series F' },
+  { value: 'Series G', label: 'Series G' },
+] as const
 
 interface CompanyViewProps {
   company: Company & {
@@ -24,13 +46,18 @@ interface CompanyViewProps {
 
 export default function CompanyView({ company, canEdit, isPartner, currentPersonId }: CompanyViewProps) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const supabase = createClient()
 
-  const [isEditing, setIsEditing] = useState(false)
+  // Start in edit mode if ?edit=true is in URL
+  const [isEditing, setIsEditing] = useState(searchParams.get('edit') === 'true' && canEdit)
   const [saving, setSaving] = useState(false)
   const [uploadingLogo, setUploadingLogo] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+
+  // Person modal state
+  const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null)
 
   // Founder management state
   const [showAddFounder, setShowAddFounder] = useState(false)
@@ -56,6 +83,19 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
   })
 
   const [logoUrl, setLogoUrl] = useState(company.logo_url)
+
+  // Investment editing state
+  const [investmentData, setInvestmentData] = useState(() => {
+    const inv = company.investments?.[0]
+    return {
+      id: inv?.id || null,
+      type: inv?.type?.toLowerCase() || '', // Normalize to lowercase
+      round: inv?.round || '',
+      amount: inv?.amount?.toString() || '',
+      post_money_valuation: inv?.post_money_valuation ? (inv.post_money_valuation / 1000000).toString() : '',
+      investment_date: inv?.investment_date?.split('T')[0] || '', // Format date for input
+    }
+  })
 
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
@@ -182,6 +222,45 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
       // Check if update actually affected any rows (RLS might silently block)
       if (!updateData || updateData.length === 0) {
         throw new Error('Update failed - you may not have permission to edit this company')
+      }
+
+      // Save investment data if partner and there's investment data to save
+      if (isPartner && (investmentData.type || investmentData.round || investmentData.amount || investmentData.post_money_valuation)) {
+        const invDataToSave = {
+          company_id: company.id,
+          type: investmentData.type || null,
+          round: investmentData.round || null,
+          amount: investmentData.amount ? parseFloat(investmentData.amount) : null,
+          post_money_valuation: investmentData.post_money_valuation ? parseFloat(investmentData.post_money_valuation) * 1000000 : null,
+          investment_date: investmentData.investment_date || null,
+        }
+
+        if (investmentData.id) {
+          // Update existing investment
+          const { error: invError } = await supabase
+            .from('saif_investments')
+            .update(invDataToSave)
+            .eq('id', investmentData.id)
+
+          if (invError) {
+            console.error('Error updating investment:', invError)
+            // Don't throw - company was saved successfully
+          }
+        } else {
+          // Create new investment
+          const { data: newInv, error: invError } = await supabase
+            .from('saif_investments')
+            .insert({ ...invDataToSave, status: 'active' })
+            .select()
+            .single()
+
+          if (invError) {
+            console.error('Error creating investment:', invError)
+            // Don't throw - company was saved successfully
+          } else if (newInv) {
+            setInvestmentData(prev => ({ ...prev, id: newInv.id }))
+          }
+        }
       }
 
       setSuccess('Company updated successfully!')
@@ -629,6 +708,95 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
             </div>
           </div>
 
+          {/* Investment Information (Partners Only) */}
+          {isPartner && (
+            <div className="bg-white border border-gray-200 rounded-lg p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Investment Details</h2>
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="inv_type" className="block text-sm font-medium text-gray-700">
+                      Investment Type
+                    </label>
+                    <select
+                      id="inv_type"
+                      value={investmentData.type}
+                      onChange={(e) => setInvestmentData({ ...investmentData, type: e.target.value })}
+                      className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-gray-900 focus:border-gray-900"
+                    >
+                      <option value="">Select type...</option>
+                      {INVESTMENT_TYPES.map(type => (
+                        <option key={type.value} value={type.value}>{type.label}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label htmlFor="inv_round" className="block text-sm font-medium text-gray-700">
+                      Round
+                    </label>
+                    <select
+                      id="inv_round"
+                      value={investmentData.round}
+                      onChange={(e) => setInvestmentData({ ...investmentData, round: e.target.value })}
+                      className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-gray-900 focus:border-gray-900"
+                    >
+                      <option value="">Select round...</option>
+                      {INVESTMENT_ROUNDS.map(round => (
+                        <option key={round.value} value={round.value}>{round.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="inv_amount" className="block text-sm font-medium text-gray-700">
+                      Investment Amount ($)
+                    </label>
+                    <input
+                      type="number"
+                      id="inv_amount"
+                      value={investmentData.amount}
+                      onChange={(e) => setInvestmentData({ ...investmentData, amount: e.target.value })}
+                      placeholder="100000"
+                      className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-gray-900 focus:border-gray-900"
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="inv_valuation" className="block text-sm font-medium text-gray-700">
+                      Post-Money Valuation / Cap ($M)
+                    </label>
+                    <input
+                      type="number"
+                      id="inv_valuation"
+                      value={investmentData.post_money_valuation}
+                      onChange={(e) => setInvestmentData({ ...investmentData, post_money_valuation: e.target.value })}
+                      placeholder="10"
+                      step="0.1"
+                      className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-gray-900 focus:border-gray-900"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">Enter value in millions (e.g., 10 for $10M)</p>
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="inv_date" className="block text-sm font-medium text-gray-700">
+                    Investment Date
+                  </label>
+                  <input
+                    type="date"
+                    id="inv_date"
+                    value={investmentData.investment_date}
+                    onChange={(e) => setInvestmentData({ ...investmentData, investment_date: e.target.value })}
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-gray-900 focus:border-gray-900"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Form Actions */}
           <div className="flex items-center justify-between">
             <button
@@ -649,6 +817,16 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
                   country: company.country || '',
                   yc_batch: company.yc_batch || '',
                   is_aisafety_company: company.is_aisafety_company,
+                })
+                // Reset investment data
+                const inv = company.investments?.[0]
+                setInvestmentData({
+                  id: inv?.id || null,
+                  type: inv?.type?.toLowerCase() || '',
+                  round: inv?.round || '',
+                  amount: inv?.amount?.toString() || '',
+                  post_money_valuation: inv?.post_money_valuation ? (inv.post_money_valuation / 1000000).toString() : '',
+                  investment_date: inv?.investment_date?.split('T')[0] || '',
                 })
               }}
               className="text-sm text-gray-600 hover:text-gray-900"
@@ -803,25 +981,33 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
 
                   return (
                     <div key={founder.id} className="flex items-start space-x-4">
-                      {person.avatar_url ? (
-                        <img
-                          src={person.avatar_url}
-                          alt={`${person.first_name} ${person.last_name}`}
-                          className="h-12 w-12 rounded-full object-cover"
-                        />
-                      ) : (
-                        <div className="h-12 w-12 rounded-full bg-gray-200 flex items-center justify-center">
-                          <span className="text-lg text-gray-600">
-                            {person.first_name?.[0] || '?'}
-                          </span>
-                        </div>
-                      )}
+                      <button
+                        onClick={() => setSelectedPersonId(person.id)}
+                        className="flex-shrink-0 hover:opacity-80 transition-opacity"
+                      >
+                        {person.avatar_url ? (
+                          <img
+                            src={person.avatar_url}
+                            alt={`${person.first_name} ${person.last_name}`}
+                            className="h-12 w-12 rounded-full object-cover"
+                          />
+                        ) : (
+                          <div className="h-12 w-12 rounded-full bg-gray-200 flex items-center justify-center">
+                            <span className="text-lg text-gray-600">
+                              {person.first_name?.[0] || '?'}
+                            </span>
+                          </div>
+                        )}
+                      </button>
                       <div className="flex-1">
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
-                            <h3 className="text-sm font-semibold text-gray-900">
+                            <button
+                              onClick={() => setSelectedPersonId(person.id)}
+                              className="text-sm font-semibold text-gray-900 hover:underline text-left"
+                            >
                               {person.first_name} {person.last_name}
-                            </h3>
+                            </button>
                             {(founder.title || person.title) && (
                               <p className="text-sm text-gray-600">
                                 {founder.title || person.title}
@@ -886,23 +1072,31 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
 
                   return (
                     <div key={founder.id} className="flex items-center space-x-3 opacity-60">
-                      {person.avatar_url ? (
-                        <img
-                          src={person.avatar_url}
-                          alt={`${person.first_name} ${person.last_name}`}
-                          className="h-10 w-10 rounded-full object-cover"
-                        />
-                      ) : (
-                        <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
-                          <span className="text-sm text-gray-600">
-                            {person.first_name?.[0] || '?'}
-                          </span>
-                        </div>
-                      )}
+                      <button
+                        onClick={() => setSelectedPersonId(person.id)}
+                        className="flex-shrink-0 hover:opacity-80 transition-opacity"
+                      >
+                        {person.avatar_url ? (
+                          <img
+                            src={person.avatar_url}
+                            alt={`${person.first_name} ${person.last_name}`}
+                            className="h-10 w-10 rounded-full object-cover"
+                          />
+                        ) : (
+                          <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
+                            <span className="text-sm text-gray-600">
+                              {person.first_name?.[0] || '?'}
+                            </span>
+                          </div>
+                        )}
+                      </button>
                       <div className="flex-1">
-                        <h3 className="text-sm font-medium text-gray-900">
+                        <button
+                          onClick={() => setSelectedPersonId(person.id)}
+                          className="text-sm font-medium text-gray-900 hover:underline text-left"
+                        >
                           {person.first_name} {person.last_name}
-                        </h3>
+                        </button>
                         <p className="text-xs text-gray-500">
                           {founder.title || person.title || 'Former Founder'}
                           {founder.end_date && ` • Left ${new Date(founder.end_date).toLocaleDateString()}`}
@@ -926,23 +1120,31 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
 
                   return (
                     <div key={member.id} className="flex items-center space-x-3">
-                      {person.avatar_url ? (
-                        <img
-                          src={person.avatar_url}
-                          alt={`${person.first_name} ${person.last_name}`}
-                          className="h-10 w-10 rounded-full object-cover"
-                        />
-                      ) : (
-                        <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
-                          <span className="text-sm text-gray-600">
-                            {person.first_name?.[0] || '?'}
-                          </span>
-                        </div>
-                      )}
+                      <button
+                        onClick={() => setSelectedPersonId(person.id)}
+                        className="flex-shrink-0 hover:opacity-80 transition-opacity"
+                      >
+                        {person.avatar_url ? (
+                          <img
+                            src={person.avatar_url}
+                            alt={`${person.first_name} ${person.last_name}`}
+                            className="h-10 w-10 rounded-full object-cover"
+                          />
+                        ) : (
+                          <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
+                            <span className="text-sm text-gray-600">
+                              {person.first_name?.[0] || '?'}
+                            </span>
+                          </div>
+                        )}
+                      </button>
                       <div>
-                        <h3 className="text-sm font-medium text-gray-900">
+                        <button
+                          onClick={() => setSelectedPersonId(person.id)}
+                          className="text-sm font-medium text-gray-900 hover:underline text-left"
+                        >
                           {person.first_name} {person.last_name}
-                        </h3>
+                        </button>
                         <p className="text-xs text-gray-500">
                           {member.title || member.relationship_type}
                         </p>
@@ -957,101 +1159,56 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
           {/* Investment Info (Partners Only) */}
           {isPartner && company.investments && company.investments.length > 0 && (
             <div className="bg-white border border-gray-200 rounded-lg p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-gray-900">Investments</h2>
-                <p className="text-sm text-gray-500">
-                  Total: ${company.investments.reduce((sum: number, inv: any) => sum + (inv.amount || 0), 0).toLocaleString()}
-                </p>
-              </div>
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Investment</h2>
               <div className="space-y-4">
                 {company.investments.map((investment: any) => {
-                  // Format terms based on type
-                  const getTerms = () => {
-                    if (investment.type === 'SAFE' || investment.type === 'safe') {
-                      if (investment.post_money_valuation) {
-                        return `$${(investment.post_money_valuation / 1000000).toFixed(0)}M cap SAFE`
-                      }
-                      if (investment.discount) {
-                        return `${investment.discount}% discount SAFE`
-                      }
-                      return 'SAFE'
-                    }
-                    if (investment.post_money_valuation) {
-                      return `$${(investment.post_money_valuation / 1000000).toFixed(1)}M post`
-                    }
-                    return investment.type || null
-                  }
+                  // Format valuation display
+                  const valuationDisplay = investment.post_money_valuation
+                    ? `$${(investment.post_money_valuation / 1000000).toFixed(0)}M`
+                    : null
 
-                  const terms = getTerms()
+                  // Get display label for type
+                  const typeLabel = INVESTMENT_TYPES.find(t => t.value === investment.type?.toLowerCase())?.label || investment.type
 
                   return (
-                    <div key={investment.id} className="bg-gray-50 rounded-lg p-4">
-                      <div className="flex justify-between items-start mb-3">
-                        <div>
-                          <p className="text-sm font-semibold text-gray-900">
-                            {investment.round || 'Investment'}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {new Date(investment.investment_date).toLocaleDateString('en-US', {
-                              month: 'short',
-                              day: 'numeric',
-                              year: 'numeric'
-                            })}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-lg font-bold text-gray-900">
-                            ${investment.amount?.toLocaleString() || '-'}
-                          </p>
-                          {investment.status && investment.status !== 'active' && (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
-                              {investment.status}
-                            </span>
-                          )}
-                        </div>
-                      </div>
+                    <div key={investment.id} className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+                      {/* Amount */}
+                      <span className="text-2xl font-bold text-gray-900">
+                        ${investment.amount?.toLocaleString() || '—'}
+                      </span>
 
-                      {/* Investment Details Grid */}
-                      <div className="grid grid-cols-2 gap-2 text-sm">
-                        {terms && (
-                          <div>
-                            <span className="text-gray-500">Terms:</span>
-                            <span className="ml-2 text-gray-900 font-medium">{terms}</span>
-                          </div>
+                      {/* Type + Round + Valuation as badges */}
+                      <div className="flex flex-wrap items-center gap-2">
+                        {investment.round && (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                            {investment.round}
+                          </span>
                         )}
-                        {investment.type && !terms?.includes(investment.type) && (
-                          <div>
-                            <span className="text-gray-500">Type:</span>
-                            <span className="ml-2 text-gray-900">{investment.type}</span>
-                          </div>
+                        {typeLabel && (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                            {typeLabel}
+                          </span>
                         )}
-                        {investment.shares && (
-                          <div>
-                            <span className="text-gray-500">Shares:</span>
-                            <span className="ml-2 text-gray-900">{investment.shares.toLocaleString()}</span>
-                          </div>
+                        {valuationDisplay && (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            {valuationDisplay} {investment.type?.toLowerCase() === 'safe' ? 'cap' : 'post'}
+                          </span>
                         )}
-                        {investment.fd_shares && (
-                          <div>
-                            <span className="text-gray-500">FD Shares:</span>
-                            <span className="ml-2 text-gray-900">{investment.fd_shares.toLocaleString()}</span>
-                          </div>
+                        {investment.status && investment.status !== 'active' && (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                            {investment.status}
+                          </span>
                         )}
                       </div>
 
-                      {/* Exit Info */}
-                      {investment.exit_date && (
-                        <div className="mt-3 pt-3 border-t border-gray-200">
-                          <p className="text-xs text-gray-500">
-                            <span className="font-medium text-green-700">Exited:</span>{' '}
-                            {new Date(investment.exit_date).toLocaleDateString('en-US', {
-                              month: 'short',
-                              day: 'numeric',
-                              year: 'numeric'
-                            })}
-                            {investment.acquirer && ` → ${investment.acquirer}`}
-                          </p>
-                        </div>
+                      {/* Date */}
+                      {investment.investment_date && (
+                        <span className="text-sm text-gray-500">
+                          {new Date(investment.investment_date).toLocaleDateString('en-US', {
+                            month: 'short',
+                            year: 'numeric'
+                          })}
+                        </span>
                       )}
                     </div>
                   )
@@ -1059,7 +1216,34 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
               </div>
             </div>
           )}
+
+          {/* Exit Info - shown separately if exists */}
+          {isPartner && company.investments?.some((inv: any) => inv.exit_date) && (
+            <div className="bg-white border border-gray-200 rounded-lg p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Exit</h2>
+              {company.investments.filter((inv: any) => inv.exit_date).map((investment: any) => (
+                <div key={investment.id} className="text-sm text-gray-700">
+                  <span className="font-medium text-green-700">Exited:</span>{' '}
+                  {new Date(investment.exit_date).toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric'
+                  })}
+                  {investment.acquirer && ` → ${investment.acquirer}`}
+                </div>
+              ))}
+            </div>
+          )}
+
         </div>
+      )}
+
+      {/* Person Modal */}
+      {selectedPersonId && (
+        <PersonModal
+          personId={selectedPersonId}
+          onClose={() => setSelectedPersonId(null)}
+        />
       )}
     </main>
   )

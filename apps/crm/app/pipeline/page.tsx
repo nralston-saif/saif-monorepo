@@ -17,7 +17,7 @@ export default async function PipelinePage() {
   // Get user profile (using auth_user_id to link to auth.users)
   const { data: profile } = await supabase
     .from('saif_people')
-    .select('id, name, role')
+    .select('id, first_name, name, role')
     .eq('auth_user_id', user.id)
     .single()
 
@@ -93,7 +93,7 @@ export default async function PipelinePage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navigation userName={profile?.name || user.email || 'User'} />
+      <Navigation userName={profile?.first_name || 'User'} personId={profile?.id} />
       <PipelineClient
         applications={applicationsWithVotes as any}
         oldApplications={(oldApplications || []).map(app => {

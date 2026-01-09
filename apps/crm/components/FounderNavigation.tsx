@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
 import SearchModal from './SearchModal'
 
 interface FounderNavigationProps {
@@ -11,7 +12,27 @@ interface FounderNavigationProps {
 
 export default function FounderNavigation({ userName }: FounderNavigationProps) {
   const [showSearch, setShowSearch] = useState(false)
+  const [personId, setPersonId] = useState<string | null>(null)
   const pathname = usePathname()
+  const supabase = createClient()
+
+  // Fetch the current user's person ID for profile link
+  useEffect(() => {
+    async function fetchPersonId() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data: person } = await supabase
+          .from('saif_people')
+          .select('id')
+          .eq('auth_user_id', user.id)
+          .single()
+        if (person) {
+          setPersonId(person.id)
+        }
+      }
+    }
+    fetchPersonId()
+  }, [supabase])
 
   // Cmd+K / Ctrl+K keyboard shortcut
   useEffect(() => {
@@ -85,7 +106,7 @@ export default function FounderNavigation({ userName }: FounderNavigationProps) 
               </button>
               <div className="w-px h-6 bg-gray-200 hidden sm:block" />
               <Link
-                href="/profile/edit"
+                href={personId ? `/people/${personId}` : '/dashboard'}
                 className="text-sm text-gray-600 hover:text-gray-900"
               >
                 Profile

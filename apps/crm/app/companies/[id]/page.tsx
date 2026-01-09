@@ -90,7 +90,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
 
   // Check if current user can edit this company
   const isPartner = currentPerson.role === 'partner'
-  const userName = `${currentPerson.first_name || ''} ${currentPerson.last_name || ''}`.trim() || 'User'
+  const userName = currentPerson.first_name || 'User'
   const isFounder = company.people?.some(
     (cp: any) =>
       cp.user_id === currentPerson.id &&
@@ -109,7 +109,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
 
   return (
     <div className="min-h-screen bg-white">
-      {isPartner ? <Navigation userName={userName} /> : <FounderNavigation />}
+      {isPartner ? <Navigation userName={userName} personId={currentPerson.id} /> : <FounderNavigation />}
 
       {/* Main Content */}
       <CompanyView

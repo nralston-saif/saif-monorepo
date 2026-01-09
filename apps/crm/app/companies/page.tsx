@@ -29,10 +29,10 @@ export default async function CompaniesPage() {
   }
 
   const isPartner = person.role === 'partner'
-  const userName = `${person.first_name || ''} ${person.last_name || ''}`.trim() || 'User'
+  const userName = person.first_name || 'User'
 
   // Fetch companies based on role:
-  // - Partners see only portfolio companies (exclude SAIF)
+  // - Partners see ALL companies (for CRM management)
   // - Founders see portfolio + SAIF company
   let companies: any[] | null = null
   let companiesError: any = null
@@ -62,7 +62,6 @@ export default async function CompaniesPage() {
           type
         )
       `)
-      .eq('stage', 'portfolio')
       .eq('is_active', true)
       .order('name')
     companies = result.data
@@ -122,18 +121,19 @@ export default async function CompaniesPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      {isPartner ? <Navigation userName={userName} /> : <FounderNavigation />}
+      {isPartner ? <Navigation userName={userName} personId={person.id} /> : <FounderNavigation />}
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">
-            {isPartner ? 'Portfolio Companies' : 'SAIF Companies'}
-          </h1>
-          <p className="mt-2 text-sm text-gray-600">
-            Browse and connect with companies in the SAIF portfolio
-          </p>
-        </div>
+        {/* Show header for founders only - partners get header in CompanyGrid with count */}
+        {!isPartner && (
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold text-gray-900">SAIF Companies</h1>
+            <p className="mt-2 text-sm text-gray-600">
+              Browse and connect with companies in the SAIF portfolio
+            </p>
+          </div>
+        )}
 
         {typedCompanies.length === 0 ? (
           <div className="text-center py-12">

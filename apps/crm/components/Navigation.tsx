@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import SearchModal from './SearchModal'
 
-export default function Navigation({ userName }: { userName: string }) {
+export default function Navigation({ userName, personId }: { userName: string; personId?: string }) {
   const [showSearch, setShowSearch] = useState(false)
   const pathname = usePathname()
   const router = useRouter()
@@ -38,8 +38,14 @@ export default function Navigation({ userName }: { userName: string }) {
     { name: 'Portfolio', href: '/portfolio' },
     { name: 'Tickets', href: '/tickets' },
     { name: 'Meetings', href: '/meetings' },
+  ]
+
+  const crmItems = [
+    { name: 'Companies', href: '/companies' },
     { name: 'People', href: '/people' },
   ]
+
+  const isCrmActive = pathname === '/companies' || pathname === '/people' || pathname.startsWith('/companies/') || pathname.startsWith('/people/')
 
   return (
     <nav className="bg-white border-b border-gray-200 sticky top-0 z-40">
@@ -74,6 +80,42 @@ export default function Navigation({ userName }: { userName: string }) {
                   </Link>
                 )
               })}
+
+              {/* CRM Dropdown */}
+              <div className="relative group">
+                <button
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-1 ${
+                    isCrmActive
+                      ? 'bg-[#f5f5f5] text-[#1a1a1a]'
+                      : 'text-[#666666] hover:bg-[#f5f5f5] hover:text-[#1a1a1a]'
+                  }`}
+                >
+                  CRM
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                <div className="absolute left-0 top-full pt-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all">
+                  <div className="bg-white rounded-lg shadow-lg border border-gray-200 py-1 min-w-[140px]">
+                    {crmItems.map((item) => {
+                      const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
+                      return (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          className={`block px-4 py-2 text-sm transition-colors ${
+                            isActive
+                              ? 'bg-[#f5f5f5] text-[#1a1a1a] font-medium'
+                              : 'text-[#666666] hover:bg-[#f5f5f5] hover:text-[#1a1a1a]'
+                          }`}
+                        >
+                          {item.name}
+                        </Link>
+                      )
+                    })}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -105,16 +147,29 @@ export default function Navigation({ userName }: { userName: string }) {
 
             <div className="w-px h-6 bg-gray-200 mx-1 hidden sm:block" />
 
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-[#1a1a1a] rounded-full flex items-center justify-center">
-                <span className="text-white text-sm font-medium">
-                  {userName.charAt(0).toUpperCase()}
+            {personId ? (
+              <Link href={`/people/${personId}`} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+                <div className="w-8 h-8 bg-[#1a1a1a] rounded-full flex items-center justify-center">
+                  <span className="text-white text-sm font-medium">
+                    {userName.charAt(0).toUpperCase()}
+                  </span>
+                </div>
+                <span className="text-sm font-medium text-[#4a4a4a] hidden sm:block">
+                  {userName}
+                </span>
+              </Link>
+            ) : (
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-[#1a1a1a] rounded-full flex items-center justify-center">
+                  <span className="text-white text-sm font-medium">
+                    {userName.charAt(0).toUpperCase()}
+                  </span>
+                </div>
+                <span className="text-sm font-medium text-[#4a4a4a] hidden sm:block">
+                  {userName}
                 </span>
               </div>
-              <span className="text-sm font-medium text-[#4a4a4a] hidden sm:block">
-                {userName}
-              </span>
-            </div>
+            )}
             <button
               onClick={handleLogout}
               className="text-sm text-[#666666] hover:text-[#1a1a1a] px-3 py-2 rounded-lg hover:bg-[#f5f5f5] transition-colors"
@@ -127,14 +182,14 @@ export default function Navigation({ userName }: { userName: string }) {
 
       {/* Mobile Nav */}
       <div className="sm:hidden border-t border-gray-200 px-4 py-2">
-        <div className="flex space-x-1">
-          {navItems.map((item) => {
-            const isActive = pathname === item.href
+        <div className="flex space-x-1 overflow-x-auto">
+          {[...navItems, ...crmItems].map((item) => {
+            const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex-1 text-center py-2 rounded-lg text-sm font-medium transition-all ${
+                className={`flex-shrink-0 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
                   isActive
                     ? 'bg-[#f5f5f5] text-[#1a1a1a]'
                     : 'text-[#666666] hover:bg-[#f5f5f5]'

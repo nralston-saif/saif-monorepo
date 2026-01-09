@@ -14,10 +14,10 @@ export default async function PortfolioPage() {
     redirect('/login')
   }
 
-  // Get user profile (using auth_user_id to link to auth.users)
+  // Get user profile
   const { data: profile } = await supabase
     .from('saif_people')
-    .select('id, name, role')
+    .select('id, first_name, last_name, role')
     .eq('auth_user_id', user.id)
     .single()
 
@@ -26,85 +26,110 @@ export default async function PortfolioPage() {
     redirect('/access-denied')
   }
 
-  // Get all investments
+  const userName = profile.first_name || 'User'
+
+  // Get all investments with company data
   const { data: investments } = await supabase
-    .from('saifcrm_investments')
-    .select('id, company_name, investment_date, amount, terms, stealthy, contact_email, contact_name, website, description, founders, other_funders, notes, created_at, updated_at')
+    .from('saif_investments')
+    .select(`
+      id,
+      company_id,
+      investment_date,
+      type,
+      amount,
+      round,
+      post_money_valuation,
+      status,
+      company:saif_companies(
+        id,
+        name,
+        logo_url,
+        short_description,
+        website,
+        stage
+      )
+    `)
     .order('investment_date', { ascending: false })
-    .limit(200)
 
-  // Get company logos from saif_companies (keyed by name for matching)
-  const { data: companies } = await supabase
-    .from('saif_companies')
-    .select('name, logo_url')
-    .not('logo_url', 'is', null)
+  // Get founders for portfolio companies
+  const companyIds = [...new Set(investments?.map(inv => inv.company_id) || [])]
 
-  // Create map of company name (lowercase) -> logo_url
-  const logoMap: Record<string, string> = {}
-  companies?.forEach(company => {
-    if (company.logo_url) {
-      logoMap[company.name.toLowerCase()] = company.logo_url
+  const { data: companyPeople } = await supabase
+    .from('saif_company_people')
+    .select(`
+      company_id,
+      relationship_type,
+      title,
+      end_date,
+      person:saif_people(
+        id,
+        first_name,
+        last_name,
+        email,
+        avatar_url
+      )
+    `)
+    .in('company_id', companyIds)
+    .eq('relationship_type', 'founder')
+    .is('end_date', null)
+
+  // Create map of company_id -> founders
+  const foundersMap: Record<string, Array<{
+    id: string
+    name: string
+    email: string | null
+    avatar_url: string | null
+    title: string | null
+  }>> = {}
+
+  companyPeople?.forEach(cp => {
+    if (!cp.person) return
+    const companyId = cp.company_id
+    if (!foundersMap[companyId]) {
+      foundersMap[companyId] = []
     }
+    foundersMap[companyId].push({
+      id: cp.person.id,
+      name: `${cp.person.first_name || ''} ${cp.person.last_name || ''}`.trim() || 'Unknown',
+      email: cp.person.email,
+      avatar_url: cp.person.avatar_url,
+      title: cp.title,
+    })
   })
 
-  // Get applications with deliberation notes (no meeting notes to avoid nested joins)
+  // Get applications with deliberation notes for these companies
   const { data: applications } = await supabase
     .from('saifcrm_applications')
     .select(`
       id,
+      company_id,
       company_name,
       stage,
       deliberation:saifcrm_deliberations(thoughts)
     `)
     .eq('stage', 'invested')
-    .limit(500)
 
-  // Get meeting notes separately for these applications
+  // Get meeting notes for applications
   const applicationIds = applications?.map(app => app.id) || []
   const { data: meetingNotes } = await supabase
     .from('saifcrm_meeting_notes')
     .select('id, application_id, content, meeting_date, created_at, user_id')
     .in('application_id', applicationIds)
-    .limit(1000)
 
-  // Get people for these meeting notes
-  const userIds = [...new Set(meetingNotes?.map(note => note.user_id).filter(Boolean) || [])]
-  const { data: people } = await supabase
+  // Get people for meeting notes
+  const noteUserIds = [...new Set(meetingNotes?.map(note => note.user_id).filter(Boolean) || [])]
+  const { data: notePeople } = await supabase
     .from('saif_people')
-    .select('id, name')
-    .in('id', userIds as string[])
+    .select('id, first_name, last_name')
+    .in('id', noteUserIds as string[])
 
-  // Create people map
   const peopleMap: Record<string, string> = {}
-  people?.forEach(person => {
-    peopleMap[person.id] = person.name || 'Unknown'
+  notePeople?.forEach(person => {
+    peopleMap[person.id] = `${person.first_name || ''} ${person.last_name || ''}`.trim() || 'Unknown'
   })
 
-  // Create map of application_id -> meeting notes
-  const appMeetingNotesMap: Record<string, Array<{
-    id: string
-    content: string
-    meeting_date: string | null
-    created_at: string | null
-    user_name: string | null
-  }>> = {}
-
-  meetingNotes?.forEach(note => {
-    if (!appMeetingNotesMap[note.application_id]) {
-      appMeetingNotesMap[note.application_id] = []
-    }
-    appMeetingNotesMap[note.application_id].push({
-      id: note.id,
-      content: note.content,
-      meeting_date: note.meeting_date,
-      created_at: note.created_at,
-      user_name: note.user_id ? peopleMap[note.user_id] : null,
-    })
-  })
-
-  // Create maps for company name -> application data
-  const companyAppMap: Record<string, {
-    applicationId: string
+  // Create map of application notes
+  const appNotesMap: Record<string, {
     deliberationNotes: string | null
     meetingNotes: Array<{
       id: string
@@ -117,34 +142,56 @@ export default async function PortfolioPage() {
 
   applications?.forEach(app => {
     const deliberation = Array.isArray(app.deliberation) ? app.deliberation[0] : app.deliberation
-    const meetingNotes = appMeetingNotesMap[app.id] || []
+    const notes = meetingNotes?.filter(n => n.application_id === app.id) || []
 
-    companyAppMap[app.company_name.toLowerCase()] = {
-      applicationId: app.id,
-      deliberationNotes: deliberation?.thoughts || null,
-      meetingNotes: meetingNotes,
+    // Key by company_id if available, otherwise by company_name
+    const key = app.company_id || app.company_name?.toLowerCase()
+    if (key) {
+      appNotesMap[key] = {
+        deliberationNotes: deliberation?.thoughts || null,
+        meetingNotes: notes.map(n => ({
+          id: n.id,
+          content: n.content,
+          meeting_date: n.meeting_date,
+          created_at: n.created_at,
+          user_name: n.user_id ? peopleMap[n.user_id] : null,
+        })),
+      }
     }
   })
 
-  // Attach application data and logos to investments
-  const investmentsWithNotes = (investments || []).map(inv => {
-    const appData = companyAppMap[inv.company_name.toLowerCase()]
+  // Transform investments for the client
+  const portfolioCompanies = investments?.map(inv => {
+    const company = Array.isArray(inv.company) ? inv.company[0] : inv.company
+    const companyId = inv.company_id
+    const appData = appNotesMap[companyId] || appNotesMap[company?.name?.toLowerCase() || '']
+
     return {
-      ...inv,
-      applicationId: appData?.applicationId || null,
+      id: inv.id,
+      company_id: companyId,
+      company_name: company?.name || 'Unknown',
+      logo_url: company?.logo_url || null,
+      short_description: company?.short_description || null,
+      website: company?.website || null,
+      investment_date: inv.investment_date,
+      type: inv.type,
+      amount: inv.amount,
+      round: inv.round,
+      post_money_valuation: inv.post_money_valuation,
+      status: inv.status,
+      founders: foundersMap[companyId] || [],
       deliberationNotes: appData?.deliberationNotes || null,
       meetingNotes: appData?.meetingNotes || [],
-      logo_url: logoMap[inv.company_name.toLowerCase()] || null,
     }
-  })
+  }) || []
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navigation userName={profile?.name || user.email || 'User'} />
+      <Navigation userName={userName} personId={profile.id} />
       <PortfolioClient
-        investments={investmentsWithNotes as any}
-        userId={profile?.id || ''}
-        userName={profile?.name || user.email || 'User'}
+        investments={portfolioCompanies}
+        userId={profile.id}
+        userName={userName}
       />
     </div>
   )

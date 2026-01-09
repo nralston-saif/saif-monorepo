@@ -98,7 +98,7 @@ export default async function TicketsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navigation userName={profile?.first_name && profile?.last_name ? `${profile.first_name} ${profile.last_name}` : user.email || 'User'} />
+      <Navigation userName={profile.first_name || 'User'} personId={profile.id} />
       <TicketsClient
         tickets={tickets || []}
         partners={partners || []}

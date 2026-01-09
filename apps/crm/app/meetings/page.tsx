@@ -50,7 +50,7 @@ export default async function MeetingsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navigation userName={typedProfile.name || user.email || 'User'} />
+      <Navigation userName={typedProfile.first_name || 'User'} personId={typedProfile.id} />
       <MeetingsClient
         meetings={(meetings || []) as Meeting[]}
         currentUser={typedProfile}

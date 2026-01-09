@@ -203,7 +203,8 @@ export default function PeopleClient({
 
   const openAddModal = () => {
     setFormData({
-      name: '',
+      first_name: '',
+      last_name: '',
       email: '',
       role: 'contact',
       status: 'tracked',
@@ -272,14 +273,15 @@ export default function PeopleClient({
   }
 
   const handleSavePerson = async (skipDuplicateCheck = false) => {
-    if (!formData.name?.trim()) {
-      showToast('Name is required', 'warning')
+    if (!formData.first_name?.trim()) {
+      showToast('First name is required', 'warning')
       return
     }
 
     // Only check for duplicates when creating new person (not updating)
+    const fullName = `${formData.first_name || ''} ${formData.last_name || ''}`.trim()
     if (!formData.id && !skipDuplicateCheck) {
-      const duplicates = checkForDuplicates(formData.name, formData.email || null)
+      const duplicates = checkForDuplicates(fullName, formData.email || null)
       if (duplicates.length > 0) {
         setPotentialDuplicates(duplicates)
         setShowDuplicateWarning(true)
@@ -291,7 +293,8 @@ export default function PeopleClient({
 
     try {
       const dataToSave = {
-        name: formData.name,
+        first_name: formData.first_name || null,
+        last_name: formData.last_name || null,
         email: formData.email || null,
         role: formData.role || 'contact',
         status: formData.status || 'tracked',
@@ -838,7 +841,10 @@ export default function PeopleClient({
                 Meeting Notes
               </button>
               <button
-                onClick={() => openEditModal(selectedPerson)}
+                onClick={() => {
+                  setSelectedPerson(null)
+                  router.push(`/people/${selectedPerson.id}?edit=true`)
+                }}
                 className="btn btn-primary flex-1"
               >
                 <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -877,18 +883,32 @@ export default function PeopleClient({
             </div>
 
             <div className="p-6 space-y-6 max-h-[60vh] overflow-y-auto">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Name *
-                </label>
-                <input
-                  type="text"
-                  value={formData.name || ''}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="input"
-                  placeholder="Full name"
-                  required
-                />
+              <div className="grid gap-6 sm:grid-cols-2">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    First Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.first_name || ''}
+                    onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
+                    className="input"
+                    placeholder="First name"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Last Name
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.last_name || ''}
+                    onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
+                    className="input"
+                    placeholder="Last name"
+                  />
+                </div>
               </div>
 
               <div className="grid gap-6 sm:grid-cols-2">
@@ -1145,7 +1165,7 @@ export default function PeopleClient({
               </button>
               <button
                 onClick={() => handleSavePerson()}
-                disabled={loading || !formData.name?.trim()}
+                disabled={loading || !formData.first_name?.trim()}
                 className="btn btn-primary flex-1"
               >
                 {loading ? (
@@ -1222,7 +1242,7 @@ export default function PeopleClient({
               </div>
 
               <p className="text-sm text-gray-500 mt-4">
-                Are you sure you want to create a new person named <span className="font-medium">"{formData.name}"</span>?
+                Are you sure you want to create a new person named <span className="font-medium">"{formData.first_name} {formData.last_name}"</span>?
               </p>
             </div>
 

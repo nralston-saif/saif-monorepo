@@ -16,24 +16,30 @@ type MeetingNote = {
   user_name: string | null
 }
 
+type Founder = {
+  id: string
+  name: string
+  email: string | null
+  avatar_url: string | null
+  title: string | null
+}
+
 type Investment = {
   id: string
+  company_id: string
   company_name: string
-  investment_date: string | null
-  amount: number | null
-  terms: string | null
-  stealthy: boolean | null
-  contact_email: string | null
-  contact_name: string | null
+  logo_url: string | null
+  short_description: string | null
   website: string | null
-  description: string | null
-  founders: string | null
-  other_funders: string | null
-  notes: string | null
-  applicationId: string | null
+  investment_date: string | null
+  type: string | null
+  amount: number | null
+  round: string | null
+  post_money_valuation: number | null
+  status: string | null
+  founders: Founder[]
   deliberationNotes: string | null
   meetingNotes: MeetingNote[]
-  logo_url: string | null
 }
 
 type SortOption = 'date-newest' | 'date-oldest' | 'name-az' | 'name-za' | 'amount-high' | 'amount-low'
@@ -70,8 +76,8 @@ export default function PortfolioClient({
       const query = searchQuery.toLowerCase()
       filtered = filtered.filter(inv =>
         inv.company_name.toLowerCase().includes(query) ||
-        (inv.founders?.toLowerCase().includes(query)) ||
-        (inv.description?.toLowerCase().includes(query))
+        inv.founders.some(f => f.name.toLowerCase().includes(query)) ||
+        (inv.short_description?.toLowerCase().includes(query))
       )
     }
 
@@ -254,8 +260,8 @@ export default function PortfolioClient({
   const investmentToApplication = (inv: Investment) => ({
     id: inv.id,
     company_name: inv.company_name,
-    founder_names: inv.founders,
-    company_description: inv.description,
+    founder_names: inv.founders.map(f => f.name).join(', '),
+    company_description: inv.short_description,
     website: inv.website,
     deck_link: null,
     submitted_at: inv.investment_date || new Date().toISOString(),
@@ -273,18 +279,7 @@ export default function PortfolioClient({
               Track and manage your investments
             </p>
           </div>
-          <div className="flex gap-3">
-            <CreateTicketButton currentUserId={userId} />
-            <button
-              onClick={openAddModal}
-              className="btn btn-primary"
-            >
-              <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              Add Investment
-            </button>
-          </div>
+          <CreateTicketButton currentUserId={userId} />
         </div>
       </div>
 
@@ -459,14 +454,8 @@ export default function PortfolioClient({
           <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <span className="text-3xl">💼</span>
           </div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">No investments yet</h3>
-          <p className="text-gray-500 mb-6">Start building your portfolio by adding your first investment.</p>
-          <button
-            onClick={openAddModal}
-            className="btn btn-primary"
-          >
-            Add Investment
-          </button>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">No investments found</h3>
+          <p className="text-gray-500">Investments from saif_investments will appear here.</p>
         </div>
       ) : filteredInvestments.length === 0 ? (
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 text-center">
@@ -502,21 +491,27 @@ export default function PortfolioClient({
                       <h3 className="text-lg font-semibold text-gray-900 truncate">
                         {investment.company_name}
                       </h3>
-                      {investment.stealthy && (
-                        <span className="badge badge-purple ml-2 flex-shrink-0">
-                          Stealth
+                      {investment.status && investment.status !== 'active' && (
+                        <span className={`badge ml-2 flex-shrink-0 ${
+                          investment.status === 'acquired' ? 'badge-green' :
+                          investment.status === 'ipo' ? 'badge-blue' :
+                          'badge-gray'
+                        }`}>
+                          {investment.status.charAt(0).toUpperCase() + investment.status.slice(1)}
                         </span>
                       )}
                     </div>
-                    {investment.founders && (
-                      <p className="text-sm text-gray-500 mt-0.5 truncate">{investment.founders}</p>
+                    {investment.founders.length > 0 && (
+                      <p className="text-sm text-gray-500 mt-0.5 truncate">
+                        {investment.founders.map(f => f.name).join(', ')}
+                      </p>
                     )}
                   </div>
                 </div>
 
-                {investment.description && (
+                {investment.short_description && (
                   <p className="text-sm text-gray-600 mb-4 line-clamp-2">
-                    {investment.description}
+                    {investment.short_description}
                   </p>
                 )}
 
@@ -527,11 +522,19 @@ export default function PortfolioClient({
                       {formatCurrency(investment.amount)}
                     </span>
                   </div>
-                  {investment.terms && (
+                  {(investment.type || investment.round) && (
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-500">Terms</span>
-                      <span className="text-gray-700 font-medium text-right truncate max-w-[60%]">
-                        {investment.terms}
+                      <span className="text-gray-500">Round</span>
+                      <span className="text-gray-700 font-medium">
+                        {[investment.round, investment.type === 'safe' ? 'SAFE' : investment.type?.charAt(0).toUpperCase() + investment.type?.slice(1)].filter(Boolean).join(' • ')}
+                      </span>
+                    </div>
+                  )}
+                  {investment.post_money_valuation && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-500">{investment.type?.toLowerCase() === 'safe' ? 'Cap' : 'Valuation'}</span>
+                      <span className="text-gray-700 font-medium">
+                        ${(investment.post_money_valuation / 1000000).toFixed(0)}M
                       </span>
                     </div>
                   )}
@@ -542,14 +545,6 @@ export default function PortfolioClient({
                     </span>
                   </div>
                 </div>
-
-                {investment.other_funders && (
-                  <div className="mt-3 pt-3 border-t border-gray-100">
-                    <p className="text-xs text-gray-500 truncate">
-                      Co-investors: <span className="text-gray-700">{investment.other_funders}</span>
-                    </p>
-                  </div>
-                )}
 
                 {/* Links and Notes */}
                 <div className="flex items-center gap-3 mt-4">
@@ -590,251 +585,41 @@ export default function PortfolioClient({
           investment={{
             amount: selectedInvestment.amount,
             investment_date: selectedInvestment.investment_date,
-            terms: selectedInvestment.terms,
-            other_funders: selectedInvestment.other_funders,
-            contact_name: selectedInvestment.contact_name,
-            contact_email: selectedInvestment.contact_email,
-            notes: selectedInvestment.notes,
-            stealthy: selectedInvestment.stealthy ?? undefined,
+            terms: [
+              selectedInvestment.round,
+              selectedInvestment.type === 'safe' ? 'SAFE' : selectedInvestment.type?.charAt(0).toUpperCase() + selectedInvestment.type?.slice(1),
+              selectedInvestment.post_money_valuation ? `$${(selectedInvestment.post_money_valuation / 1000000).toFixed(0)}M ${selectedInvestment.type?.toLowerCase() === 'safe' ? 'cap' : 'post'}` : null
+            ].filter(Boolean).join(' • ') || null,
+            other_funders: null,
+            contact_name: selectedInvestment.founders[0]?.name || null,
+            contact_email: selectedInvestment.founders[0]?.email || null,
+            notes: null,
+            stealthy: false,
           }}
           onClose={() => setSelectedInvestment(null)}
           actions={
-            <button
-              onClick={() => {
-                openEditModal(selectedInvestment)
-                setSelectedInvestment(null)
-              }}
-              className="btn btn-primary"
-            >
-              Edit
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => router.push(`/companies/${selectedInvestment.company_id}`)}
+                className="btn btn-secondary"
+              >
+                View Company
+              </button>
+              <button
+                onClick={() => {
+                  setSelectedInvestment(null)
+                  router.push(`/companies/${selectedInvestment.company_id}?edit=true`)
+                }}
+                className="btn btn-primary"
+              >
+                Edit Company
+              </button>
+            </div>
           }
         />
       )}
 
-      {/* Add/Edit Investment Modal */}
-      {showAddModal && (
-        <div className="modal-backdrop" onClick={() => !loading && setShowAddModal(false)}>
-          <div
-            className="modal-content max-w-3xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Modal Header */}
-            <div className="p-6 border-b border-gray-100">
-              <div className="flex items-start justify-between">
-                <div>
-                  <h2 className="text-2xl font-bold text-gray-900">
-                    {formData.id ? 'Edit Investment' : 'Add New Investment'}
-                  </h2>
-                  <p className="text-gray-500 mt-1">Enter the investment details below</p>
-                </div>
-                <button
-                  onClick={() => !loading && setShowAddModal(false)}
-                  className="text-gray-400 hover:text-gray-600 p-2 -m-2"
-                >
-                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-
-            {/* Modal Content */}
-            <div className="p-6 space-y-6 max-h-[60vh] overflow-y-auto">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Company Name *
-                </label>
-                <input
-                  type="text"
-                  value={formData.company_name || ''}
-                  onChange={(e) => setFormData({ ...formData, company_name: e.target.value })}
-                  className="input"
-                  placeholder="Enter company name"
-                  required
-                />
-              </div>
-
-              <div className="grid gap-6 sm:grid-cols-2">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Investment Amount
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.amount || ''}
-                    onChange={(e) => setFormData({ ...formData, amount: e.target.value ? parseFloat(e.target.value) : null })}
-                    className="input"
-                    placeholder="0"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Investment Date
-                  </label>
-                  <input
-                    type="date"
-                    value={formData.investment_date || ''}
-                    onChange={(e) => setFormData({ ...formData, investment_date: e.target.value })}
-                    className="input"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Terms
-                </label>
-                <input
-                  type="text"
-                  value={formData.terms || ''}
-                  onChange={(e) => setFormData({ ...formData, terms: e.target.value })}
-                  className="input"
-                  placeholder="e.g., 20mm cap safe"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Founders
-                </label>
-                <input
-                  type="text"
-                  value={formData.founders || ''}
-                  onChange={(e) => setFormData({ ...formData, founders: e.target.value })}
-                  className="input"
-                  placeholder="Founder names"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Description
-                </label>
-                <textarea
-                  value={formData.description || ''}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  rows={3}
-                  className="input resize-none"
-                  placeholder="What does the company do?"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Website
-                </label>
-                <input
-                  type="url"
-                  value={formData.website || ''}
-                  onChange={(e) => setFormData({ ...formData, website: e.target.value })}
-                  className="input"
-                  placeholder="https://example.com"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Other Funders
-                </label>
-                <input
-                  type="text"
-                  value={formData.other_funders || ''}
-                  onChange={(e) => setFormData({ ...formData, other_funders: e.target.value })}
-                  className="input"
-                  placeholder="Co-investors"
-                />
-              </div>
-
-              <div className="grid gap-6 sm:grid-cols-2">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Contact Name
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.contact_name || ''}
-                    onChange={(e) => setFormData({ ...formData, contact_name: e.target.value })}
-                    className="input"
-                    placeholder="Primary contact"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Contact Email
-                  </label>
-                  <input
-                    type="email"
-                    value={formData.contact_email || ''}
-                    onChange={(e) => setFormData({ ...formData, contact_email: e.target.value })}
-                    className="input"
-                    placeholder="email@example.com"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Notes
-                </label>
-                <textarea
-                  value={formData.notes || ''}
-                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                  rows={3}
-                  className="input resize-none"
-                  placeholder="Additional notes..."
-                />
-              </div>
-
-              <div className="flex items-center gap-3 bg-purple-50 p-4 rounded-xl">
-                <input
-                  type="checkbox"
-                  id="stealthy"
-                  checked={formData.stealthy || false}
-                  onChange={(e) => setFormData({ ...formData, stealthy: e.target.checked })}
-                  className="h-5 w-5 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
-                />
-                <label htmlFor="stealthy" className="text-sm font-medium text-purple-900">
-                  Stealth Mode - This company is operating in stealth
-                </label>
-              </div>
-            </div>
-
-            {/* Modal Footer */}
-            <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex gap-3">
-              <button
-                onClick={() => {
-                  setShowAddModal(false)
-                  setFormData({})
-                }}
-                className="btn btn-secondary flex-1"
-                disabled={loading}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSaveInvestment}
-                disabled={loading || !formData.company_name}
-                className="btn btn-primary flex-1"
-              >
-                {loading ? (
-                  <span className="flex items-center gap-2">
-                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                    </svg>
-                    Saving...
-                  </span>
-                ) : formData.id ? (
-                  'Update Investment'
-                ) : (
-                  'Create Investment'
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Add/Edit Investment Modal - Disabled (investments managed via saif_investments table) */}
 
       {/* Meeting Notes Modal with Liveblocks */}
       {meetingNotesInvestment && (
