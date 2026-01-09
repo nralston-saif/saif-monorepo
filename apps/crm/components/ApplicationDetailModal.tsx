@@ -11,8 +11,8 @@ type ApplicationData = {
   website: string | null
   previous_funding?: string | null
   deck_link: string | null
-  submitted_at: string
-  stage?: string
+  submitted_at: string | null
+  stage?: string | null
 }
 
 type InvestmentData = {
