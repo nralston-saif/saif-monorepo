@@ -110,6 +110,7 @@ export function UncontrolledSyncTextarea({
 
     // Skip if this was our own local change echoing back
     if (isLocalChangeRef.current) {
+      console.log('[UncontrolledSync] Skipping local change echo')
       isLocalChangeRef.current = false
       lastSyncedValueRef.current = remoteValue
       return
@@ -121,6 +122,13 @@ export function UncontrolledSyncTextarea({
     const oldValue = lastSyncedValueRef.current
     const newValue = remoteValue
 
+    console.log('[UncontrolledSync] Remote change detected:', {
+      oldLen: oldValue.length,
+      newLen: newValue.length,
+      isFocused: document.activeElement === textarea,
+      cursorBefore: textarea.selectionStart,
+    })
+
     // If textarea is focused, preserve cursor position
     if (document.activeElement === textarea) {
       const selStart = textarea.selectionStart
@@ -129,6 +137,11 @@ export function UncontrolledSyncTextarea({
       // Calculate adjusted positions
       const newStart = calculateAdjustedCursor(oldValue, newValue, selStart)
       const newEnd = calculateAdjustedCursor(oldValue, newValue, selEnd)
+
+      console.log('[UncontrolledSync] Cursor adjustment:', {
+        before: selStart,
+        after: newStart,
+      })
 
       // Update DOM value
       textarea.value = newValue
