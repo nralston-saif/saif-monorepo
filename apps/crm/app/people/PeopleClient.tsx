@@ -53,14 +53,14 @@ const ROLE_LABELS: Record<UserRole, string> = {
   contact: 'Contact',
 }
 
-const STATUS_LABELS: Record<UserStatus, string> = {
+const STATUS_LABELS: Record<NonNullable<UserStatus>, string> = {
   active: 'Active',
   pending: 'Pending',
   tracked: 'Tracked',
   inactive: 'Inactive',
 }
 
-const ROLE_COLORS: Record<UserRole, string> = {
+const ROLE_COLORS: Record<NonNullable<UserRole>, string> = {
   partner: 'bg-blue-100 text-blue-800',
   founder: 'bg-purple-100 text-purple-800',
   advisor: 'bg-amber-100 text-amber-800',
