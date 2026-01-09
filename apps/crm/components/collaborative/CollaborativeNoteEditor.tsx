@@ -183,65 +183,11 @@ function EditorContent({
     onCurrentNoteIdChange?.(sharedNoteId)
   }, [sharedNoteId, onCurrentNoteIdChange])
 
-  // Load existing shared note on mount
+  // Mark as initialized immediately - the Yjs document is the source of truth
+  // for any in-progress draft. Saved notes appear in the Previous Notes list below.
   useEffect(() => {
-    const loadExistingNote = async () => {
-      let data: { id: string; content: string; meeting_date: string | null } | null = null
-
-      // Query the appropriate table based on context type
-      if (context.type === 'application') {
-        const result = await supabase
-          .from('saifcrm_meeting_notes')
-          .select('id, content, meeting_date')
-          .eq('application_id', context.id)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .single()
-        if (!result.error) data = result.data
-      } else if (context.type === 'investment') {
-        const result = await supabase
-          .from('saifcrm_investment_notes')
-          .select('id, content, meeting_date')
-          .eq('investment_id', context.id)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .single()
-        if (!result.error) data = result.data
-      } else if (context.type === 'person') {
-        const result = await supabase
-          .from('saifcrm_people_notes')
-          .select('id, content, meeting_date')
-          .eq('person_id', context.id)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .single()
-        if (!result.error) data = result.data
-      } else if (context.type === 'meeting') {
-        const result = await supabase
-          .from('saif_meeting_notes')
-          .select('id, content')
-          .eq('meeting_id', context.id)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .single()
-        if (!result.error) data = { ...result.data, meeting_date: null }
-      }
-
-      if (data) {
-        setSharedNoteId(data.id)
-        if (data.meeting_date) {
-          setMeetingDate(data.meeting_date)
-        }
-        // Note: Yjs will handle syncing the content from the shared document
-        // We just need to track the last saved content for comparison
-        lastSavedContentRef.current = data.content || ''
-      }
-
-      setIsInitialized(true)
-    }
-
-    loadExistingNote()
-  }, [context.id, context.type, supabase])
+    setIsInitialized(true)
+  }, [context.id, context.type])
 
   // Auto-save with debounce - triggered by content changes
   useEffect(() => {
@@ -559,63 +505,8 @@ function EditorWithoutLiveblocks({
     onCurrentNoteIdChange?.(sharedNoteId)
   }, [sharedNoteId, onCurrentNoteIdChange])
 
-  // Load existing note
-  useEffect(() => {
-    const loadExistingNote = async () => {
-      let data: { id: string; content: string; meeting_date: string | null } | null = null
-
-      // Query the appropriate table based on context type
-      if (context.type === 'application') {
-        const result = await supabase
-          .from('saifcrm_meeting_notes')
-          .select('id, content, meeting_date')
-          .eq('application_id', context.id)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .single()
-        if (!result.error) data = result.data
-      } else if (context.type === 'investment') {
-        const result = await supabase
-          .from('saifcrm_investment_notes')
-          .select('id, content, meeting_date')
-          .eq('investment_id', context.id)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .single()
-        if (!result.error) data = result.data
-      } else if (context.type === 'person') {
-        const result = await supabase
-          .from('saifcrm_people_notes')
-          .select('id, content, meeting_date')
-          .eq('person_id', context.id)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .single()
-        if (!result.error) data = result.data
-      } else if (context.type === 'meeting') {
-        const result = await supabase
-          .from('saif_meeting_notes')
-          .select('id, content')
-          .eq('meeting_id', context.id)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .single()
-        if (!result.error) data = { ...result.data, meeting_date: null }
-      }
-
-      if (data) {
-        setSharedNoteId(data.id)
-        setContent(data.content || '')
-        contentRef.current = data.content || ''
-        lastSavedContentRef.current = data.content || ''
-        if (data.meeting_date) {
-          setMeetingDate(data.meeting_date)
-        }
-      }
-    }
-
-    loadExistingNote()
-  }, [context.id, context.type, supabase])
+  // Editor starts fresh - saved notes appear in the Previous Notes list below
+  // No need to load existing notes into the editor
 
   // Auto-save
   useEffect(() => {
