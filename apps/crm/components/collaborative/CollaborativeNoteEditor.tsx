@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import React, { useState, useEffect, useCallback, useRef, Component } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import {
   RoomProvider,
@@ -456,6 +456,41 @@ function EditorContent({
 }
 
 // ============================================================================
+// ERROR BOUNDARY FOR LIVEBLOCKS
+// ============================================================================
+
+type ErrorBoundaryProps = {
+  children: React.ReactNode
+  fallback: React.ReactNode
+}
+
+type ErrorBoundaryState = {
+  hasError: boolean
+}
+
+class LiveblocksErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props)
+    this.state = { hasError: false }
+  }
+
+  static getDerivedStateFromError(): ErrorBoundaryState {
+    return { hasError: true }
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('[Liveblocks] Error in collaborative editor:', error, errorInfo)
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback
+    }
+    return this.props.children
+  }
+}
+
+// ============================================================================
 // ROOM WRAPPER
 // ============================================================================
 
@@ -463,20 +498,22 @@ function EditorWithRoom(props: CollaborativeNoteEditorProps) {
   const roomId = `notes-${props.context.type}-${props.context.id}`
 
   return (
-    <RoomProvider
-      id={roomId}
-      initialPresence={{ cursor: null, name: props.userName, isTyping: false }}
-      initialStorage={{ draft: '' }}
-    >
-      <ClientSideSuspense fallback={
-        <div className="bg-white rounded-xl border border-gray-200 p-4 animate-pulse">
-          <div className="h-10 bg-gray-200 rounded mb-4 w-1/3" />
-          <div className="h-32 bg-gray-200 rounded" />
-        </div>
-      }>
-        {() => <EditorContent {...props} />}
-      </ClientSideSuspense>
-    </RoomProvider>
+    <LiveblocksErrorBoundary fallback={<EditorWithoutLiveblocks {...props} />}>
+      <RoomProvider
+        id={roomId}
+        initialPresence={{ cursor: null, name: props.userName, isTyping: false }}
+        initialStorage={{ draft: '' }}
+      >
+        <ClientSideSuspense fallback={
+          <div className="bg-white rounded-xl border border-gray-200 p-4 animate-pulse">
+            <div className="h-10 bg-gray-200 rounded mb-4 w-1/3" />
+            <div className="h-32 bg-gray-200 rounded" />
+          </div>
+        }>
+          {() => <EditorContent {...props} />}
+        </ClientSideSuspense>
+      </RoomProvider>
+    </LiveblocksErrorBoundary>
   )
 }
 

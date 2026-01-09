@@ -15,34 +15,22 @@ if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
   });
 }
 
-// Create the Liveblocks client
-// Use auth endpoint for proper user names, fallback to public key if auth fails
-const client: Client = createClient({
-  authEndpoint: async (room) => {
-    try {
-      const response = await fetch('/api/liveblocks-auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ room }),
-      });
-
-      if (!response.ok) {
-        // Auth endpoint failed, throw to trigger fallback
-        throw new Error(`Auth failed: ${response.status}`);
-      }
-
-      return await response.json();
-    } catch (error) {
-      console.warn('[Liveblocks] Auth endpoint failed, using public key fallback:', error);
-      // Return public key auth as fallback
-      if (isValidKey) {
-        return { token: publicApiKey };
-      }
-      throw error;
-    }
-  },
-  throttle: 100,
-});
+// Create the Liveblocks client using public key authentication
+// This is the simplest and most reliable method
+// User names come from the presence set in RoomProvider's initialPresence
+const client: Client = isValidKey
+  ? createClient({
+      publicApiKey: publicApiKey,
+      throttle: 100,
+    })
+  : createClient({
+      // Fallback dummy auth endpoint that always fails
+      // This allows the app to load without crashing even if no key is set
+      authEndpoint: async () => {
+        throw new Error('Liveblocks not configured');
+      },
+      throttle: 100,
+    });
 
 // Presence represents the user's current state
 type Presence = {
