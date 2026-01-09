@@ -97,7 +97,7 @@ export default function PersonCompanyManager({
         .select('id, end_date')
         .eq('company_id', selectedCompanyId)
         .eq('user_id', personId)
-        .eq('relationship_type', relationshipType as RelationshipType)
+        .eq('relationship_type', relationshipType || 'employee')
         .single()
 
       if (existingLink && !existingLink.end_date) {
