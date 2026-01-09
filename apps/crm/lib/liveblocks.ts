@@ -15,12 +15,13 @@ if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
   });
 }
 
-// Create the Liveblocks client - use public key if valid, otherwise auth endpoint
-const client: Client = createClient(
-  isValidKey
-    ? { publicApiKey, throttle: 100 }
-    : { authEndpoint: '/api/liveblocks-auth', throttle: 100 }
-);
+// Create the Liveblocks client
+// Always use auth endpoint to get proper user info for collaborative cursors
+// The auth endpoint provides user names from the database
+const client: Client = createClient({
+  authEndpoint: '/api/liveblocks-auth',
+  throttle: 100,
+});
 
 // Presence represents the user's current state
 type Presence = {
