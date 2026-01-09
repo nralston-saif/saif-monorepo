@@ -6,6 +6,7 @@ type DeleteNoteModalProps = {
   onConfirm: () => void
   isDeleting: boolean
   notePreview?: string
+  error?: string | null
 }
 
 export default function DeleteNoteModal({
@@ -14,6 +15,7 @@ export default function DeleteNoteModal({
   onConfirm,
   isDeleting,
   notePreview,
+  error,
 }: DeleteNoteModalProps) {
   if (!isOpen) return null
 
@@ -57,6 +59,17 @@ export default function DeleteNoteModal({
             <div className="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
               <p className="text-sm text-gray-500 font-medium mb-1">Note preview:</p>
               <p className="text-sm text-gray-700 italic">&ldquo;{truncatedPreview}&rdquo;</p>
+            </div>
+          )}
+
+          {error && (
+            <div className="mt-4 p-3 bg-red-50 rounded-lg border border-red-200">
+              <p className="text-sm text-red-600 font-medium flex items-center gap-2">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                {error}
+              </p>
             </div>
           )}
         </div>

@@ -36,6 +36,7 @@ function NotesList({
   const [loading, setLoading] = useState(true)
   const [noteToDelete, setNoteToDelete] = useState<InvestmentNote | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
   const supabase = createClient()
 
   const fetchNotes = useCallback(async () => {
@@ -100,6 +101,8 @@ function NotesList({
     if (!noteToDelete) return
 
     setIsDeleting(true)
+    setDeleteError(null)
+
     const { error } = await supabase
       .from('saifcrm_investment_notes')
       .delete()
@@ -107,12 +110,20 @@ function NotesList({
 
     if (error) {
       console.error('Error deleting note:', error)
-    } else {
-      fetchNotes()
+      setDeleteError(error.message || 'Failed to delete note. Please try again.')
+      setIsDeleting(false)
+      return
     }
 
+    fetchNotes()
     setIsDeleting(false)
     setNoteToDelete(null)
+  }
+
+  // Close delete modal and clear error
+  const handleCloseDeleteModal = () => {
+    setNoteToDelete(null)
+    setDeleteError(null)
   }
 
   const formatDate = (date: string) => {
@@ -212,10 +223,11 @@ function NotesList({
 
       <DeleteNoteModal
         isOpen={!!noteToDelete}
-        onClose={() => setNoteToDelete(null)}
+        onClose={handleCloseDeleteModal}
         onConfirm={handleDeleteNote}
         isDeleting={isDeleting}
         notePreview={noteToDelete?.content}
+        error={deleteError}
       />
     </div>
   )
