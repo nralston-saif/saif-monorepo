@@ -234,7 +234,7 @@ export default function DashboardClient({
 
     // Add comment if provided
     if (resolveComment.trim()) {
-      await supabase.from('saifcrm_ticket_comments').insert({
+      await (supabase as any).from('saifcrm_ticket_comments').insert({
         ticket_id: resolvingTicket.id,
         author_id: userId,
         content: resolveComment.trim(),
