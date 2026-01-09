@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import { useTicketModal } from './TicketModalProvider'
 import type { NotificationType } from '@/lib/types/database'
 
 type ToastNotification = {
@@ -11,12 +12,14 @@ type ToastNotification = {
   title: string
   message: string | null
   link: string | null
+  ticket_id: string | null
 }
 
 export default function NotificationToast() {
   const [toasts, setToasts] = useState<ToastNotification[]>([])
   const [userId, setUserId] = useState<string | null>(null)
   const router = useRouter()
+  const { openTicket } = useTicketModal()
   const supabase = createClient()
 
   // Get current user's person ID
@@ -97,10 +100,35 @@ export default function NotificationToast() {
     }
   }
 
+  // Check if this is a ticket-related notification
+  const isTicketNotification = (type: NotificationType): boolean => {
+    return type === 'ticket_assigned' || type === 'ticket_archived' || type === 'ticket_status_changed'
+  }
+
+  // Handle clicking on a notification (opens content, does NOT dismiss)
   const handleClick = (toast: ToastNotification) => {
-    removeToast(toast.id)
-    if (toast.link) {
+    if (isTicketNotification(toast.type) && toast.ticket_id) {
+      // Open ticket in modal
+      openTicket(toast.ticket_id)
+    } else if (toast.link) {
+      // Navigate to link for non-ticket notifications
       router.push(toast.link)
+    }
+    // Note: We don't remove the toast here - it stays until auto-dismiss or X click
+  }
+
+  // Handle dismissing a notification (X button) - removes from UI and deletes from DB
+  const handleDismiss = async (toast: ToastNotification) => {
+    removeToast(toast.id)
+
+    // Delete from database
+    try {
+      await supabase
+        .from('saifcrm_notifications')
+        .delete()
+        .eq('id', toast.id)
+    } catch (error) {
+      console.error('Error deleting notification:', error)
     }
   }
 
@@ -124,9 +152,10 @@ export default function NotificationToast() {
           <button
             onClick={(e) => {
               e.stopPropagation()
-              removeToast(toast.id)
+              handleDismiss(toast)
             }}
             className="text-gray-400 hover:text-gray-600 -mt-1 -mr-1 p-1"
+            title="Dismiss notification"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

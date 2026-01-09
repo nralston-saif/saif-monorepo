@@ -1637,7 +1637,17 @@ export const Constants = {
   },
 } as const
 
-// Notification helper type
+// Helper types
+export type Meeting = Database['public']['Tables']['saif_meetings']['Row']
+export type MeetingNote = Database['public']['Tables']['saif_meeting_notes']['Row']
+export type Person = Database['public']['Tables']['saif_people']['Row']
+export type Company = Database['public']['Tables']['saif_companies']['Row']
+export type CompanyPerson = Database['public']['Tables']['saif_company_people']['Row']
+export type RelationshipType = Database['public']['Tables']['saif_company_people']['Row']['relationship_type']
+export type UserRole = Database['public']['Tables']['saif_people']['Row']['role']
+export type UserStatus = Database['public']['Tables']['saif_people']['Row']['status']
+export type TicketStatus = Database['public']['Tables']['saif_tickets']['Row']['status']
+export type TicketPriority = Database['public']['Tables']['saif_tickets']['Row']['priority']
 export type Notification = Database['public']['Tables']['saifcrm_notifications']['Row']
 
 // Helper type for notification with actor info
@@ -1645,46 +1655,35 @@ export type NotificationWithActor = Notification & {
   actor?: Database['public']['Tables']['saif_people']['Row'] | null
 }
 
-// Enum type aliases
-export type UserRole = Database['public']['Tables']['saif_people']['Row']['role']
-export type UserStatus = Database['public']['Tables']['saif_people']['Row']['status']
-export type CompanyStage = Database['public']['Tables']['saif_companies']['Row']['stage']
-export type RelationshipType = Database['public']['Tables']['saif_company_people']['Row']['relationship_type']
-export type ApplicationStage = Database['public']['Tables']['saifcrm_applications']['Row']['stage']
-export type VoteType = Database['public']['Tables']['saifcrm_votes']['Row']['vote_type']
-export type DeliberationDecision = Database['public']['Tables']['saifcrm_deliberations']['Row']['decision']
-
-// Table row type aliases
-export type Person = Database['public']['Tables']['saif_people']['Row']
-export type Company = Database['public']['Tables']['saif_companies']['Row']
-export type CompanyPerson = Database['public']['Tables']['saif_company_people']['Row']
+// Additional shared types
 export type Investment = Database['public']['Tables']['saif_investments']['Row']
+export type Ticket = Database['public']['Tables']['saif_tickets']['Row']
+export type Tag = Database['public']['Tables']['saif_tags']['Row']
+
+// CRM types
 export type Application = Database['public']['Tables']['saifcrm_applications']['Row']
 export type Vote = Database['public']['Tables']['saifcrm_votes']['Row']
 export type Deliberation = Database['public']['Tables']['saifcrm_deliberations']['Row']
 export type CrmInvestment = Database['public']['Tables']['saifcrm_investments']['Row']
-export type Meeting = Database['public']['Tables']['saif_meetings']['Row']
-export type MeetingNote = Database['public']['Tables']['saifcrm_meeting_notes']['Row']
-export type Ticket = Database['public']['Tables']['saif_tickets']['Row']
-export type TicketComment = Database['public']['Tables']['saif_ticket_comments']['Row']
-export type TicketStatus = Database['public']['Enums']['ticket_status']
-export type TicketPriority = Database['public']['Enums']['ticket_priority']
-export type Tag = Database['public']['Tables']['saif_tags']['Row']
+export type InvestmentNote = Database['public']['Tables']['saifcrm_investment_notes']['Row']
+export type PeopleNote = Database['public']['Tables']['saifcrm_people_notes']['Row']
 
-// Complex joined types
+// Composite types
 export type PersonWithCompany = Person & {
   companies?: (CompanyPerson & {
-    company: Company | null
+    company: Company
   })[]
 }
 
 export type CompanyWithPeople = Company & {
   people?: (CompanyPerson & {
-    person: Person | null
+    person: Person
   })[]
 }
 
 export type ApplicationWithVotes = Application & {
-  votes?: Vote[]
-  deliberation?: Deliberation | null
+  saifcrm_votes?: Vote[]
+  saifcrm_deliberations?: Deliberation[]
+  saif_people?: Person
+  saif_companies?: Company
 }

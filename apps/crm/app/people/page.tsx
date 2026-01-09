@@ -197,7 +197,7 @@ export default async function PeoplePage({
         <Navigation userName={profile?.name || user.email || 'User'} />
         <Suspense fallback={<div className="p-8 text-center text-gray-500">Loading...</div>}>
           <PeopleClient
-            people={peopleWithNotes}
+            people={peopleWithNotes as any}
             userId={profile?.id || ''}
             userName={profile?.name || user.email || 'User'}
             companyLocationMap={companyLocationMap}

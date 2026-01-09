@@ -88,7 +88,7 @@ export default async function DeliberationDetailPage({
     <div className="min-h-screen bg-gray-50">
       <Navigation userName={profile?.name || user.email || 'User'} />
       <DeliberationDetailClient
-        application={applicationData}
+        application={applicationData as any}
         userId={profile?.id || ''}
         userName={profile?.name || user.email || 'User'}
       />

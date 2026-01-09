@@ -195,7 +195,7 @@ export default async function PersonPage({ params }: { params: Promise<{ id: str
           personId={person.id}
           personName={`${person.first_name || ''} ${person.last_name || ''}`.trim() || 'this person'}
           personRole={person.role}
-          activeCompanies={activeCompanies}
+          activeCompanies={activeCompanies as any}
           isPartner={isPartner}
         />
 

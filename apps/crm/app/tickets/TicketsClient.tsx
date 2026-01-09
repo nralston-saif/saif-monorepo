@@ -450,7 +450,7 @@ export default function TicketsClient({
 
       {selectedTicket && (
         <TicketDetailModal
-          ticket={selectedTicket}
+          ticket={selectedTicket as any}
           partners={partners}
           companies={companies}
           people={people}

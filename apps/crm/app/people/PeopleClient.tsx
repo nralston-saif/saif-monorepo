@@ -8,7 +8,7 @@ import PersonMeetingNotes from '@/components/PersonMeetingNotes'
 import type { UserRole, UserStatus, RelationshipType } from '@saif/supabase'
 
 type CompanyAssociation = {
-  relationship_type: string | null
+  relationship_type: string
   title: string | null
   company: {
     id: string
@@ -35,7 +35,7 @@ type Person = {
   introduced_by: string | null
   introduction_context: string | null
   relationship_notes: string | null
-  created_at: string | null
+  created_at: string
   company_associations: CompanyAssociation[]
   noteCount: number
 }
@@ -43,7 +43,7 @@ type Person = {
 type RoleFilter = 'all' | UserRole
 type SortOption = 'name-az' | 'name-za' | 'role' | 'date-newest' | 'date-oldest'
 
-const ROLE_LABELS: Record<UserRole, string> = {
+const ROLE_LABELS: Record<string, string> = {
   partner: 'Partner',
   founder: 'Founder',
   advisor: 'Advisor',
@@ -53,14 +53,14 @@ const ROLE_LABELS: Record<UserRole, string> = {
   contact: 'Contact',
 }
 
-const STATUS_LABELS: Record<NonNullable<UserStatus>, string> = {
+const STATUS_LABELS: Record<string, string> = {
   active: 'Active',
   pending: 'Pending',
   tracked: 'Tracked',
   inactive: 'Inactive',
 }
 
-const ROLE_COLORS: Record<NonNullable<UserRole>, string> = {
+const ROLE_COLORS: Record<string, string> = {
   partner: 'bg-blue-100 text-blue-800',
   founder: 'bg-purple-100 text-purple-800',
   advisor: 'bg-amber-100 text-amber-800',
@@ -94,7 +94,7 @@ export default function PeopleClient({
 
   const [searchQuery, setSearchQuery] = useState(initialSearch || urlSearch)
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('all')
-  const [statusFilter, setStatusFilter] = useState<NonNullable<UserStatus> | 'all'>('all')
+  const [statusFilter, setStatusFilter] = useState<string>('all')
   const [sortOption, setSortOption] = useState<SortOption>('name-az')
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null)
   const [notesPersonId, setNotesPersonId] = useState<Person | null>(null)
@@ -179,18 +179,10 @@ export default function PeopleClient({
           return (b.displayName || '').localeCompare(a.displayName || '')
         case 'role':
           return (a.role || '').localeCompare(b.role || '')
-        case 'date-newest': {
-          if (!a.created_at && !b.created_at) return 0
-          if (!a.created_at) return 1
-          if (!b.created_at) return -1
+        case 'date-newest':
           return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        }
-        case 'date-oldest': {
-          if (!a.created_at && !b.created_at) return 0
-          if (!a.created_at) return 1
-          if (!b.created_at) return -1
+        case 'date-oldest':
           return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-        }
         default:
           return 0
       }
@@ -517,11 +509,11 @@ export default function PeopleClient({
           <div className="sm:w-40">
             <select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as NonNullable<UserStatus> | 'all')}
+              onChange={(e) => setStatusFilter(e.target.value)}
               className="input"
             >
               <option value="all">All Status</option>
-              {(Object.keys(STATUS_LABELS) as Array<NonNullable<UserStatus>>).map(status => (
+              {Object.keys(STATUS_LABELS).map(status => (
                 <option key={status} value={status}>{STATUS_LABELS[status]}</option>
               ))}
             </select>
@@ -699,9 +691,11 @@ export default function PeopleClient({
                       <span className={`badge ${ROLE_COLORS[selectedPerson.role]}`}>
                         {ROLE_LABELS[selectedPerson.role]}
                       </span>
-                      <span className="text-sm text-gray-500">
-                        {selectedPerson.status ? STATUS_LABELS[selectedPerson.status as NonNullable<UserStatus>] : 'N/A'}
-                      </span>
+                      {selectedPerson.status && (
+                        <span className="text-sm text-gray-500">
+                          {STATUS_LABELS[selectedPerson.status]}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -941,10 +935,10 @@ export default function PeopleClient({
                   </label>
                   <select
                     value={formData.status || 'tracked'}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value as NonNullable<UserStatus> })}
+                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
                     className="input"
                   >
-                    {(Object.keys(STATUS_LABELS) as Array<NonNullable<UserStatus>>).map(status => (
+                    {Object.keys(STATUS_LABELS).map(status => (
                       <option key={status} value={status}>{STATUS_LABELS[status]}</option>
                     ))}
                   </select>

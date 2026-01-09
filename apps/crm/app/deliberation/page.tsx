@@ -85,26 +85,18 @@ export default async function DeliberationPage() {
   // Sort: Undecided (newest first) at top, Decided (newest first) at bottom
   const undecided = applicationsWithVotes
     .filter(app => !app.deliberation?.decision || app.deliberation.decision === 'pending' || app.deliberation.decision === 'maybe')
-    .sort((a, b) => {
-      const dateA = a.submitted_at ? new Date(a.submitted_at).getTime() : 0
-      const dateB = b.submitted_at ? new Date(b.submitted_at).getTime() : 0
-      return dateB - dateA
-    })
+    .sort((a, b) => new Date(b.submitted_at || 0).getTime() - new Date(a.submitted_at || 0).getTime())
 
   const decided = applicationsWithVotes
     .filter(app => app.deliberation?.decision === 'yes' || app.deliberation?.decision === 'no')
-    .sort((a, b) => {
-      const dateA = a.submitted_at ? new Date(a.submitted_at).getTime() : 0
-      const dateB = b.submitted_at ? new Date(b.submitted_at).getTime() : 0
-      return dateB - dateA
-    })
+    .sort((a, b) => new Date(b.submitted_at || 0).getTime() - new Date(a.submitted_at || 0).getTime())
 
   return (
     <div className="min-h-screen bg-gray-50">
       <Navigation userName={profile?.name || user.email || 'User'} />
       <DeliberationClient
-        undecidedApplications={undecided}
-        decidedApplications={decided}
+        undecidedApplications={undecided as any}
+        decidedApplications={decided as any}
         userId={profile?.id || ''}
       />
     </div>

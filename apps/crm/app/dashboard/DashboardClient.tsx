@@ -262,9 +262,11 @@ export default function DashboardClient({
                         <p className="text-sm text-gray-500 truncate">{app.founder_names}</p>
                       )}
                     </div>
-                    <span className="text-xs text-gray-400 ml-2 flex-shrink-0">
-                      {formatDate(app.submitted_at)}
-                    </span>
+                    {app.submitted_at && (
+                      <span className="text-xs text-gray-400 ml-2 flex-shrink-0">
+                        {formatDate(app.submitted_at)}
+                      </span>
+                    )}
                   </div>
                   {app.company_description && (
                     <p className="text-sm text-gray-600 line-clamp-2 mt-1">
@@ -325,9 +327,11 @@ export default function DashboardClient({
                         <p className="text-sm text-gray-500 truncate">{app.founder_names}</p>
                       )}
                     </div>
-                    <span className="text-xs text-gray-400 ml-2 flex-shrink-0">
-                      {formatDate(app.submitted_at)}
-                    </span>
+                    {app.submitted_at && (
+                      <span className="text-xs text-gray-400 ml-2 flex-shrink-0">
+                        {formatDate(app.submitted_at)}
+                      </span>
+                    )}
                   </div>
                 </Link>
               ))

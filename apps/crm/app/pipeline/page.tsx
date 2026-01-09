@@ -95,7 +95,7 @@ export default async function PipelinePage() {
     <div className="min-h-screen bg-gray-50">
       <Navigation userName={profile?.name || user.email || 'User'} />
       <PipelineClient
-        applications={applicationsWithVotes}
+        applications={applicationsWithVotes as any}
         oldApplications={(oldApplications || []).map(app => {
           // Filter to only initial votes
           const initialVotes = app.saifcrm_votes?.filter((v: any) => v.vote_type === 'initial') || []
@@ -124,7 +124,7 @@ export default async function PipelinePage() {
             allVotes: votesWithNames,
             draft_rejection_email: (app as any).draft_rejection_email || null,
           }
-        })}
+        }) as any}
         userId={profile?.id || ''}
         partners={partners || []}
       />

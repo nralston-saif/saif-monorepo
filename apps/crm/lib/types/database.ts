@@ -1637,7 +1637,17 @@ export const Constants = {
   },
 } as const
 
-// Notification helper type
+// Helper types
+export type Meeting = Database['public']['Tables']['saif_meetings']['Row']
+export type MeetingNote = Database['public']['Tables']['saif_meeting_notes']['Row']
+export type Person = Database['public']['Tables']['saif_people']['Row']
+export type Company = Database['public']['Tables']['saif_companies']['Row']
+export type CompanyPerson = Database['public']['Tables']['saif_company_people']['Row']
+export type RelationshipType = Database['public']['Tables']['saif_company_people']['Row']['relationship_type']
+export type UserRole = Database['public']['Tables']['saif_people']['Row']['role']
+export type UserStatus = Database['public']['Tables']['saif_people']['Row']['status']
+export type TicketStatus = Database['public']['Tables']['saif_tickets']['Row']['status']
+export type TicketPriority = Database['public']['Tables']['saif_tickets']['Row']['priority']
 export type Notification = Database['public']['Tables']['saifcrm_notifications']['Row']
 
 // Helper type for notification with actor info

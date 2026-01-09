@@ -142,7 +142,7 @@ export default async function PortfolioPage() {
     <div className="min-h-screen bg-gray-50">
       <Navigation userName={profile?.name || user.email || 'User'} />
       <PortfolioClient
-        investments={investmentsWithNotes}
+        investments={investmentsWithNotes as any}
         userId={profile?.id || ''}
         userName={profile?.name || user.email || 'User'}
       />

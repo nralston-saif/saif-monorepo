@@ -1,1 +1,36 @@
-export type { Database, Json, UserRole, UserStatus, CompanyStage, RelationshipType, ApplicationStage, VoteType, DeliberationDecision, Person, Company, CompanyPerson, Investment, Application, Vote, Deliberation, CrmInvestment, Meeting, MeetingNote, Ticket, TicketComment, TicketStatus, TicketPriority, Tag, PersonWithCompany, CompanyWithPeople, ApplicationWithVotes } from './database'
+export type {
+  Database,
+  Json,
+  NotificationType,
+  Tables,
+  TablesInsert,
+  TablesUpdate,
+  Enums,
+  // Shared types
+  Person,
+  Company,
+  CompanyPerson,
+  Investment,
+  Ticket,
+  Tag,
+  Meeting,
+  MeetingNote,
+  RelationshipType,
+  UserRole,
+  UserStatus,
+  TicketStatus,
+  TicketPriority,
+  Notification,
+  NotificationWithActor,
+  // CRM types
+  Application,
+  Vote,
+  Deliberation,
+  CrmInvestment,
+  InvestmentNote,
+  PeopleNote,
+  // Composite types
+  PersonWithCompany,
+  CompanyWithPeople,
+  ApplicationWithVotes
+} from './database'

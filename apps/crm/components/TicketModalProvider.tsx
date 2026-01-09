@@ -1,0 +1,221 @@
+'use client'
+
+import { createContext, useContext, useState, useCallback, ReactNode } from 'react'
+import { createClient } from '@/lib/supabase/client'
+import TicketDetailModal from '@/app/tickets/TicketDetailModal'
+import type { TicketStatus, TicketPriority } from '@/lib/types/database'
+
+type Partner = {
+  id: string
+  first_name: string | null
+  last_name: string | null
+  email: string | null
+  avatar_url: string | null
+}
+
+type Company = {
+  id: string
+  name: string
+  logo_url?: string | null
+}
+
+type Person = {
+  id: string
+  first_name: string | null
+  last_name: string | null
+  email: string | null
+}
+
+type TicketComment = {
+  id: string
+  ticket_id: string
+  author_id: string
+  content: string
+  is_final_comment: boolean
+  created_at: string
+  updated_at: string
+  author?: Partner | null
+}
+
+type Ticket = {
+  id: string
+  title: string
+  description: string | null
+  status: TicketStatus
+  priority: TicketPriority
+  due_date: string | null
+  created_at: string
+  updated_at: string
+  archived_at: string | null
+  assigned_to: string | null
+  created_by: string
+  related_company: string | null
+  related_person: string | null
+  tags: string[] | null
+  assigned_partner?: Partner | null
+  creator?: Partner | null
+  company?: Company | null
+  person?: Person | null
+  comments?: TicketComment[]
+}
+
+type TicketModalContextType = {
+  openTicket: (ticketId: string) => void
+  closeTicket: () => void
+  isOpen: boolean
+}
+
+const TicketModalContext = createContext<TicketModalContextType | null>(null)
+
+export function useTicketModal() {
+  const context = useContext(TicketModalContext)
+  if (!context) {
+    throw new Error('useTicketModal must be used within a TicketModalProvider')
+  }
+  return context
+}
+
+export default function TicketModalProvider({ children }: { children: ReactNode }) {
+  const [ticket, setTicket] = useState<Ticket | null>(null)
+  const [partners, setPartners] = useState<Partner[]>([])
+  const [companies, setCompanies] = useState<Company[]>([])
+  const [people, setPeople] = useState<Person[]>([])
+  const [currentUserId, setCurrentUserId] = useState<string>('')
+  const [currentUserName, setCurrentUserName] = useState<string>('')
+  const [loading, setLoading] = useState(false)
+  const [isOpen, setIsOpen] = useState(false)
+
+  const supabase = createClient()
+
+  const openTicket = useCallback(async (ticketId: string) => {
+    setLoading(true)
+    setIsOpen(true)
+
+    try {
+      // Fetch current user info
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        setIsOpen(false)
+        return
+      }
+
+      const { data: profile } = await supabase
+        .from('saif_people')
+        .select('id, first_name, last_name, name')
+        .eq('auth_user_id', user.id)
+        .single()
+
+      if (profile) {
+        setCurrentUserId(profile.id)
+        setCurrentUserName(profile.name || `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'User')
+      }
+
+      // Fetch ticket with relationships
+      const { data: ticketData, error: ticketError } = await supabase
+        .from('saif_tickets')
+        .select(`
+          *,
+          assigned_partner:saif_people!saif_tickets_assigned_to_fkey(id, first_name, last_name, email, avatar_url),
+          creator:saif_people!saif_tickets_created_by_fkey(id, first_name, last_name, email, avatar_url),
+          company:saif_companies!saif_tickets_related_company_fkey(id, name, logo_url),
+          person:saif_people!saif_tickets_related_person_fkey(id, first_name, last_name, email)
+        `)
+        .eq('id', ticketId)
+        .single()
+
+      if (ticketError || !ticketData) {
+        console.error('Error fetching ticket:', ticketError)
+        setIsOpen(false)
+        return
+      }
+
+      // Fetch comments for the ticket
+      const { data: commentsData } = await supabase
+        .from('saif_ticket_comments')
+        .select(`
+          *,
+          author:saif_people!saif_ticket_comments_author_id_fkey(id, first_name, last_name, email, avatar_url)
+        `)
+        .eq('ticket_id', ticketId)
+        .order('created_at', { ascending: true })
+
+      // Fetch partners (for assignment dropdown)
+      const { data: partnersData } = await supabase
+        .from('saif_people')
+        .select('id, first_name, last_name, email, avatar_url')
+        .eq('role', 'partner')
+        .order('first_name')
+
+      // Fetch companies (for linking)
+      const { data: companiesData } = await supabase
+        .from('saif_companies')
+        .select('id, name, logo_url')
+        .order('name')
+        .limit(500)
+
+      // Fetch people (for linking)
+      const { data: peopleData } = await supabase
+        .from('saif_people')
+        .select('id, first_name, last_name, email')
+        .order('first_name')
+        .limit(500)
+
+      setTicket({
+        ...ticketData,
+        comments: commentsData || [],
+      } as Ticket)
+      setPartners(partnersData || [])
+      setCompanies(companiesData || [])
+      setPeople(peopleData || [])
+    } catch (error) {
+      console.error('Error opening ticket:', error)
+      setIsOpen(false)
+    } finally {
+      setLoading(false)
+    }
+  }, [supabase])
+
+  const closeTicket = useCallback(() => {
+    setIsOpen(false)
+    setTicket(null)
+  }, [])
+
+  const handleUpdate = useCallback(() => {
+    // Refresh ticket data
+    if (ticket) {
+      openTicket(ticket.id)
+    }
+  }, [ticket, openTicket])
+
+  return (
+    <TicketModalContext.Provider value={{ openTicket, closeTicket, isOpen }}>
+      {children}
+
+      {/* Loading overlay */}
+      {isOpen && loading && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
+          <div className="bg-white rounded-xl p-6 shadow-xl">
+            <div className="flex items-center gap-3">
+              <div className="animate-spin rounded-full h-5 w-5 border-2 border-blue-600 border-t-transparent"></div>
+              <span className="text-gray-600">Loading ticket...</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Ticket modal */}
+      {isOpen && !loading && ticket && (
+        <TicketDetailModal
+          ticket={ticket}
+          partners={partners}
+          companies={companies}
+          people={people}
+          currentUserId={currentUserId}
+          currentUserName={currentUserName}
+          onClose={closeTicket}
+          onUpdate={handleUpdate}
+        />
+      )}
+    </TicketModalContext.Provider>
+  )
+}

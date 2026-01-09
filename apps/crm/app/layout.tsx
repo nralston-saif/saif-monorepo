@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import './globals.css'
 import { Providers } from '@saif/ui'
 import NotificationToast from '@/components/NotificationToast'
+import TicketModalProvider from '@/components/TicketModalProvider'
 
 export const metadata: Metadata = {
   title: 'SAIF CRM',
@@ -22,8 +23,10 @@ export default function RootLayout({
       </head>
       <body>
         <Providers>
-          {children}
-          <NotificationToast />
+          <TicketModalProvider>
+            {children}
+            <NotificationToast />
+          </TicketModalProvider>
         </Providers>
       </body>
     </html>
