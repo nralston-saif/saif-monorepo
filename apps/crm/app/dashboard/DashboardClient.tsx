@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { useTicketModal } from '@/components/TicketModalProvider'
 import type { NotificationType } from '@/lib/types/database'
 
 type NeedsVoteApp = {
@@ -71,8 +72,14 @@ export default function DashboardClient({
 }) {
   const router = useRouter()
   const supabase = createClient()
+  const { openTicket } = useTicketModal()
   const [notifications, setNotifications] = useState<Notification[]>(initialNotifications)
   const [dismissingId, setDismissingId] = useState<string | null>(null)
+
+  // Check if notification is ticket-related
+  const isTicketNotification = (type: NotificationType): boolean => {
+    return type === 'ticket_assigned' || type === 'ticket_archived' || type === 'ticket_status_changed'
+  }
 
   // Fetch notifications helper
   const fetchNotifications = useCallback(async () => {
@@ -155,21 +162,28 @@ export default function DashboardClient({
     setDismissingId(null)
   }
 
-  // Mark as read when clicking
-  const handleNotificationClick = async (notificationId: string) => {
+  // Handle notification click - opens modal for tickets, navigates for others
+  const handleNotificationClick = async (notif: Notification) => {
     // Mark as read in background (don't await)
     supabase
       .from('saifcrm_notifications')
       .update({ read_at: new Date().toISOString() })
-      .eq('id', notificationId)
+      .eq('id', notif.id)
       .is('read_at', null)
       .then(() => {
         setNotifications((prev) =>
           prev.map((n) =>
-            n.id === notificationId ? { ...n, read_at: new Date().toISOString() } : n
+            n.id === notif.id ? { ...n, read_at: new Date().toISOString() } : n
           )
         )
       })
+
+    // For ticket notifications, open modal instead of navigating
+    if (isTicketNotification(notif.type) && notif.ticket_id) {
+      openTicket(notif.ticket_id)
+    } else if (notif.link) {
+      router.push(notif.link)
+    }
   }
 
   // Get notification icon based on type
@@ -389,10 +403,9 @@ export default function DashboardClient({
                   key={notif.id}
                   className={`relative group ${!notif.read_at ? 'bg-blue-50/50' : ''}`}
                 >
-                  <Link
-                    href={notif.link || '#'}
-                    onClick={() => handleNotificationClick(notif.id)}
-                    className="block p-4 hover:bg-gray-50 transition-colors pr-12"
+                  <div
+                    onClick={() => handleNotificationClick(notif)}
+                    className="block p-4 hover:bg-gray-50 transition-colors pr-12 cursor-pointer"
                   >
                     <div className="flex items-start gap-3">
                       <span className="text-lg flex-shrink-0">
@@ -415,7 +428,7 @@ export default function DashboardClient({
                         <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0 mt-2" />
                       )}
                     </div>
-                  </Link>
+                  </div>
                   {/* Dismiss button */}
                   <button
                     onClick={(e) => handleDismiss(notif.id, e)}
