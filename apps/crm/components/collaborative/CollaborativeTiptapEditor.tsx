@@ -75,10 +75,7 @@ export function CollaborativeTiptapEditor({
   const editor = useEditor({
     extensions: [
       liveblocks,
-      StarterKit.configure({
-        // Liveblocks extension handles history
-        history: false,
-      }),
+      StarterKit,
       Placeholder.configure({
         placeholder,
         emptyEditorClass: 'is-editor-empty',
