@@ -266,6 +266,16 @@ export default function PipelineClient({
           .eq('id', selectedApp.id)
       }
 
+      // Check if this vote triggers "ready for deliberation" notification
+      fetch('/api/notifications/check-votes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          applicationId: selectedApp.id,
+          voterId: userId,
+        }),
+      }).catch(console.error) // Fire and forget
+
       setSelectedApp(null)
       setVote('')
       setNotes('')

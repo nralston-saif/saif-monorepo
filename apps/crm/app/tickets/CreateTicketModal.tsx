@@ -44,6 +44,7 @@ export default function CreateTicketModal({
   companies,
   people,
   currentUserId,
+  currentUserName,
   onClose,
   onSuccess,
 }: {
@@ -51,6 +52,7 @@ export default function CreateTicketModal({
   companies: Company[]
   people: Person[]
   currentUserId: string
+  currentUserName: string
   onClose: () => void
   onSuccess: () => void
 }) {
@@ -94,7 +96,7 @@ export default function CreateTicketModal({
 
     setLoading(true)
 
-    const { error } = await supabase.from('saif_tickets').insert({
+    const { data, error } = await supabase.from('saif_tickets').insert({
       title: formData.title.trim(),
       description: formData.description.trim() || null,
       status: formData.status,
@@ -105,7 +107,7 @@ export default function CreateTicketModal({
       related_person: formData.related_person || null,
       tags: formData.tags.length > 0 ? formData.tags : null,
       created_by: currentUserId,
-    })
+    }).select('id').single()
 
     setLoading(false)
 
@@ -114,6 +116,23 @@ export default function CreateTicketModal({
       console.error(error)
     } else {
       showToast('Ticket created successfully', 'success')
+
+      // Send notification if assigned to someone else
+      if (formData.assigned_to && formData.assigned_to !== currentUserId && formData.assigned_to !== 'everyone' && data?.id) {
+        fetch('/api/notifications/ticket', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'assigned',
+            ticketId: data.id,
+            ticketTitle: formData.title.trim(),
+            targetId: formData.assigned_to,
+            actorId: currentUserId,
+            actorName: currentUserName,
+          }),
+        }).catch(console.error)
+      }
+
       onSuccess()
     }
   }

@@ -6,6 +6,15 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
+export type NotificationType =
+  | 'new_application'
+  | 'ready_for_deliberation'
+  | 'new_deliberation_notes'
+  | 'decision_made'
+  | 'ticket_assigned'
+  | 'ticket_archived'
+  | 'ticket_status_changed'
+
 export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
@@ -927,7 +936,7 @@ export type Database = {
           recipient_id: string
           ticket_id: string | null
           title: string
-          type: string
+          type: NotificationType
         }
         Insert: {
           actor_id?: string | null
@@ -942,7 +951,7 @@ export type Database = {
           recipient_id: string
           ticket_id?: string | null
           title: string
-          type: string
+          type: NotificationType
         }
         Update: {
           actor_id?: string | null
@@ -957,7 +966,7 @@ export type Database = {
           recipient_id?: string
           ticket_id?: string | null
           title?: string
-          type?: string
+          type?: NotificationType
         }
         Relationships: [
           {
@@ -1627,3 +1636,11 @@ export const Constants = {
     },
   },
 } as const
+
+// Notification helper type
+export type Notification = Database['public']['Tables']['saifcrm_notifications']['Row']
+
+// Helper type for notification with actor info
+export type NotificationWithActor = Notification & {
+  actor?: Database['public']['Tables']['saif_people']['Row'] | null
+}

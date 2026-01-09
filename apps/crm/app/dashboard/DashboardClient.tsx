@@ -1,9 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import type { NotificationType } from '@/lib/types/database'
 
 type NeedsVoteApp = {
   id: string
@@ -29,9 +30,15 @@ type Stats = {
 
 type Notification = {
   id: string
-  company_name: string
-  type: 'ready' | 'notes'
-  updated_at?: string
+  type: NotificationType
+  title: string
+  message: string | null
+  link: string | null
+  application_id: string | null
+  ticket_id: string | null
+  read_at: string | null
+  created_at: string
+  actor_name: string | null
 }
 
 type ActiveTicket = {
@@ -51,7 +58,7 @@ export default function DashboardClient({
   myActiveTickets,
   overdueTicketsCount,
   stats,
-  notifications,
+  notifications: initialNotifications,
   userId,
 }: {
   needsVote: NeedsVoteApp[]
@@ -64,6 +71,128 @@ export default function DashboardClient({
 }) {
   const router = useRouter()
   const supabase = createClient()
+  const [notifications, setNotifications] = useState<Notification[]>(initialNotifications)
+  const [dismissingId, setDismissingId] = useState<string | null>(null)
+
+  // Fetch notifications helper
+  const fetchNotifications = useCallback(async () => {
+    const { data } = await supabase
+      .from('saifcrm_notifications')
+      .select(`
+        id,
+        type,
+        title,
+        message,
+        link,
+        application_id,
+        ticket_id,
+        read_at,
+        created_at,
+        actor:actor_id(name, first_name, last_name)
+      `)
+      .is('dismissed_at', null)
+      .gt('expires_at', new Date().toISOString())
+      .order('created_at', { ascending: false })
+      .limit(20)
+
+    if (data) {
+      setNotifications(
+        data.map((n: any) => ({
+          id: n.id,
+          type: n.type,
+          title: n.title,
+          message: n.message,
+          link: n.link,
+          application_id: n.application_id,
+          ticket_id: n.ticket_id,
+          read_at: n.read_at,
+          created_at: n.created_at,
+          actor_name: n.actor?.first_name && n.actor?.last_name
+            ? `${n.actor.first_name} ${n.actor.last_name}`
+            : n.actor?.name || null,
+        }))
+      )
+    }
+  }, [supabase])
+
+  // Real-time subscription for notifications
+  useEffect(() => {
+    const channel = supabase
+      .channel('dashboard-notifications')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'saifcrm_notifications',
+        },
+        () => {
+          // Refetch notifications on any change
+          fetchNotifications()
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [supabase, fetchNotifications])
+
+  // Dismiss notification
+  const handleDismiss = async (notificationId: string, e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDismissingId(notificationId)
+
+    const { error } = await supabase
+      .from('saifcrm_notifications')
+      .update({ dismissed_at: new Date().toISOString() })
+      .eq('id', notificationId)
+
+    if (!error) {
+      setNotifications((prev) => prev.filter((n) => n.id !== notificationId))
+    }
+    setDismissingId(null)
+  }
+
+  // Mark as read when clicking
+  const handleNotificationClick = async (notificationId: string) => {
+    // Mark as read in background (don't await)
+    supabase
+      .from('saifcrm_notifications')
+      .update({ read_at: new Date().toISOString() })
+      .eq('id', notificationId)
+      .is('read_at', null)
+      .then(() => {
+        setNotifications((prev) =>
+          prev.map((n) =>
+            n.id === notificationId ? { ...n, read_at: new Date().toISOString() } : n
+          )
+        )
+      })
+  }
+
+  // Get notification icon based on type
+  const getNotificationIcon = (type: NotificationType): string => {
+    switch (type) {
+      case 'new_application':
+        return '📥'
+      case 'ready_for_deliberation':
+        return '✅'
+      case 'new_deliberation_notes':
+        return '📝'
+      case 'decision_made':
+        return '🎯'
+      case 'ticket_assigned':
+        return '🎫'
+      case 'ticket_archived':
+        return '📦'
+      case 'ticket_status_changed':
+        return '🔄'
+      default:
+        return '🔔'
+    }
+  }
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -228,12 +357,19 @@ export default function DashboardClient({
               </div>
               <div>
                 <h2 className="text-lg font-semibold text-gray-900">Notifications</h2>
-                <p className="text-sm text-gray-500">{notifications.length} update{notifications.length !== 1 ? 's' : ''}</p>
+                <p className="text-sm text-gray-500">
+                  {notifications.length} update{notifications.length !== 1 ? 's' : ''}
+                  {notifications.filter(n => !n.read_at).length > 0 && (
+                    <span className="ml-2 text-blue-600 font-medium">
+                      {notifications.filter(n => !n.read_at).length} unread
+                    </span>
+                  )}
+                </p>
               </div>
             </div>
           </div>
 
-          <div className="divide-y divide-gray-100 flex-1 overflow-y-auto">
+          <div className="divide-y divide-gray-100 flex-1 overflow-y-auto max-h-80">
             {notifications.length === 0 ? (
               <div className="p-6 text-center">
                 <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
@@ -243,27 +379,50 @@ export default function DashboardClient({
                 <p className="text-sm text-gray-400">You're all caught up</p>
               </div>
             ) : (
-              notifications.map((notif, i) => (
-                <Link
-                  key={`${notif.id}-${i}`}
-                  href={notif.type === 'ready' ? `/pipeline#app-${notif.id}` : `/deliberation/${notif.id}`}
-                  className="block p-4 hover:bg-gray-50 transition-colors"
+              notifications.map((notif) => (
+                <div
+                  key={notif.id}
+                  className={`relative group ${!notif.read_at ? 'bg-blue-50/50' : ''}`}
                 >
-                  <div className="flex items-start gap-3">
-                    <span className="text-lg flex-shrink-0">
-                      {notif.type === 'ready' ? '✅' : '📝'}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-medium text-gray-900 truncate">{notif.company_name}</h3>
-                      <p className="text-sm text-gray-500">
-                        {notif.type === 'ready' ? '3 votes - ready to advance' : 'New deliberation notes'}
-                      </p>
-                      {notif.updated_at && (
-                        <p className="text-xs text-gray-400 mt-1">{formatTimeAgo(notif.updated_at)}</p>
+                  <Link
+                    href={notif.link || '#'}
+                    onClick={() => handleNotificationClick(notif.id)}
+                    className="block p-4 hover:bg-gray-50 transition-colors pr-12"
+                  >
+                    <div className="flex items-start gap-3">
+                      <span className="text-lg flex-shrink-0">
+                        {getNotificationIcon(notif.type)}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <h3 className={`font-medium truncate ${!notif.read_at ? 'text-gray-900' : 'text-gray-700'}`}>
+                          {notif.title}
+                        </h3>
+                        {notif.message && (
+                          <p className="text-sm text-gray-500 line-clamp-2">
+                            {notif.message}
+                          </p>
+                        )}
+                        <p className="text-xs text-gray-400 mt-1">
+                          {formatTimeAgo(notif.created_at)}
+                        </p>
+                      </div>
+                      {!notif.read_at && (
+                        <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0 mt-2" />
                       )}
                     </div>
-                  </div>
-                </Link>
+                  </Link>
+                  {/* Dismiss button */}
+                  <button
+                    onClick={(e) => handleDismiss(notif.id, e)}
+                    disabled={dismissingId === notif.id}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-200 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+                    title="Dismiss"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
               ))
             )}
           </div>

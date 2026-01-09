@@ -64,6 +64,7 @@ export default function DeliberationDetailClient({
   const handleSaveDeliberation = async () => {
     setLoading(true)
     try {
+      const previousDecision = application.deliberation?.decision
       const { error } = await supabase.from('saifcrm_deliberations').upsert(
         {
           application_id: application.id,
@@ -81,6 +82,21 @@ export default function DeliberationDetailClient({
       } else {
         showToast('Deliberation saved', 'success')
         setIsEditingDeliberation(false)
+
+        // Send notification if decision changed to yes/no
+        if ((decision === 'yes' || decision === 'no') && decision !== previousDecision) {
+          fetch('/api/notifications/decision-made', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              applicationId: application.id,
+              decision,
+              actorId: userId,
+              actorName: userName,
+            }),
+          }).catch(console.error) // Fire and forget
+        }
+
         router.refresh()
       }
     } catch (err) {

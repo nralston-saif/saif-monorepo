@@ -1,11 +1,89 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import { notifyNewApplication } from '@/lib/notifications'
 
 // Initialize Supabase with service role key for webhook
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
+
+// Helper to normalize website URL for comparison
+function normalizeWebsite(url: string | null): string | null {
+  if (!url) return null
+  try {
+    // Remove protocol and www, lowercase
+    let normalized = url.toLowerCase().trim()
+    normalized = normalized.replace(/^https?:\/\//, '')
+    normalized = normalized.replace(/^www\./, '')
+    normalized = normalized.replace(/\/$/, '') // Remove trailing slash
+    return normalized
+  } catch {
+    return url.toLowerCase().trim()
+  }
+}
+
+// Find or create a company for this application
+async function findOrCreateCompany(
+  companyName: string,
+  website: string | null,
+  description: string | null
+): Promise<string> {
+  const normalizedWebsite = normalizeWebsite(website)
+
+  // First, try to find by exact name match
+  const { data: existingByName } = await supabase
+    .from('saif_companies')
+    .select('id')
+    .ilike('name', companyName)
+    .limit(1)
+    .single()
+
+  if (existingByName) {
+    console.log(`Found existing company by name: ${companyName} (${existingByName.id})`)
+    return existingByName.id
+  }
+
+  // Try to find by website if provided
+  if (normalizedWebsite) {
+    const { data: existingByWebsite } = await supabase
+      .from('saif_companies')
+      .select('id, website')
+      .not('website', 'is', null)
+
+    if (existingByWebsite) {
+      const match = existingByWebsite.find(
+        (c) => normalizeWebsite(c.website) === normalizedWebsite
+      )
+      if (match) {
+        console.log(`Found existing company by website: ${website} (${match.id})`)
+        return match.id
+      }
+    }
+  }
+
+  // No existing company found, create a new one as a prospect
+  const { data: newCompany, error } = await supabase
+    .from('saif_companies')
+    .insert({
+      name: companyName,
+      website: website,
+      short_description: description,
+      stage: 'prospect',
+      is_active: true,
+      is_aisafety_company: false,
+    })
+    .select('id')
+    .single()
+
+  if (error) {
+    console.error('Error creating company:', error)
+    throw new Error(`Failed to create company: ${error.message}`)
+  }
+
+  console.log(`Created new prospect company: ${companyName} (${newCompany.id})`)
+  return newCompany.id
+}
 
 // Webhook secret for authentication (set in JotForm webhook URL as ?secret=xxx)
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET
@@ -88,17 +166,31 @@ export async function POST(request: NextRequest) {
       return null
     }
 
+    // Extract form fields
+    const companyName = getFormField('q29_companyName') || 'Unknown Company'
+    const website = getFormField('q31_websiteif')
+    const companyDescription = getFormField('q30_companyDescription')
+
+    // Find or create a company for this application
+    let companyId: string | null = null
+    try {
+      companyId = await findOrCreateCompany(companyName, website, companyDescription)
+    } catch (companyError: any) {
+      console.error('Failed to find/create company, proceeding without company_id:', companyError)
+    }
+
     // Build application object using exact JotForm field IDs
     const application = {
       submission_id: submissionData.submission_id || formData.get('submissionID') || Date.now().toString(),
       submitted_at: submissionData.created_at || new Date().toISOString(),
-      company_name: getFormField('q29_companyName') || 'Unknown Company',
+      company_name: companyName,
+      company_id: companyId,
       founder_names: getFormField('q26_typeA'),
       founder_linkedins: getFormField('q28_founderLinkedins'),
       founder_bios: getFormField('q40_founderBios'),
       primary_email: getFormField('q32_primaryEmail'),
-      company_description: getFormField('q30_companyDescription'),
-      website: getFormField('q31_websiteif'),
+      company_description: companyDescription,
+      website: website,
       previous_funding: getFormField('q35_haveYou'),
       deck_link: getFormField('q41_linkTo'),
       stage: 'new',
@@ -124,6 +216,9 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('Application created:', data.id)
+
+    // Notify all partners about the new application
+    await notifyNewApplication(data.id, application.company_name)
 
     return NextResponse.json({
       success: true,

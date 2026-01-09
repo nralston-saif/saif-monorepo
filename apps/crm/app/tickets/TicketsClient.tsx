@@ -457,6 +457,7 @@ export default function TicketsClient({
           companies={companies}
           people={people}
           currentUserId={currentUserId}
+          currentUserName={userName}
           onClose={() => setShowCreateModal(false)}
           onSuccess={() => {
             setShowCreateModal(false)
@@ -477,6 +478,8 @@ export default function TicketsClient({
             setSelectedTicket(null)
             router.refresh()
           }}
+          currentUserId={currentUserId}
+          currentUserName={userName}
         />
       )}
     </div>

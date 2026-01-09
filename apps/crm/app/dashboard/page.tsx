@@ -198,8 +198,41 @@ export default async function DashboardPage() {
     .in('status', ['open', 'in_progress'])
     .lt('due_date', new Date().toISOString().split('T')[0])
 
-  // Notifications - cleared for fresh start
-  const notifications: { id: string; company_name: string; type: 'ready' | 'notes'; updated_at?: string }[] = []
+  // Fetch real notifications for this user
+  const { data: notificationsData } = await supabase
+    .from('saifcrm_notifications')
+    .select(`
+      id,
+      type,
+      title,
+      message,
+      link,
+      application_id,
+      ticket_id,
+      read_at,
+      created_at,
+      actor:actor_id(name, first_name, last_name)
+    `)
+    .eq('recipient_id', profile?.id)
+    .is('dismissed_at', null)
+    .gt('expires_at', new Date().toISOString())
+    .order('created_at', { ascending: false })
+    .limit(20)
+
+  const notifications = (notificationsData || []).map((n: any) => ({
+    id: n.id,
+    type: n.type,
+    title: n.title,
+    message: n.message,
+    link: n.link,
+    application_id: n.application_id,
+    ticket_id: n.ticket_id,
+    read_at: n.read_at,
+    created_at: n.created_at,
+    actor_name: n.actor?.first_name && n.actor?.last_name
+      ? `${n.actor.first_name} ${n.actor.last_name}`
+      : n.actor?.name || null,
+  }))
 
   return (
     <div className="min-h-screen bg-gray-50">

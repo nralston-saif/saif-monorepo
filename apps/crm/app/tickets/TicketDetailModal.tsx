@@ -80,6 +80,8 @@ export default function TicketDetailModal({
   currentUserId,
   onClose,
   onUpdate,
+  currentUserId,
+  currentUserName,
 }: {
   ticket: Ticket
   partners: Partner[]
@@ -88,6 +90,8 @@ export default function TicketDetailModal({
   currentUserId: string
   onClose: () => void
   onUpdate: () => void
+  currentUserId: string
+  currentUserName: string
 }) {
   const [isEditing, setIsEditing] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
@@ -327,6 +331,9 @@ export default function TicketDetailModal({
 
     setLoading(true)
 
+    const previousAssignedTo = ticket.assigned_to
+    const previousStatus = ticket.status
+
     const { error } = await supabase
       .from('saif_tickets')
       .update({
@@ -350,6 +357,57 @@ export default function TicketDetailModal({
     } else {
       showToast('Ticket updated successfully', 'success')
       setIsEditing(false)
+
+      // Send notification if assignment changed
+      if (formData.assigned_to && formData.assigned_to !== previousAssignedTo) {
+        fetch('/api/notifications/ticket', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'assigned',
+            ticketId: ticket.id,
+            ticketTitle: formData.title.trim(),
+            targetId: formData.assigned_to,
+            actorId: currentUserId,
+            actorName: currentUserName,
+          }),
+        }).catch(console.error)
+      }
+
+      // Send notification if status changed
+      if (formData.status !== previousStatus) {
+        if (formData.status === 'archived') {
+          // Archived notification
+          fetch('/api/notifications/ticket', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              type: 'archived',
+              ticketId: ticket.id,
+              ticketTitle: formData.title.trim(),
+              creatorId: ticket.created_by,
+              actorId: currentUserId,
+              actorName: currentUserName,
+            }),
+          }).catch(console.error)
+        } else {
+          // Other status change notification
+          fetch('/api/notifications/ticket', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              type: 'status_changed',
+              ticketId: ticket.id,
+              ticketTitle: formData.title.trim(),
+              creatorId: ticket.created_by,
+              actorId: currentUserId,
+              actorName: currentUserName,
+              newStatus: formData.status,
+            }),
+          }).catch(console.error)
+        }
+      }
+
       onUpdate()
     }
   }
@@ -388,6 +446,39 @@ export default function TicketDetailModal({
       console.error(error)
     } else {
       showToast('Status updated successfully', 'success')
+
+      // Send notification for status change
+      if (newStatus === 'archived' && ticket.status !== 'archived') {
+        // Archived notification
+        fetch('/api/notifications/ticket', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'archived',
+            ticketId: ticket.id,
+            ticketTitle: ticket.title,
+            creatorId: ticket.created_by,
+            actorId: currentUserId,
+            actorName: currentUserName,
+          }),
+        }).catch(console.error)
+      } else if (newStatus !== ticket.status) {
+        // Other status change notification
+        fetch('/api/notifications/ticket', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'status_changed',
+            ticketId: ticket.id,
+            ticketTitle: ticket.title,
+            creatorId: ticket.created_by,
+            actorId: currentUserId,
+            actorName: currentUserName,
+            newStatus: newStatus,
+          }),
+        }).catch(console.error)
+      }
+
       onUpdate()
     }
   }
