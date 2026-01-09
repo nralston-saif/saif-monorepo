@@ -56,9 +56,9 @@ export default function DeleteNoteModal({
           </p>
 
           {truncatedPreview && (
-            <div className="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+            <div className="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-200 overflow-hidden">
               <p className="text-sm text-gray-500 font-medium mb-1">Note preview:</p>
-              <p className="text-sm text-gray-700 italic">&ldquo;{truncatedPreview}&rdquo;</p>
+              <p className="text-sm text-gray-700 italic break-words overflow-wrap-anywhere">&ldquo;{truncatedPreview}&rdquo;</p>
             </div>
           )}
 

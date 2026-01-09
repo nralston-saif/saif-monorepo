@@ -40,6 +40,7 @@ type CollaborativeNoteEditorProps = {
   placeholder?: string
   minHeight?: string
   onNoteSaved?: () => void
+  onCurrentNoteIdChange?: (noteId: string | null) => void
 }
 
 // ============================================================================
@@ -152,6 +153,7 @@ function EditorContent({
   placeholder = "Type your notes here... Changes auto-save every 2 seconds.",
   minHeight = '300px',
   onNoteSaved,
+  onCurrentNoteIdChange,
 }: CollaborativeNoteEditorProps) {
   const supabase = createClient()
   const updateMyPresence = useUpdateMyPresence()
@@ -174,6 +176,11 @@ function EditorContent({
   useEffect(() => {
     updateMyPresence({ name: userName, isTyping: false, cursor: null })
   }, [userName, updateMyPresence])
+
+  // Notify parent when current note ID changes (so it can be excluded from list)
+  useEffect(() => {
+    onCurrentNoteIdChange?.(sharedNoteId)
+  }, [sharedNoteId, onCurrentNoteIdChange])
 
   // Load existing shared note on mount
   useEffect(() => {
@@ -359,7 +366,8 @@ function EditorContent({
 
       lastSavedContentRef.current = content
       setSaveStatus('saved')
-      onNoteSaved?.()
+      // Don't call onNoteSaved here - only call it from handleSaveAndStartNew
+      // This keeps the note in the editor until explicitly saved and started new
 
     } catch (error) {
       console.error('Error saving note:', error)
@@ -529,6 +537,7 @@ function EditorWithoutLiveblocks({
   placeholder = "Type your notes here... Changes auto-save every 2 seconds.",
   minHeight = '300px',
   onNoteSaved,
+  onCurrentNoteIdChange,
 }: CollaborativeNoteEditorProps) {
   const supabase = createClient()
 
@@ -539,6 +548,11 @@ function EditorWithoutLiveblocks({
 
   const contentRef = useRef('')
   const lastSavedContentRef = useRef('')
+
+  // Notify parent when current note ID changes (so it can be excluded from list)
+  useEffect(() => {
+    onCurrentNoteIdChange?.(sharedNoteId)
+  }, [sharedNoteId, onCurrentNoteIdChange])
 
   // Load existing note
   useEffect(() => {
@@ -707,7 +721,8 @@ function EditorWithoutLiveblocks({
 
       lastSavedContentRef.current = noteContent
       setSaveStatus('saved')
-      onNoteSaved?.()
+      // Don't call onNoteSaved here - only call it from handleSaveAndStartNew
+      // This keeps the note in the editor until explicitly saved and started new
     } catch (error) {
       console.error('Error saving note:', error)
       setSaveStatus('error')

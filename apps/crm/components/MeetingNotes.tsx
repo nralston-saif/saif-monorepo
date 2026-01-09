@@ -28,10 +28,12 @@ function NotesList({
   applicationId,
   refreshTrigger,
   deliberationNotes,
+  excludeNoteId,
 }: {
   applicationId: string
   refreshTrigger: number
   deliberationNotes?: string | null
+  excludeNoteId?: string | null
 }) {
   const [notes, setNotes] = useState<MeetingNote[]>([])
   const [loading, setLoading] = useState(true)
@@ -149,8 +151,13 @@ function NotesList({
     )
   }
 
+  // Filter out the note currently being edited
+  const filteredNotes = excludeNoteId
+    ? notes.filter(note => note.id !== excludeNoteId)
+    : notes
+
   // Only show deliberation notes if no other notes exist
-  if (notes.length === 0 && !deliberationNotes) {
+  if (filteredNotes.length === 0 && !deliberationNotes) {
     return (
       <div className="text-center py-8 text-gray-500">
         No meeting notes yet. Start typing above to create the first note!
@@ -178,7 +185,7 @@ function NotesList({
 
   // Group notes by date
   const groupedNotes: { [date: string]: MeetingNote[] } = {}
-  notes.forEach((note) => {
+  filteredNotes.forEach((note) => {
     const date = note.meeting_date
     if (!groupedNotes[date]) {
       groupedNotes[date] = []
@@ -257,6 +264,7 @@ function NotesList({
 // Main export
 export default function MeetingNotes({ applicationId, userId, userName, deliberationNotes }: MeetingNotesProps) {
   const [refreshTrigger, setRefreshTrigger] = useState(0)
+  const [currentNoteId, setCurrentNoteId] = useState<string | null>(null)
 
   const handleNoteSaved = () => {
     setRefreshTrigger((prev) => prev + 1)
@@ -272,6 +280,7 @@ export default function MeetingNotes({ applicationId, userId, userName, delibera
         showDatePicker={true}
         placeholder="Type your meeting notes here... Changes auto-save and sync in real-time with other users."
         onNoteSaved={handleNoteSaved}
+        onCurrentNoteIdChange={setCurrentNoteId}
       />
 
       <div>
@@ -280,6 +289,7 @@ export default function MeetingNotes({ applicationId, userId, userName, delibera
           applicationId={applicationId}
           refreshTrigger={refreshTrigger}
           deliberationNotes={deliberationNotes}
+          excludeNoteId={currentNoteId}
         />
       </div>
     </div>

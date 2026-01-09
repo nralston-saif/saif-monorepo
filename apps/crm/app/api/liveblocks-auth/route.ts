@@ -6,12 +6,15 @@ import { createClient } from '@/lib/supabase/server'
 function getLiveblocks(): Liveblocks | null {
   const secretKey = process.env.LIVEBLOCKS_SECRET_KEY
   if (!secretKey || !secretKey.startsWith('sk_')) {
+    console.log('[Liveblocks Auth] Secret key not configured or invalid')
     return null
   }
   return new Liveblocks({ secret: secretKey })
 }
 
 export async function POST(request: NextRequest) {
+  console.log('[Liveblocks Auth] Auth request received')
+
   // Check if Liveblocks is properly configured with a secret key
   const liveblocks = getLiveblocks()
   if (!liveblocks) {
@@ -26,35 +29,66 @@ export async function POST(request: NextRequest) {
   // Get the current user from Supabase auth
   const {
     data: { user },
+    error: authError,
   } = await supabase.auth.getUser()
 
-  if (!user) {
-    return new Response('Unauthorized', { status: 401 })
+  if (authError) {
+    console.log('[Liveblocks Auth] Supabase auth error:', authError.message)
+    return new Response(JSON.stringify({ error: 'Authentication error' }), { status: 401, headers: { 'Content-Type': 'application/json' } })
   }
 
-  // Get the user's profile to check their role
-  const { data: profile } = await supabase
+  if (!user) {
+    console.log('[Liveblocks Auth] No user session found')
+    return new Response(JSON.stringify({ error: 'Not authenticated' }), { status: 401, headers: { 'Content-Type': 'application/json' } })
+  }
+
+  console.log('[Liveblocks Auth] User authenticated:', user.id)
+
+  // Get the user's profile - check both auth_user_id and email for flexibility
+  let { data: profile, error: profileError } = await supabase
     .from('saif_people')
     .select('id, first_name, last_name, name, role, email')
     .eq('auth_user_id', user.id)
     .single()
 
-  if (!profile) {
-    return new Response('Profile not found', { status: 403 })
+  // If not found by auth_user_id, try by email
+  if (!profile && user.email) {
+    console.log('[Liveblocks Auth] Profile not found by auth_user_id, trying email')
+    const emailResult = await supabase
+      .from('saif_people')
+      .select('id, first_name, last_name, name, role, email')
+      .eq('email', user.email)
+      .single()
+    profile = emailResult.data
+    profileError = emailResult.error
   }
+
+  if (!profile) {
+    console.log('[Liveblocks Auth] Profile not found for user:', user.id, user.email, profileError?.message)
+    return new Response(JSON.stringify({ error: 'Profile not found' }), { status: 403, headers: { 'Content-Type': 'application/json' } })
+  }
+
+  console.log('[Liveblocks Auth] Profile found:', profile.id, profile.name || profile.email, 'role:', profile.role)
 
   // Only partners can access collaborative features
   if (profile.role !== 'partner') {
-    return new Response('Forbidden - Partners only', { status: 403 })
+    console.log('[Liveblocks Auth] User is not a partner:', profile.role)
+    return new Response(JSON.stringify({ error: 'Partners only' }), { status: 403, headers: { 'Content-Type': 'application/json' } })
   }
 
   // Get the room from the request
   const { room } = await request.json()
+  console.log('[Liveblocks Auth] Authorizing room:', room)
+
+  // Build user display name
+  const displayName = profile.first_name && profile.last_name
+    ? `${profile.first_name} ${profile.last_name}`
+    : profile.name || profile.email || 'Unknown'
 
   // Prepare the session for Liveblocks
   const session = liveblocks.prepareSession(profile.id, {
     userInfo: {
-      name: profile.name || `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || profile.email || 'Unknown',
+      name: displayName,
       email: profile.email || '',
     },
   })
@@ -64,6 +98,8 @@ export async function POST(request: NextRequest) {
 
   // Authorize and return the token
   const { status, body } = await session.authorize()
+
+  console.log('[Liveblocks Auth] Authorization complete, status:', status)
 
   return new Response(body, {
     status,

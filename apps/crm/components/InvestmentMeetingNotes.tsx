@@ -28,9 +28,11 @@ type InvestmentMeetingNotesProps = {
 function NotesList({
   investmentId,
   refreshTrigger,
+  excludeNoteId,
 }: {
   investmentId: string
   refreshTrigger: number
+  excludeNoteId?: string | null
 }) {
   const [notes, setNotes] = useState<InvestmentNote[]>([])
   const [loading, setLoading] = useState(true)
@@ -164,7 +166,12 @@ function NotesList({
     )
   }
 
-  if (notes.length === 0) {
+  // Filter out the note currently being edited
+  const filteredNotes = excludeNoteId
+    ? notes.filter(note => note.id !== excludeNoteId)
+    : notes
+
+  if (filteredNotes.length === 0) {
     return (
       <div className="text-center py-8 text-gray-500">
         <svg className="w-12 h-12 mx-auto mb-3 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -178,7 +185,7 @@ function NotesList({
 
   // Group notes by date
   const groupedNotes: { [date: string]: InvestmentNote[] } = {}
-  notes.forEach((note) => {
+  filteredNotes.forEach((note) => {
     const date = note.meeting_date
     if (!groupedNotes[date]) {
       groupedNotes[date] = []
@@ -253,6 +260,7 @@ export default function InvestmentMeetingNotes({
   onClose,
 }: InvestmentMeetingNotesProps) {
   const [refreshTrigger, setRefreshTrigger] = useState(0)
+  const [currentNoteId, setCurrentNoteId] = useState<string | null>(null)
 
   const handleNoteSaved = () => {
     setRefreshTrigger((prev) => prev + 1)
@@ -295,11 +303,13 @@ export default function InvestmentMeetingNotes({
             placeholder="Type your meeting notes here... Changes auto-save and sync in real-time with other users."
             minHeight="200px"
             onNoteSaved={handleNoteSaved}
+            onCurrentNoteIdChange={setCurrentNoteId}
           />
 
           <NotesList
             investmentId={investmentId}
             refreshTrigger={refreshTrigger}
+            excludeNoteId={currentNoteId}
           />
         </div>
 

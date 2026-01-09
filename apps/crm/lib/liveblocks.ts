@@ -15,12 +15,33 @@ if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
   });
 }
 
-// Create the Liveblocks client using PUBLIC KEY authentication only
-// This is the most reliable method - auth endpoint was causing connection failures
-// User names for cursors will come from presence (set in RoomProvider)
+// Create the Liveblocks client
+// We use authEndpoint to get proper user identity for cursor labels
+// The auth endpoint will authenticate via Supabase and return a token with user info
 const client: Client = isValidKey
   ? createClient({
-      publicApiKey: publicApiKey,
+      authEndpoint: async (roomId) => {
+        try {
+          const response = await fetch('/api/liveblocks-auth', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ room: roomId }),
+          });
+
+          if (!response.ok) {
+            // If auth fails (503 = not configured, 401/403 = auth issues)
+            // Log the error but throw to trigger fallback behavior
+            const errorText = await response.text();
+            console.warn('[Liveblocks] Auth endpoint returned', response.status, errorText);
+            throw new Error(`Auth failed: ${response.status}`);
+          }
+
+          return await response.json();
+        } catch (error) {
+          console.error('[Liveblocks] Auth error:', error);
+          throw error;
+        }
+      },
       throttle: 100,
     })
   : createClient({
