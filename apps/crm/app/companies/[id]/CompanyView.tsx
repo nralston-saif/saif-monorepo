@@ -612,7 +612,7 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
                   type="checkbox"
                   id="is_aisafety_company"
                   name="is_aisafety_company"
-                  checked={formData.is_aisafety_company}
+                  checked={formData.is_aisafety_company ?? false}
                   onChange={handleInputChange}
                   className="h-4 w-4 text-gray-900 focus:ring-gray-900 border-gray-300 rounded"
                 />
