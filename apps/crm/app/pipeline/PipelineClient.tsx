@@ -27,7 +27,7 @@ type Application = {
   voteCount: number
   userVote?: string | null
   userNotes?: string | null
-  votes_revealed: boolean
+  votes_revealed: boolean | null
   allVotes: Vote[]
 }
 
@@ -518,7 +518,8 @@ export default function PipelineClient({
     }
   }
 
-  const getStageBadgeStyle = (stage: string) => {
+  const getStageBadgeStyle = (stage: string | null) => {
+    if (!stage) return 'bg-gray-100 text-gray-700'
     switch (stage) {
       case 'invested': return 'bg-emerald-100 text-emerald-700'
       case 'deliberation': return 'bg-amber-100 text-amber-700'
@@ -527,7 +528,8 @@ export default function PipelineClient({
     }
   }
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return 'N/A'
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
@@ -886,7 +888,7 @@ export default function PipelineClient({
               </span>
             )}
             <span className={`badge capitalize ${getStageBadgeStyle(app.stage)}`}>
-              {app.stage}
+              {app.stage || 'N/A'}
             </span>
           </div>
         </div>
@@ -1161,7 +1163,7 @@ export default function PipelineClient({
                     </h2>
                     {!isNewApplication(detailApp) && (
                       <span className={`badge capitalize ${getStageBadgeStyle(detailApp.stage)}`}>
-                        {detailApp.stage}
+                        {detailApp.stage || 'N/A'}
                       </span>
                     )}
                   </div>

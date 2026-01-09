@@ -32,9 +32,9 @@ type PersonWithNotes = {
   introduced_by: string | null
   introduction_context: string | null
   relationship_notes: string | null
-  created_at: string
+  created_at: string | null
   company_associations: {
-    relationship_type: string
+    relationship_type: string | null
     title: string | null
     company: { id: string; name: string } | null
   }[]

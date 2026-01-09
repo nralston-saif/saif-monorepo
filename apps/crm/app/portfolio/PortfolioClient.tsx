@@ -21,7 +21,7 @@ type Investment = {
   investment_date: string | null
   amount: number | null
   terms: string | null
-  stealthy: boolean
+  stealthy: boolean | null
   contact_email: string | null
   contact_name: string | null
   website: string | null
