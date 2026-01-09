@@ -104,14 +104,25 @@ function NotesList({
     setIsDeleting(true)
     setDeleteError(null)
 
-    const { error } = await supabase
+    // Use .select() to verify the delete actually happened
+    // RLS silently blocks deletes without returning an error
+    const { data, error } = await supabase
       .from('saifcrm_meeting_notes')
       .delete()
       .eq('id', noteToDelete.id)
+      .select()
 
     if (error) {
       console.error('Error deleting note:', error)
       setDeleteError(error.message || 'Failed to delete note. Please try again.')
+      setIsDeleting(false)
+      return
+    }
+
+    // Check if anything was actually deleted
+    if (!data || data.length === 0) {
+      console.error('Delete returned no rows - likely blocked by RLS')
+      setDeleteError('You do not have permission to delete this note.')
       setIsDeleting(false)
       return
     }
@@ -224,7 +235,7 @@ function NotesList({
                     </svg>
                   </button>
                 </div>
-                <p className="text-gray-700 whitespace-pre-wrap">{note.content}</p>
+                <p className="text-gray-700 whitespace-pre-wrap break-words overflow-wrap-anywhere">{note.content}</p>
               </div>
             ))}
           </div>
