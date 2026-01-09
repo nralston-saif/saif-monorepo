@@ -16,19 +16,25 @@ if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
 }
 
 // Create the Liveblocks client
-// We try authEndpoint first for proper user identity, but fall back to publicApiKey if auth fails
+// We use authEndpoint to get proper user identity for cursor labels
 const client: Client = isValidKey
   ? createClient({
-      // Use public API key for reliable connection
-      // Auth endpoint was causing failures when LIVEBLOCKS_SECRET_KEY isn't configured
-      publicApiKey: publicApiKey,
-      throttle: 100,
+      authEndpoint: async (roomId) => {
+        const response = await fetch('/api/liveblocks-auth', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ room: roomId }),
+        });
 
-      // Resolve user info for better cursor labels when using public key
-      resolveUsers: async ({ userIds }) => {
-        // Return empty array - user names come from presence instead
-        return [];
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.warn('[Liveblocks] Auth failed:', response.status, errorText);
+          throw new Error(`Auth failed: ${response.status}`);
+        }
+
+        return await response.json();
       },
+      throttle: 100,
     })
   : createClient({
       // No valid key - create a dummy client that will fail gracefully

@@ -70,33 +70,11 @@ function NotesList({
     setLoading(false)
   }, [investmentId, supabase])
 
-  // Initial fetch
+  // Fetch notes on mount and when refreshTrigger changes (e.g., after Save & New)
+  // Real-time subscription removed to prevent notes from moving to "Previous" during auto-save
   useEffect(() => {
     fetchNotes()
   }, [fetchNotes, refreshTrigger])
-
-  // Subscribe to real-time updates
-  useEffect(() => {
-    const channel = supabase
-      .channel(`investment_notes:${investmentId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'saifcrm_investment_notes',
-          filter: `investment_id=eq.${investmentId}`,
-        },
-        () => {
-          fetchNotes()
-        }
-      )
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(channel)
-    }
-  }, [investmentId, supabase, fetchNotes])
 
   // Handle note deletion
   const handleDeleteNote = async () => {
