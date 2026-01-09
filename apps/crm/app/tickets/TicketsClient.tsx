@@ -39,7 +39,7 @@ type TicketWithRelations = BaseTicket & {
   comments?: TicketCommentWithAuthor[]
 }
 
-type StatusFilter = 'active' | 'archived' | 'all'
+type StatusFilter = 'active' | 'archived' | 'unassigned' | 'all'
 type SortOption = 'date-newest' | 'date-oldest' | 'priority' | 'due-date' | 'title'
 
 export default function TicketsClient({
@@ -92,6 +92,8 @@ export default function TicketsClient({
       filtered = filtered.filter(t => t.status !== 'archived')
     } else if (statusFilter === 'archived') {
       filtered = filtered.filter(t => t.status === 'archived')
+    } else if (statusFilter === 'unassigned') {
+      filtered = filtered.filter(t => !t.assigned_to)
     }
 
     // Priority filter
@@ -147,6 +149,7 @@ export default function TicketsClient({
     open: tickets.filter(t => t.status === 'open').length,
     inProgress: tickets.filter(t => t.status === 'in_progress').length,
     archived: tickets.filter(t => t.status === 'archived').length,
+    unassigned: tickets.filter(t => !t.assigned_to).length,
     overdue: tickets.filter(t =>
       t.due_date &&
       new Date(t.due_date) < new Date() &&
@@ -299,12 +302,9 @@ export default function TicketsClient({
           </div>
           <button
             onClick={() => setShowCreateModal(true)}
-            className="btn btn-primary flex items-center gap-2"
+            className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
           >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Create Ticket
+            + Create Ticket
           </button>
         </div>
 
@@ -333,7 +333,10 @@ export default function TicketsClient({
           {/* Status tabs */}
           <div className="flex gap-2">
             <button
-              onClick={() => setStatusFilter('active')}
+              onClick={() => {
+                setStatusFilter('active')
+                setAssignedFilter(currentUserId)
+              }}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                 statusFilter === 'active'
                   ? 'bg-gray-900 text-white'
@@ -343,7 +346,10 @@ export default function TicketsClient({
               Active ({stats.open + stats.inProgress})
             </button>
             <button
-              onClick={() => setStatusFilter('archived')}
+              onClick={() => {
+                setStatusFilter('archived')
+                setAssignedFilter('all')
+              }}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                 statusFilter === 'archived'
                   ? 'bg-gray-900 text-white'
@@ -353,7 +359,23 @@ export default function TicketsClient({
               Archived ({stats.archived})
             </button>
             <button
-              onClick={() => setStatusFilter('all')}
+              onClick={() => {
+                setStatusFilter('unassigned')
+                setAssignedFilter('unassigned')
+              }}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                statusFilter === 'unassigned'
+                  ? 'bg-gray-900 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              Unassigned ({stats.unassigned})
+            </button>
+            <button
+              onClick={() => {
+                setStatusFilter('all')
+                setAssignedFilter('all')
+              }}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                 statusFilter === 'all'
                   ? 'bg-gray-900 text-white'

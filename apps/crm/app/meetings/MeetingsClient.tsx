@@ -999,9 +999,13 @@ function QuickTicketModal({
   const [formData, setFormData] = useState({
     title: '',
     description: '',
+    status: 'open' as TicketStatus,
     priority: 'medium' as TicketPriority,
+    due_date: '',
     assigned_to: '',
     related_company: '',
+    related_person: '',
+    tags: [] as string[],
   })
   const [loading, setLoading] = useState(false)
 
@@ -1028,10 +1032,13 @@ function QuickTicketModal({
     const { error } = await supabase.from('saif_tickets').insert({
       title: formData.title.trim(),
       description: formData.description.trim() || null,
-      status: 'open' as TicketStatus,
+      status: formData.status,
       priority: formData.priority,
+      due_date: formData.due_date || null,
       assigned_to: formData.assigned_to || null,
       related_company: formData.related_company || null,
+      related_person: formData.related_person || null,
+      tags: formData.tags.length > 0 ? formData.tags : null,
       created_by: currentUserId,
     })
 
@@ -1097,7 +1104,7 @@ function QuickTicketModal({
             />
           </div>
 
-          {/* Priority & Assigned To (Two columns) */}
+          {/* Priority & Status (Two columns) */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1117,16 +1124,44 @@ function QuickTicketModal({
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Assign To <span className="text-red-500">*</span>
+                Status <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={formData.status}
+                onChange={(e) => setFormData({ ...formData, status: e.target.value as TicketStatus })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent text-sm"
+                required
+              >
+                <option value="open">Open</option>
+                <option value="in_progress">In Progress</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Due Date & Assigned To */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Due Date
+              </label>
+              <input
+                type="date"
+                value={formData.due_date}
+                onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent text-sm"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Assign To
               </label>
               <select
                 value={formData.assigned_to}
                 onChange={(e) => setFormData({ ...formData, assigned_to: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent text-sm"
-                required
               >
-                <option value="">Select assignee...</option>
-                <option value="everyone">Everyone</option>
+                <option value="">Unassigned</option>
                 {partners.map(partner => (
                   <option key={partner.id} value={partner.id}>
                     {getPersonName(partner)}
@@ -1136,23 +1171,55 @@ function QuickTicketModal({
             </div>
           </div>
 
-          {/* Related Company */}
+          {/* Related Company & Person */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Related Company
+              </label>
+              <select
+                value={formData.related_company}
+                onChange={(e) => setFormData({ ...formData, related_company: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent text-sm"
+              >
+                <option value="">None</option>
+                {companies.map(company => (
+                  <option key={company.id} value={company.id}>
+                    {company.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Related Person
+              </label>
+              <select
+                value={formData.related_person}
+                onChange={(e) => setFormData({ ...formData, related_person: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent text-sm"
+              >
+                <option value="">None</option>
+                {people.map(person => (
+                  <option key={person.id} value={person.id}>
+                    {getPersonName(person)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Tags */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Related Company
+              Tags
             </label>
-            <select
-              value={formData.related_company}
-              onChange={(e) => setFormData({ ...formData, related_company: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent text-sm"
-            >
-              <option value="">None</option>
-              {companies.map(company => (
-                <option key={company.id} value={company.id}>
-                  {company.name}
-                </option>
-              ))}
-            </select>
+            <TagSelector
+              selectedTags={formData.tags}
+              onChange={(tags) => setFormData({ ...formData, tags })}
+              currentUserId={currentUserId}
+            />
           </div>
 
           {/* Actions */}
@@ -1354,16 +1421,14 @@ function TicketSidebar({
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Assign To <span className="text-red-500">*</span>
+                Assign To
               </label>
               <select
                 value={formData.assigned_to}
                 onChange={(e) => setFormData({ ...formData, assigned_to: e.target.value })}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent"
-                required
               >
-                <option value="">Select assignee...</option>
-                <option value="everyone">Everyone</option>
+                <option value="">Unassigned</option>
                 {partners.map(partner => (
                   <option key={partner.id} value={partner.id}>
                     {getPersonName(partner)}

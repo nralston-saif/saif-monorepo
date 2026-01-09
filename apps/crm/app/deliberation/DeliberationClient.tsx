@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import ApplicationDetailModal from '@/components/ApplicationDetailModal'
 import { useToast } from '@saif/ui'
+import CreateTicketButton from '@/components/CreateTicketButton'
 
 type Vote = {
   userId: string
@@ -455,6 +456,7 @@ export default function DeliberationClient({
             </p>
           </div>
           <div className="flex gap-3">
+            <CreateTicketButton currentUserId={userId} />
             <div className="flex items-center gap-2 bg-amber-50 px-4 py-2 rounded-lg">
               <span className="text-amber-600 font-medium">{undecidedApplications.length}</span>
               <span className="text-amber-500">needs decision</span>
@@ -799,7 +801,6 @@ export default function DeliberationClient({
           </div>
         </div>
       )}
-
     </div>
   )
 }

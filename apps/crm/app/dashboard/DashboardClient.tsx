@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useTicketModal } from '@/components/TicketModalProvider'
 import type { NotificationType } from '@/lib/types/database'
+import CreateTicketButton from '@/components/CreateTicketButton'
 
 type NeedsVoteApp = {
   id: string
@@ -232,9 +233,12 @@ export default function DashboardClient({
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-        <p className="mt-1 text-gray-500">Your tasks at a glance</p>
+      <div className="mb-8 flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+          <p className="mt-1 text-gray-500">Your tasks at a glance</p>
+        </div>
+        <CreateTicketButton currentUserId={userId} />
       </div>
 
       {/* Top Row: Needs Your Vote + Needs Decision */}

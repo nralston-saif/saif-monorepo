@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import MeetingNotes from '@/components/MeetingNotes'
 import { useToast } from '@saif/ui'
+import CreateTicketButton from '@/components/CreateTicketButton'
 
 type Vote = {
   oduserId: string
@@ -169,6 +170,7 @@ export default function DeliberationDetailClient({
 
           {/* Vote Summary */}
           <div className="flex gap-3">
+            <CreateTicketButton currentUserId={userId} />
             <div className="flex items-center gap-2 bg-emerald-50 px-4 py-2 rounded-lg">
               <span className="text-emerald-600 font-semibold text-lg">{yesVotes}</span>
               <span className="text-emerald-500">Yes</span>

@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useToast } from '@saif/ui'
 import PersonMeetingNotes from '@/components/PersonMeetingNotes'
 import type { UserRole, UserStatus, RelationshipType } from '@saif/supabase'
+import CreateTicketButton from '@/components/CreateTicketButton'
 
 type CompanyAssociation = {
   relationship_type: string
@@ -405,12 +406,15 @@ export default function PeopleClient({
               Track contacts, founders, and network connections
             </p>
           </div>
-          <button onClick={openAddModal} className="btn btn-primary">
-            <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Add Person
-          </button>
+          <div className="flex gap-3">
+            <CreateTicketButton currentUserId={userId} />
+            <button onClick={openAddModal} className="btn btn-primary">
+              <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Add Person
+            </button>
+          </div>
         </div>
       </div>
 

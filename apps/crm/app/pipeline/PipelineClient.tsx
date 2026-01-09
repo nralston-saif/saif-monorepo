@@ -4,6 +4,7 @@ import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { useToast } from '@saif/ui'
+import CreateTicketButton from '@/components/CreateTicketButton'
 
 type Vote = {
   oduserId: string
@@ -920,9 +921,12 @@ export default function PipelineClient({
               {applications.length} application{applications.length !== 1 ? 's' : ''} in review
             </p>
           </div>
-          <div className="flex items-center gap-2 bg-[#f5f5f5] px-4 py-2 rounded-lg">
-            <span className="text-[#1a1a1a] font-medium">3 votes needed</span>
-            <span className="text-[#666666]">to advance</span>
+          <div className="flex items-center gap-3">
+            <CreateTicketButton currentUserId={userId} />
+            <div className="flex items-center gap-2 bg-[#f5f5f5] px-4 py-2 rounded-lg">
+              <span className="text-[#1a1a1a] font-medium">3 votes needed</span>
+              <span className="text-[#666666]">to advance</span>
+            </div>
           </div>
         </div>
       </div>

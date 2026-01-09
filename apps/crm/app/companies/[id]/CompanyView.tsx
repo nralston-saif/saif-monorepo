@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { Database } from '@/lib/types/database'
+import CreateTicketButton from '@/components/CreateTicketButton'
 
 type Company = Database['public']['Tables']['saif_companies']['Row']
 type Person = Database['public']['Tables']['saif_people']['Row']
@@ -436,15 +437,18 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
           </div>
         </div>
 
-        {/* Edit Button */}
-        {canEdit && !isEditing && (
-          <button
-            onClick={() => setIsEditing(true)}
-            className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800"
-          >
-            Edit Company
-          </button>
-        )}
+        {/* Action Buttons */}
+        <div className="flex gap-3">
+          <CreateTicketButton currentUserId={currentPersonId} />
+          {canEdit && !isEditing && (
+            <button
+              onClick={() => setIsEditing(true)}
+              className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800"
+            >
+              Edit Company
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Error/Success Messages */}

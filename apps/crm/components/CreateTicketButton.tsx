@@ -1,24 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@saif/ui'
 import type { TicketStatus, TicketPriority } from '@saif/supabase'
-import TagSelector from './TagSelector'
-
-type Partner = {
-  id: string
-  first_name: string | null
-  last_name: string | null
-  email: string | null
-  avatar_url: string | null
-}
-
-type Company = {
-  id: string
-  name: string
-  logo_url?: string | null
-}
+import TagSelector from '@/app/tickets/TagSelector'
 
 type Person = {
   id: string
@@ -27,57 +13,107 @@ type Person = {
   email: string | null
 }
 
-type FormData = {
-  title: string
-  description: string
-  status: TicketStatus
-  priority: TicketPriority
-  due_date: string
-  assigned_to: string
-  related_company: string
-  related_person: string
-  tags: string[]
+type Company = {
+  id: string
+  name: string
+  logo_url?: string | null
 }
 
-export default function CreateTicketModal({
+type CreateTicketButtonProps = {
+  currentUserId: string
+  className?: string
+}
+
+export default function CreateTicketButton({ currentUserId, className }: CreateTicketButtonProps) {
+  const [showModal, setShowModal] = useState(false)
+  const [partners, setPartners] = useState<Person[]>([])
+  const [companies, setCompanies] = useState<Company[]>([])
+  const [people, setPeople] = useState<Person[]>([])
+  const supabase = createClient()
+
+  // Fetch data when modal opens
+  useEffect(() => {
+    if (showModal) {
+      const fetchData = async () => {
+        const [partnersRes, companiesRes, peopleRes] = await Promise.all([
+          supabase
+            .from('saif_people')
+            .select('id, first_name, last_name, email')
+            .eq('role', 'partner')
+            .order('first_name'),
+          supabase
+            .from('saif_companies')
+            .select('id, name, logo_url')
+            .order('name'),
+          supabase
+            .from('saif_people')
+            .select('id, first_name, last_name, email')
+            .in('status', ['active', 'pending'])
+            .order('first_name'),
+        ])
+
+        if (partnersRes.data) setPartners(partnersRes.data as Person[])
+        if (companiesRes.data) setCompanies(companiesRes.data as Company[])
+        if (peopleRes.data) setPeople(peopleRes.data as Person[])
+      }
+
+      fetchData()
+    }
+  }, [showModal, supabase])
+
+  return (
+    <>
+      {/* Inline Button */}
+      <button
+        onClick={() => setShowModal(true)}
+        className={className || "px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"}
+      >
+        + Create Ticket
+      </button>
+
+      {/* Modal */}
+      {showModal && (
+        <QuickTicketModal
+          onClose={() => setShowModal(false)}
+          currentUserId={currentUserId}
+          partners={partners}
+          companies={companies}
+          people={people}
+        />
+      )}
+    </>
+  )
+}
+
+// Quick Ticket Modal Component
+function QuickTicketModal({
+  onClose,
+  currentUserId,
   partners,
   companies,
   people,
-  currentUserId,
-  currentUserName,
-  onClose,
-  onSuccess,
 }: {
-  partners: Partner[]
+  onClose: () => void
+  currentUserId: string
+  partners: Person[]
   companies: Company[]
   people: Person[]
-  currentUserId: string
-  currentUserName: string
-  onClose: () => void
-  onSuccess: () => void
 }) {
-  const [formData, setFormData] = useState<FormData>({
+  const [formData, setFormData] = useState({
     title: '',
     description: '',
-    status: 'open',
-    priority: 'medium',
+    status: 'open' as TicketStatus,
+    priority: 'medium' as TicketPriority,
     due_date: '',
     assigned_to: '',
     related_company: '',
     related_person: '',
-    tags: [],
+    tags: [] as string[],
   })
   const [loading, setLoading] = useState(false)
 
   const supabase = createClient()
   const { showToast } = useToast()
-
-  const getPartnerName = (partner: Partner) => {
-    if (partner.first_name && partner.last_name) {
-      return `${partner.first_name} ${partner.last_name}`
-    }
-    return partner.email || 'Unknown'
-  }
 
   const getPersonName = (person: Person) => {
     if (person.first_name && person.last_name) {
@@ -96,7 +132,7 @@ export default function CreateTicketModal({
 
     setLoading(true)
 
-    const { data, error } = await supabase.from('saif_tickets').insert({
+    const { error } = await supabase.from('saif_tickets').insert({
       title: formData.title.trim(),
       description: formData.description.trim() || null,
       status: formData.status,
@@ -107,7 +143,7 @@ export default function CreateTicketModal({
       related_person: formData.related_person || null,
       tags: formData.tags.length > 0 ? formData.tags : null,
       created_by: currentUserId,
-    }).select('id').single()
+    })
 
     setLoading(false)
 
@@ -116,47 +152,35 @@ export default function CreateTicketModal({
       console.error(error)
     } else {
       showToast('Ticket created successfully', 'success')
-
-      // Send notification if assigned to someone else
-      if (formData.assigned_to && formData.assigned_to !== currentUserId && data?.id) {
-        fetch('/api/notifications/ticket', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            type: 'assigned',
-            ticketId: data.id,
-            ticketTitle: formData.title.trim(),
-            targetId: formData.assigned_to,
-            actorId: currentUserId,
-            actorName: currentUserName,
-          }),
-        }).catch(console.error)
-      }
-
-      onSuccess()
+      onClose()
     }
   }
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-content max-w-2xl" onClick={(e) => e.stopPropagation()}>
-        {/* Modal Header */}
-        <div className="p-6 border-b border-gray-100">
-          <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-bold text-gray-900">Create New Ticket</h2>
-            <button
-              onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 p-2 -m-2"
-            >
-              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
+    <>
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 bg-black bg-opacity-50 z-50"
+        onClick={onClose}
+      />
+
+      {/* Modal */}
+      <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-white rounded-xl shadow-[0_0_50px_rgba(0,0,0,0.3)] z-50 max-h-[85vh] overflow-y-auto border-2 border-gray-200">
+        {/* Header */}
+        <div className="sticky top-0 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between rounded-t-xl">
+          <h2 className="text-base font-semibold text-gray-900">Create Ticket</h2>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-4 space-y-3">
           {/* Title */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -166,9 +190,10 @@ export default function CreateTicketModal({
               type="text"
               value={formData.title}
               onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-gray-900 focus:border-gray-900"
-              placeholder="e.g., Follow up with Acme Corp"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent text-sm"
+              placeholder="e.g., Follow up with founder"
               required
+              autoFocus
             />
           </div>
 
@@ -180,15 +205,14 @@ export default function CreateTicketModal({
             <textarea
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-gray-900 focus:border-gray-900"
-              rows={4}
-              placeholder="Add details about this ticket..."
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent text-sm"
+              rows={2}
+              placeholder="Add details..."
             />
           </div>
 
-          {/* Two-column layout for dropdowns */}
-          <div className="grid grid-cols-2 gap-4">
-            {/* Priority */}
+          {/* Priority & Status (Two columns) */}
+          <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Priority <span className="text-red-500">*</span>
@@ -196,7 +220,7 @@ export default function CreateTicketModal({
               <select
                 value={formData.priority}
                 onChange={(e) => setFormData({ ...formData, priority: e.target.value as TicketPriority })}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-gray-900 focus:border-gray-900"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent text-sm"
                 required
               >
                 <option value="low">Low</option>
@@ -205,7 +229,6 @@ export default function CreateTicketModal({
               </select>
             </div>
 
-            {/* Status */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Status <span className="text-red-500">*</span>
@@ -213,7 +236,7 @@ export default function CreateTicketModal({
               <select
                 value={formData.status}
                 onChange={(e) => setFormData({ ...formData, status: e.target.value as TicketStatus })}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-gray-900 focus:border-gray-900"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent text-sm"
                 required
               >
                 <option value="open">Open</option>
@@ -223,7 +246,7 @@ export default function CreateTicketModal({
           </div>
 
           {/* Due Date & Assigned To */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Due Date
@@ -232,7 +255,7 @@ export default function CreateTicketModal({
                 type="date"
                 value={formData.due_date}
                 onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-gray-900 focus:border-gray-900"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent text-sm"
               />
             </div>
 
@@ -243,12 +266,12 @@ export default function CreateTicketModal({
               <select
                 value={formData.assigned_to}
                 onChange={(e) => setFormData({ ...formData, assigned_to: e.target.value })}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-gray-900 focus:border-gray-900"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent text-sm"
               >
                 <option value="">Unassigned</option>
                 {partners.map(partner => (
                   <option key={partner.id} value={partner.id}>
-                    {getPartnerName(partner)}
+                    {getPersonName(partner)}
                   </option>
                 ))}
               </select>
@@ -256,7 +279,7 @@ export default function CreateTicketModal({
           </div>
 
           {/* Related Company & Person */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Related Company
@@ -264,7 +287,7 @@ export default function CreateTicketModal({
               <select
                 value={formData.related_company}
                 onChange={(e) => setFormData({ ...formData, related_company: e.target.value })}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-gray-900 focus:border-gray-900"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent text-sm"
               >
                 <option value="">None</option>
                 {companies.map(company => (
@@ -282,7 +305,7 @@ export default function CreateTicketModal({
               <select
                 value={formData.related_person}
                 onChange={(e) => setFormData({ ...formData, related_person: e.target.value })}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-gray-900 focus:border-gray-900"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent text-sm"
               >
                 <option value="">None</option>
                 {people.map(person => (
@@ -307,25 +330,25 @@ export default function CreateTicketModal({
           </div>
 
           {/* Actions */}
-          <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-100">
+          <div className="flex items-center justify-end gap-2 pt-1">
             <button
               type="button"
               onClick={onClose}
-              className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-medium transition-colors"
+              className="px-3 py-1.5 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-medium transition-colors text-sm"
               disabled={loading}
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-6 py-2 bg-gray-900 text-white rounded-lg hover:bg-black font-medium transition-colors disabled:opacity-50"
+              className="px-3 py-1.5 bg-black text-white rounded-lg hover:bg-gray-800 font-medium transition-colors disabled:opacity-50 text-sm"
               disabled={loading}
             >
-              {loading ? 'Creating...' : 'Create Ticket'}
+              {loading ? 'Creating...' : 'Create'}
             </button>
           </div>
         </form>
       </div>
-    </div>
+    </>
   )
 }
