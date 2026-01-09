@@ -138,9 +138,20 @@ export default function PortfolioClient({
     setLoading(true)
 
     try {
+      // Only include valid database columns (exclude computed fields like applicationId, deliberationNotes, meetingNotes, logo_url)
       const dataToSave = {
-        ...formData,
+        company_name: formData.company_name,
+        investment_date: formData.investment_date || null,
         amount: formData.amount ? parseFloat(formData.amount.toString()) : null,
+        terms: formData.terms || null,
+        stealthy: formData.stealthy || false,
+        contact_email: formData.contact_email || null,
+        contact_name: formData.contact_name || null,
+        website: formData.website || null,
+        description: formData.description || null,
+        founders: formData.founders || null,
+        other_funders: formData.other_funders || null,
+        notes: formData.notes || null,
       }
 
       if (formData.id) {
@@ -158,7 +169,7 @@ export default function PortfolioClient({
         // company_name is validated above
         const { error } = await supabase
           .from('saifcrm_investments')
-          .insert({ ...dataToSave, company_name: formData.company_name! })
+          .insert(dataToSave)
 
         if (error) {
           showToast('Error creating investment: ' + error.message, 'error')
