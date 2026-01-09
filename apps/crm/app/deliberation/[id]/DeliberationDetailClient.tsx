@@ -35,7 +35,7 @@ type Application = {
   previous_funding: string | null
   deck_link: string | null
   submitted_at: string | null
-  stage: string
+  stage: string | null
   votes: Vote[]
   deliberation: Deliberation
 }
