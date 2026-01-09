@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
 import type { TicketStatus, TicketPriority, Ticket as BaseTicket, TicketComment as BaseTicketComment } from '@saif/supabase'
 import CreateTicketModal from './CreateTicketModal'
 import TicketDetailModal from './TicketDetailModal'
@@ -66,6 +67,9 @@ export default function TicketsClient({
 
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [selectedTicket, setSelectedTicket] = useState<TicketWithRelations | null>(null)
+  const [resolvingTicket, setResolvingTicket] = useState<{ id: string; title: string } | null>(null)
+  const [resolveComment, setResolveComment] = useState('')
+  const [isResolving, setIsResolving] = useState(false)
 
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -200,6 +204,42 @@ export default function TicketsClient({
     return partner.email || 'Unknown'
   }
 
+  const handleResolveClick = (ticketId: string, ticketTitle: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setResolvingTicket({ id: ticketId, title: ticketTitle })
+    setResolveComment('')
+  }
+
+  const handleResolveSubmit = async () => {
+    if (!resolvingTicket) return
+
+    setIsResolving(true)
+    const supabase = createClient()
+
+    // Add comment if provided
+    if (resolveComment.trim()) {
+      await supabase.from('saifcrm_ticket_comments').insert({
+        ticket_id: resolvingTicket.id,
+        author_id: currentUserId,
+        content: resolveComment.trim(),
+      })
+    }
+
+    // Archive the ticket
+    const { error } = await supabase
+      .from('saif_tickets')
+      .update({ status: 'archived' })
+      .eq('id', resolvingTicket.id)
+
+    setIsResolving(false)
+    setResolvingTicket(null)
+    setResolveComment('')
+
+    if (!error) {
+      router.refresh()
+    }
+  }
+
   // Render ticket card
   const renderTicketCard = (ticket: TicketWithRelations) => {
     const overdueStatus = isOverdue(ticket.due_date, ticket.status)
@@ -281,11 +321,22 @@ export default function TicketsClient({
               {getPartnerName(ticket.assigned_partner)}
             </span>
           </div>
-          {ticket.due_date && (
-            <span className={`text-xs ${overdueStatus ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
-              {overdueStatus ? 'Overdue' : formatDate(ticket.due_date)}
-            </span>
-          )}
+          <div className="flex items-center gap-2">
+            {ticket.due_date && (
+              <span className={`text-xs ${overdueStatus ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
+                {overdueStatus ? 'Overdue' : formatDate(ticket.due_date)}
+              </span>
+            )}
+            {ticket.status !== 'archived' && (
+              <button
+                onClick={(e) => handleResolveClick(ticket.id, ticket.title, e)}
+                className="px-3 py-1.5 text-xs font-medium text-green-700 bg-green-50 hover:bg-green-100 rounded-lg transition-colors"
+                title="Resolve ticket"
+              >
+                Resolve
+              </button>
+            )}
+          </div>
         </div>
       </div>
     )
@@ -468,6 +519,56 @@ export default function TicketsClient({
             router.refresh()
           }}
         />
+      )}
+
+      {/* Resolve Ticket Modal */}
+      {resolvingTicket && (
+        <>
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/50 z-50"
+            onClick={() => setResolvingTicket(null)}
+          />
+
+          {/* Modal */}
+          <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-white rounded-xl shadow-[0_0_50px_rgba(0,0,0,0.3)] z-[60] border-2 border-gray-200">
+            <div className="p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                Resolve Ticket
+              </h3>
+              <p className="text-sm text-gray-600 mb-4">
+                {resolvingTicket.title}
+              </p>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Final Comment (Optional)
+              </label>
+              <textarea
+                value={resolveComment}
+                onChange={(e) => setResolveComment(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent text-sm"
+                rows={4}
+                placeholder="Add any final notes before resolving..."
+                autoFocus
+              />
+              <div className="flex items-center justify-end gap-3 mt-6">
+                <button
+                  onClick={() => setResolvingTicket(null)}
+                  disabled={isResolving}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleResolveSubmit}
+                  disabled={isResolving}
+                  className="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  {isResolving ? 'Resolving...' : 'Resolve Ticket'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
       )}
 
       {selectedTicket && (

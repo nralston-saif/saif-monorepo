@@ -22,9 +22,10 @@ type Company = {
 type CreateTicketButtonProps = {
   currentUserId: string
   className?: string
+  onSuccess?: () => void
 }
 
-export default function CreateTicketButton({ currentUserId, className }: CreateTicketButtonProps) {
+export default function CreateTicketButton({ currentUserId, className, onSuccess }: CreateTicketButtonProps) {
   const [showModal, setShowModal] = useState(false)
   const [partners, setPartners] = useState<Person[]>([])
   const [companies, setCompanies] = useState<Company[]>([])
@@ -79,6 +80,7 @@ export default function CreateTicketButton({ currentUserId, className }: CreateT
           partners={partners}
           companies={companies}
           people={people}
+          onSuccess={onSuccess}
         />
       )}
     </>
@@ -92,12 +94,14 @@ function QuickTicketModal({
   partners,
   companies,
   people,
+  onSuccess,
 }: {
   onClose: () => void
   currentUserId: string
   partners: Person[]
   companies: Company[]
   people: Person[]
+  onSuccess?: () => void
 }) {
   const [formData, setFormData] = useState({
     title: '',
@@ -153,6 +157,9 @@ function QuickTicketModal({
     } else {
       showToast('Ticket created successfully', 'success')
       onClose()
+      if (onSuccess) {
+        onSuccess()
+      }
     }
   }
 

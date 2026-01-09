@@ -57,7 +57,7 @@ type ActiveTicket = {
 export default function DashboardClient({
   needsVote,
   needsDecision,
-  myActiveTickets,
+  myActiveTickets = [],
   overdueTicketsCount,
   stats,
   notifications: initialNotifications,
@@ -76,6 +76,9 @@ export default function DashboardClient({
   const { openTicket } = useTicketModal()
   const [notifications, setNotifications] = useState<Notification[]>(initialNotifications)
   const [dismissingId, setDismissingId] = useState<string | null>(null)
+  const [resolvingTicket, setResolvingTicket] = useState<{ id: string; title: string } | null>(null)
+  const [resolveComment, setResolveComment] = useState('')
+  const [isResolving, setIsResolving] = useState(false)
 
   // Check if notification is ticket-related
   const isTicketNotification = (type: NotificationType): boolean => {
@@ -217,6 +220,42 @@ export default function DashboardClient({
     })
   }
 
+  const handleResolveClick = (ticketId: string, ticketTitle: string, e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setResolvingTicket({ id: ticketId, title: ticketTitle })
+    setResolveComment('')
+  }
+
+  const handleResolveSubmit = async () => {
+    if (!resolvingTicket) return
+
+    setIsResolving(true)
+
+    // Add comment if provided
+    if (resolveComment.trim()) {
+      await supabase.from('saifcrm_ticket_comments').insert({
+        ticket_id: resolvingTicket.id,
+        author_id: userId,
+        content: resolveComment.trim(),
+      })
+    }
+
+    // Archive the ticket
+    const { error } = await supabase
+      .from('saif_tickets')
+      .update({ status: 'archived' })
+      .eq('id', resolvingTicket.id)
+
+    setIsResolving(false)
+    setResolvingTicket(null)
+    setResolveComment('')
+
+    if (!error) {
+      router.refresh()
+    }
+  }
+
   const formatTimeAgo = (dateString: string) => {
     const date = new Date(dateString)
     const now = new Date()
@@ -238,7 +277,10 @@ export default function DashboardClient({
           <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
           <p className="mt-1 text-gray-500">Your tasks at a glance</p>
         </div>
-        <CreateTicketButton currentUserId={userId} />
+        <CreateTicketButton
+          currentUserId={userId}
+          onSuccess={() => router.refresh()}
+        />
       </div>
 
       {/* Top Row: Needs Your Vote + Needs Decision */}
@@ -530,16 +572,25 @@ export default function DashboardClient({
                           </p>
                         )}
                       </div>
-                      {ticket.due_date && (
-                        <div className={`flex items-center gap-1 px-2.5 py-1 rounded-lg flex-shrink-0 ${isOverdue ? 'bg-red-100 text-red-700' : 'bg-blue-50 text-blue-700'}`}>
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                          </svg>
-                          <span className="text-xs font-medium whitespace-nowrap">
-                            {isOverdue ? 'Overdue' : formatDate(ticket.due_date)}
-                          </span>
-                        </div>
-                      )}
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {ticket.due_date && (
+                          <div className={`flex items-center gap-1 px-2.5 py-1 rounded-lg ${isOverdue ? 'bg-red-100 text-red-700' : 'bg-blue-50 text-blue-700'}`}>
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                            <span className="text-xs font-medium whitespace-nowrap">
+                              {isOverdue ? 'Overdue' : formatDate(ticket.due_date)}
+                            </span>
+                          </div>
+                        )}
+                        <button
+                          onClick={(e) => handleResolveClick(ticket.id, ticket.title, e)}
+                          className="px-3 py-1.5 text-xs font-medium text-green-700 bg-green-50 hover:bg-green-100 rounded-lg transition-colors"
+                          title="Resolve ticket"
+                        >
+                          Resolve
+                        </button>
+                      </div>
                     </div>
                   </Link>
                 )
@@ -559,6 +610,56 @@ export default function DashboardClient({
           )}
         </section>
       </div>
+
+      {/* Resolve Ticket Modal */}
+      {resolvingTicket && (
+        <>
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/50 z-50"
+            onClick={() => setResolvingTicket(null)}
+          />
+
+          {/* Modal */}
+          <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-white rounded-xl shadow-[0_0_50px_rgba(0,0,0,0.3)] z-[60] border-2 border-gray-200">
+            <div className="p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                Resolve Ticket
+              </h3>
+              <p className="text-sm text-gray-600 mb-4">
+                {resolvingTicket.title}
+              </p>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Final Comment (Optional)
+              </label>
+              <textarea
+                value={resolveComment}
+                onChange={(e) => setResolveComment(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent text-sm"
+                rows={4}
+                placeholder="Add any final notes before resolving..."
+                autoFocus
+              />
+              <div className="flex items-center justify-end gap-3 mt-6">
+                <button
+                  onClick={() => setResolvingTicket(null)}
+                  disabled={isResolving}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleResolveSubmit}
+                  disabled={isResolving}
+                  className="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  {isResolving ? 'Resolving...' : 'Resolve Ticket'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }
