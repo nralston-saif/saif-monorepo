@@ -80,8 +80,6 @@ export default function TicketDetailModal({
   currentUserId,
   onClose,
   onUpdate,
-  currentUserId,
-  currentUserName,
 }: {
   ticket: Ticket
   partners: Partner[]
@@ -90,8 +88,6 @@ export default function TicketDetailModal({
   currentUserId: string
   onClose: () => void
   onUpdate: () => void
-  currentUserId: string
-  currentUserName: string
 }) {
   const [isEditing, setIsEditing] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
