@@ -8,16 +8,89 @@ import type { Meeting, Person, Company, TicketStatus, TicketPriority } from '@sa
 import { useToast } from '@saif/ui'
 import TagSelector from '../tickets/TagSelector'
 
+// ============================================================================
+// TYPES
+// ============================================================================
+
 type MeetingsClientProps = {
   meetings: Meeting[]
   currentUser: Person
   partners: Person[]
 }
 
+type SaveStatus = 'idle' | 'unsaved' | 'saving' | 'saved' | 'error'
+
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
+function formatDate(dateString: string): string {
+  const [year, month, day] = dateString.split('T')[0].split('-')
+  const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
+}
+
+function formatMeetingDate(dateString: string): string {
+  const [year, month, day] = dateString.split('T')[0].split('-')
+  const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
+  return date.toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  })
+}
+
+function getPersonName(person: Person): string {
+  if (person.first_name && person.last_name) {
+    return `${person.first_name} ${person.last_name}`
+  }
+  return person.email || 'Unknown'
+}
+
+function getTodayLocalDate(): string {
+  const today = new Date()
+  const year = today.getFullYear()
+  const month = String(today.getMonth() + 1).padStart(2, '0')
+  const day = String(today.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+// ============================================================================
+// SAVE STATUS INDICATOR
+// ============================================================================
+
+function SaveStatusIndicator({ status }: { status: SaveStatus }) {
+  if (status === 'idle') return null
+
+  const config = {
+    saved: { text: 'Saved', color: 'text-green-600', prefix: '\u2713 ' },
+    saving: { text: 'Saving...', color: 'text-blue-600', prefix: '' },
+    error: { text: 'Error saving', color: 'text-red-600', prefix: '\u26A0 ' },
+    unsaved: { text: 'Unsaved changes', color: 'text-gray-500', prefix: '' },
+  }[status]
+
+  if (!config) return null
+
+  return (
+    <span className={`text-xs ${config.color}`}>
+      {config.prefix}{config.text}
+    </span>
+  )
+}
+
+// ============================================================================
+// MAIN COMPONENT
+// ============================================================================
+
 export default function MeetingsClient({ meetings, currentUser, partners }: MeetingsClientProps) {
   const [selectedMeeting, setSelectedMeeting] = useState<Meeting | null>(meetings[0] || null)
   const [showCreateModal, setShowCreateModal] = useState(false)
-  const [showTicketSidebar, setShowTicketSidebar] = useState(false)
+  const [showTicketModal, setShowTicketModal] = useState(false)
   const [meetingsList, setMeetingsList] = useState<Meeting[]>(meetings)
   const [companies, setCompanies] = useState<Company[]>([])
   const [people, setPeople] = useState<Person[]>([])
@@ -25,85 +98,61 @@ export default function MeetingsClient({ meetings, currentUser, partners }: Meet
   const [meetingToDelete, setMeetingToDelete] = useState<Meeting | null>(null)
 
   const supabase = createClient()
-
-  // Check if Liveblocks is configured (same pattern as MeetingNotes.tsx)
   const hasLiveblocks = !!process.env.NEXT_PUBLIC_LIVEBLOCKS_PUBLIC_KEY
 
-  // Fetch meetings with full content on mount (client-side to avoid serialization issues)
+  // Fetch meetings with full content
   useEffect(() => {
-    const fetchMeetingsWithContent = async () => {
-      const { data: meetingsData } = await supabase
+    async function fetchMeetings(): Promise<void> {
+      const { data } = await supabase
         .from('saif_meetings')
         .select('id, title, meeting_date, content, created_by, created_at, updated_at')
         .order('created_at', { ascending: false })
         .limit(100)
 
-      if (meetingsData) {
-        setMeetingsList(meetingsData as Meeting[])
+      if (data) {
+        setMeetingsList(data as Meeting[])
       }
     }
-
-    fetchMeetingsWithContent()
+    fetchMeetings()
   }, [supabase])
 
   // Fetch companies and people for ticket creation
   useEffect(() => {
-    const fetchData = async () => {
-      const { data: companiesData } = await supabase
-        .from('saif_companies')
-        .select('id, name, logo_url')
-        .order('name')
+    async function fetchData(): Promise<void> {
+      const [companiesResult, peopleResult] = await Promise.all([
+        supabase.from('saif_companies').select('id, name, logo_url').order('name'),
+        supabase.from('saif_people').select('id, first_name, last_name, email').in('status', ['active', 'pending']).order('first_name'),
+      ])
 
-      const { data: peopleData } = await supabase
-        .from('saif_people')
-        .select('id, first_name, last_name, email')
-        .in('status', ['active', 'pending'])
-        .order('first_name')
-
-      if (companiesData) setCompanies(companiesData as Company[])
-      if (peopleData) setPeople(peopleData as Person[])
+      if (companiesResult.data) setCompanies(companiesResult.data as Company[])
+      if (peopleResult.data) setPeople(peopleResult.data as Person[])
     }
-
     fetchData()
   }, [supabase])
 
-  // Subscribe to new meetings
+  // Subscribe to meeting changes
   useEffect(() => {
     const channel = supabase
       .channel('meetings-changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'saif_meetings' },
-        async (payload) => {
-          if (payload.eventType === 'INSERT') {
-            // Fetch full meeting data to ensure we have complete content
-            const { data } = await supabase
-              .from('saif_meetings')
-              .select('id, title, meeting_date, content, created_by, created_at, updated_at')
-              .eq('id', payload.new.id)
-              .single()
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'saif_meetings' }, async (payload) => {
+        if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+          const { data } = await supabase
+            .from('saif_meetings')
+            .select('id, title, meeting_date, content, created_by, created_at, updated_at')
+            .eq('id', payload.new.id)
+            .single()
 
-            if (data) {
+          if (data) {
+            if (payload.eventType === 'INSERT') {
               setMeetingsList((prev) => [data as Meeting, ...prev])
+            } else {
+              setMeetingsList((prev) => prev.map((m) => (m.id === data.id ? (data as Meeting) : m)))
             }
-          } else if (payload.eventType === 'UPDATE') {
-            // Fetch full meeting data to ensure we have complete content for search
-            const { data } = await supabase
-              .from('saif_meetings')
-              .select('id, title, meeting_date, content, created_by, created_at, updated_at')
-              .eq('id', payload.new.id)
-              .single()
-
-            if (data) {
-              setMeetingsList((prev) =>
-                prev.map((m) => (m.id === data.id ? (data as Meeting) : m))
-              )
-            }
-          } else if (payload.eventType === 'DELETE') {
-            setMeetingsList((prev) => prev.filter((m) => m.id !== payload.old.id))
           }
+        } else if (payload.eventType === 'DELETE') {
+          setMeetingsList((prev) => prev.filter((m) => m.id !== payload.old.id))
         }
-      )
+      })
       .subscribe()
 
     return () => {
@@ -111,24 +160,31 @@ export default function MeetingsClient({ meetings, currentUser, partners }: Meet
     }
   }, [supabase])
 
-  const formatDate = (dateString: string) => {
-    // Parse date without timezone issues by treating it as local time
-    const [year, month, day] = dateString.split('T')[0].split('-')
-    const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    })
+  function handleContentSaved(meetingId: string, content: string): void {
+    setMeetingsList((prev) => prev.map((m) => (m.id === meetingId ? { ...m, content } : m)))
   }
 
-  // Filter meetings based on search term
+  async function handleDeleteMeeting(): Promise<void> {
+    if (!meetingToDelete) return
+
+    const meetingId = meetingToDelete.id
+    setMeetingsList((prev) => prev.filter((m) => m.id !== meetingId))
+    if (selectedMeeting?.id === meetingId) {
+      setSelectedMeeting(meetingsList.find((m) => m.id !== meetingId) || null)
+    }
+    setMeetingToDelete(null)
+
+    const { error } = await supabase.from('saif_meetings').delete().eq('id', meetingId)
+    if (error) {
+      console.error('Error deleting meeting:', error)
+      setMeetingsList(meetings)
+    }
+  }
+
   const filteredMeetings = meetingsList.filter((meeting) => {
     if (!searchTerm.trim()) return true
     const search = searchTerm.toLowerCase()
-    const titleMatch = meeting.title.toLowerCase().includes(search)
-    const contentMatch = meeting.content && meeting.content.toLowerCase().includes(search)
-    return titleMatch || contentMatch
+    return meeting.title.toLowerCase().includes(search) || (meeting.content && meeting.content.toLowerCase().includes(search))
   })
 
   return (
@@ -141,7 +197,7 @@ export default function MeetingsClient({ meetings, currentUser, partners }: Meet
         </div>
         <div className="flex gap-3">
           <button
-            onClick={() => setShowTicketSidebar(true)}
+            onClick={() => setShowTicketModal(true)}
             className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
           >
             + Create Ticket
@@ -161,7 +217,6 @@ export default function MeetingsClient({ meetings, currentUser, partners }: Meet
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="p-4 border-b border-gray-100">
               <h2 className="text-sm font-semibold text-gray-900 mb-3">All Meetings</h2>
-              {/* Search input */}
               <div className="relative">
                 <input
                   type="text"
@@ -170,12 +225,7 @@ export default function MeetingsClient({ meetings, currentUser, partners }: Meet
                   placeholder="Search meetings..."
                   className="w-full px-3 py-2 pl-9 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent text-sm"
                 />
-                <svg
-                  className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
+                <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
               </div>
@@ -188,32 +238,13 @@ export default function MeetingsClient({ meetings, currentUser, partners }: Meet
                 </div>
               ) : (
                 filteredMeetings.map((meeting) => (
-                  <div
+                  <MeetingListItem
                     key={meeting.id}
-                    className={`relative group ${
-                      selectedMeeting?.id === meeting.id ? 'bg-gray-50 border-l-4 border-black' : ''
-                    }`}
-                  >
-                    <button
-                      onClick={() => setSelectedMeeting(meeting)}
-                      className="w-full text-left p-4 hover:bg-gray-50 transition-colors"
-                    >
-                      <h3 className="font-medium text-gray-900 text-sm truncate pr-8">{meeting.title}</h3>
-                      <p className="text-xs text-gray-500 mt-1">{formatDate(meeting.meeting_date)}</p>
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setMeetingToDelete(meeting)
-                      }}
-                      className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 rounded transition-all"
-                      title="Delete meeting"
-                    >
-                      <svg className="w-4 h-4 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
-                  </div>
+                    meeting={meeting}
+                    isSelected={selectedMeeting?.id === meeting.id}
+                    onSelect={() => setSelectedMeeting(meeting)}
+                    onDelete={() => setMeetingToDelete(meeting)}
+                  />
                 ))
               )}
             </div>
@@ -229,36 +260,20 @@ export default function MeetingsClient({ meetings, currentUser, partners }: Meet
                 meeting={selectedMeeting}
                 currentUser={currentUser}
                 partners={partners}
-                onContentSaved={(meetingId, content) => {
-                  setMeetingsList(prev =>
-                    prev.map(m => m.id === meetingId ? { ...m, content } : m)
-                  )
-                }}
+                onContentSaved={handleContentSaved}
               />
             ) : (
               <SimpleMeetingEditor
                 meeting={selectedMeeting}
-                currentUser={currentUser}
-                onContentSaved={(meetingId, content) => {
-                  setMeetingsList(prev =>
-                    prev.map(m => m.id === meetingId ? { ...m, content } : m)
-                  )
-                }}
+                onContentSaved={handleContentSaved}
               />
             )
           ) : (
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-12 text-center">
-              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <span className="text-gray-400 text-2xl">📝</span>
-              </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">No Meeting Selected</h3>
-              <p className="text-gray-500">Select a meeting from the list or create a new one</p>
-            </div>
+            <EmptyMeetingState />
           )}
         </div>
       </div>
 
-      {/* Create Meeting Modal */}
       {showCreateModal && (
         <CreateMeetingModal
           onClose={() => setShowCreateModal(false)}
@@ -271,10 +286,9 @@ export default function MeetingsClient({ meetings, currentUser, partners }: Meet
         />
       )}
 
-      {/* Ticket Creation Modal */}
-      {showTicketSidebar && (
+      {showTicketModal && (
         <QuickTicketModal
-          onClose={() => setShowTicketSidebar(false)}
+          onClose={() => setShowTicketModal(false)}
           currentUserId={currentUser.id}
           partners={partners}
           companies={companies}
@@ -282,50 +296,74 @@ export default function MeetingsClient({ meetings, currentUser, partners }: Meet
         />
       )}
 
-      {/* Delete Confirmation Modal */}
       {meetingToDelete && (
         <DeleteMeetingModal
           meeting={meetingToDelete}
           onClose={() => setMeetingToDelete(null)}
-          onConfirm={async () => {
-            const meetingId = meetingToDelete.id
-            // Optimistically update UI
-            setMeetingsList(prev => prev.filter(m => m.id !== meetingId))
-            if (selectedMeeting?.id === meetingId) {
-              setSelectedMeeting(meetingsList.find(m => m.id !== meetingId) || null)
-            }
-            setMeetingToDelete(null)
-
-            // Delete from database
-            const { error } = await supabase
-              .from('saif_meetings')
-              .delete()
-              .eq('id', meetingId)
-
-            if (error) {
-              console.error('Error deleting meeting:', error)
-              // Revert on error
-              setMeetingsList(meetings)
-            }
-          }}
+          onConfirm={handleDeleteMeeting}
         />
       )}
     </div>
   )
 }
 
-// Connection status logger (must be inside RoomProvider)
-function ConnectionStatusLogger({ roomId }: { roomId: string }) {
-  const status = useStatus()
+// ============================================================================
+// MEETING LIST ITEM
+// ============================================================================
 
-  useEffect(() => {
-    console.log(`[Meetings Liveblocks] Room "${roomId}" status:`, status)
-  }, [status, roomId])
-
-  return null
+function MeetingListItem({
+  meeting,
+  isSelected,
+  onSelect,
+  onDelete,
+}: {
+  meeting: Meeting
+  isSelected: boolean
+  onSelect: () => void
+  onDelete: () => void
+}) {
+  return (
+    <div className={`relative group ${isSelected ? 'bg-gray-50 border-l-4 border-black' : ''}`}>
+      <button onClick={onSelect} className="w-full text-left p-4 hover:bg-gray-50 transition-colors">
+        <h3 className="font-medium text-gray-900 text-sm truncate pr-8">{meeting.title}</h3>
+        <p className="text-xs text-gray-500 mt-1">{formatDate(meeting.meeting_date)}</p>
+      </button>
+      <button
+        onClick={(e) => {
+          e.stopPropagation()
+          onDelete()
+        }}
+        className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 rounded transition-all"
+        title="Delete meeting"
+      >
+        <svg className="w-4 h-4 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+        </svg>
+      </button>
+    </div>
+  )
 }
 
-// Liveblocks wrapper with error handling and timeout
+// ============================================================================
+// EMPTY STATE
+// ============================================================================
+
+function EmptyMeetingState() {
+  return (
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-12 text-center">
+      <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+        <span className="text-gray-400 text-2xl">&#x1F4DD;</span>
+      </div>
+      <h3 className="text-lg font-semibold text-gray-900 mb-2">No Meeting Selected</h3>
+      <p className="text-gray-500">Select a meeting from the list or create a new one</p>
+    </div>
+  )
+}
+
+// ============================================================================
+// LIVEBLOCKS WRAPPER
+// ============================================================================
+
 function LiveblocksWrapper({
   meeting,
   currentUser,
@@ -341,22 +379,11 @@ function LiveblocksWrapper({
   const [isConnected, setIsConnected] = useState(false)
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-  // Debug logging
   useEffect(() => {
-    console.log('[Meetings Liveblocks] Attempting to connect:', {
-      roomId: `notes-meeting-${meeting.id}`,
-      hasPublicKey: !!process.env.NEXT_PUBLIC_LIVEBLOCKS_PUBLIC_KEY,
-      keyPrefix: process.env.NEXT_PUBLIC_LIVEBLOCKS_PUBLIC_KEY?.substring(0, 10),
-    })
-  }, [meeting.id])
-
-  // Timeout after 15 seconds - only if not connected
-  useEffect(() => {
-    if (isConnected) return // Don't set timeout if already connected
+    if (isConnected) return
 
     timeoutRef.current = setTimeout(() => {
       if (!isConnected) {
-        console.log('[Meetings Liveblocks] Connection timed out after 15s')
         setHasTimedOut(true)
       }
     }, 15000)
@@ -366,9 +393,7 @@ function LiveblocksWrapper({
     }
   }, [meeting.id, isConnected])
 
-  // Callback to mark as connected (called when editor mounts)
-  const onConnected = () => {
-    console.log('[Meetings Liveblocks] Connected successfully')
+  function handleConnected(): void {
     setIsConnected(true)
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current)
@@ -376,7 +401,6 @@ function LiveblocksWrapper({
     }
   }
 
-  // If timed out, show error with fallback option
   if (hasTimedOut) {
     return (
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
@@ -384,26 +408,19 @@ function LiveblocksWrapper({
           <p className="text-amber-600 mb-2">Real-time collaboration is taking longer than expected to connect.</p>
           <p className="text-gray-500 text-sm">You can continue editing without real-time sync:</p>
         </div>
-        <SimpleMeetingEditorInner
-          meeting={meeting}
-          currentUser={currentUser}
-          onContentSaved={onContentSaved}
-        />
+        <SimpleMeetingEditor meeting={meeting} onContentSaved={onContentSaved} />
       </div>
     )
   }
 
+  const userName = currentUser.name || `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || 'Unknown'
+
   return (
     <RoomProvider
       id={`notes-meeting-${meeting.id}`}
-      initialPresence={{
-        cursor: null,
-        name: currentUser.name || `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || 'Unknown',
-        isTyping: false
-      }}
-      initialStorage={{ draft: '', sharedNoteId: null, meetingDate: new Date().toISOString().split('T')[0], creatingNoteBy: null }}
+      initialPresence={{ cursor: null, name: userName, isTyping: false }}
+      initialStorage={{ draft: '', sharedNoteId: null, meetingDate: getTodayLocalDate(), creatingNoteBy: null }}
     >
-      <ConnectionStatusLogger roomId={`notes-meeting-${meeting.id}`} />
       <ClientSideSuspense
         fallback={
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
@@ -424,7 +441,7 @@ function LiveblocksWrapper({
             currentUser={currentUser}
             partners={partners}
             onContentSaved={onContentSaved}
-            onConnected={onConnected}
+            onConnected={handleConnected}
           />
         )}
       </ClientSideSuspense>
@@ -432,75 +449,10 @@ function LiveblocksWrapper({
   )
 }
 
-// Simple editor for inside the wrapper (reuses SimpleMeetingEditor logic)
-function SimpleMeetingEditorInner({
-  meeting,
-  currentUser,
-  onContentSaved,
-}: {
-  meeting: Meeting
-  currentUser: Person
-  onContentSaved: (meetingId: string, content: string) => void
-}) {
-  const [content, setContent] = useState(meeting.content || '')
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'unsaved' | 'saving' | 'saved' | 'error'>('idle')
-  const supabase = createClient()
+// ============================================================================
+// MEETING NOTES EDITOR (COLLABORATIVE)
+// ============================================================================
 
-  // Auto-save
-  useEffect(() => {
-    if (content === meeting.content) return
-
-    setSaveStatus('unsaved')
-
-    const timer = setTimeout(async () => {
-      setSaveStatus('saving')
-
-      const { error } = await supabase
-        .from('saif_meetings')
-        .update({ content })
-        .eq('id', meeting.id)
-
-      if (error) {
-        console.error('Error saving:', error)
-        setSaveStatus('error')
-      } else {
-        onContentSaved(meeting.id, content)
-        setSaveStatus('saved')
-        setTimeout(() => setSaveStatus('idle'), 2000)
-      }
-    }, 2000)
-
-    return () => clearTimeout(timer)
-  }, [content, meeting.id, meeting.content, supabase, onContentSaved])
-
-  return (
-    <div>
-      <div className="flex justify-end mb-2">
-        {saveStatus !== 'idle' && (
-          <span className={`text-xs ${
-            saveStatus === 'saved' ? 'text-green-600' :
-            saveStatus === 'saving' ? 'text-blue-600' :
-            saveStatus === 'error' ? 'text-red-600' :
-            'text-gray-500'
-          }`}>
-            {saveStatus === 'saved' && '✓ Saved'}
-            {saveStatus === 'saving' && 'Saving...'}
-            {saveStatus === 'error' && '⚠ Error saving'}
-            {saveStatus === 'unsaved' && 'Unsaved changes'}
-          </span>
-        )}
-      </div>
-      <textarea
-        value={content}
-        onChange={(e) => setContent(e.target.value)}
-        placeholder="Start typing your meeting notes here..."
-        className="w-full min-h-[300px] px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent resize-y font-mono text-sm"
-      />
-    </div>
-  )
-}
-
-// Meeting Notes Editor Component (with Liveblocks + Tiptap)
 function MeetingNotesEditor({
   meeting,
   currentUser,
@@ -514,100 +466,58 @@ function MeetingNotesEditor({
   onContentSaved: (meetingId: string, content: string) => void
   onConnected?: () => void
 }) {
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'unsaved' | 'saving' | 'saved' | 'error'>('idle')
-  const [saveTimer, setSaveTimer] = useState<NodeJS.Timeout | null>(null)
-  const [currentContent, setCurrentContent] = useState(meeting.content || '')
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
+  const saveTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   const supabase = createClient()
   const others = useOthers()
 
-  // Signal that we're connected when this component mounts
   useEffect(() => {
     onConnected?.()
   }, [onConnected])
 
-  // Handle content changes from Tiptap editor
-  const handleContentChange = (content: string) => {
-    setCurrentContent(content)
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    }
+  }, [])
 
-    // Auto-save logic
+  function handleContentChange(content: string): void {
     setSaveStatus('unsaved')
 
-    // Clear existing timer
-    if (saveTimer) {
-      clearTimeout(saveTimer)
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current)
     }
 
-    // Set new timer for auto-save
-    const timer = setTimeout(async () => {
+    saveTimerRef.current = setTimeout(async () => {
       setSaveStatus('saving')
 
-      const { error } = await supabase
-        .from('saif_meetings')
-        .update({ content })
-        .eq('id', meeting.id)
+      const { error } = await supabase.from('saif_meetings').update({ content }).eq('id', meeting.id)
 
       if (error) {
         console.error('Error saving content:', error)
         setSaveStatus('error')
       } else {
-        // Update the meetings list so search works immediately
         onContentSaved(meeting.id, content)
         setSaveStatus('saved')
         setTimeout(() => setSaveStatus('idle'), 2000)
       }
     }, 2000)
-
-    setSaveTimer(timer)
   }
 
-  // Cleanup timer on unmount
-  useEffect(() => {
-    return () => {
-      if (saveTimer) clearTimeout(saveTimer)
-    }
-  }, [saveTimer])
-
-  const formatMeetingDate = (dateString: string) => {
-    // Parse date without timezone issues by treating it as local time
-    const [year, month, day] = dateString.split('T')[0].split('-')
-    const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
-    return date.toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    })
-  }
-
-  const getAuthorName = (person: Person) => {
-    return person.name || `${person.first_name || ''} ${person.last_name || ''}`.trim() || 'Unknown'
-  }
-
-  const getTypingUsers = () => {
-    return others
-      .filter((other) => other.presence.isTyping)
-      .map((other) => {
-        const partner = partners.find((p) => p.id === currentUser.id)
-        return partner ? getAuthorName(partner) : other.presence.name || 'Someone'
-      })
-  }
-
-  const typingUsers = getTypingUsers()
+  const typingUsers = others
+    .filter((other) => other.presence.isTyping)
+    .map((other) => other.presence.name || 'Someone')
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full">
-      {/* Meeting Header */}
       <div className="p-6 border-b border-gray-100">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-xl font-semibold text-gray-900">{meeting.title}</h2>
-            <p className="text-sm text-gray-500 mt-1">
-              {formatMeetingDate(meeting.meeting_date)}
-            </p>
+            <p className="text-sm text-gray-500 mt-1">{formatMeetingDate(meeting.meeting_date)}</p>
           </div>
           <div className="flex items-center gap-3">
-            {/* Connected users */}
             {others.length > 0 && (
               <div className="flex items-center gap-2">
                 <span className="text-xs text-gray-500">Also here:</span>
@@ -631,7 +541,6 @@ function MeetingNotesEditor({
                 </div>
               </div>
             )}
-            {/* Typing indicators */}
             {typingUsers.length > 0 && (
               <div className="flex items-center gap-1 text-xs text-gray-500">
                 <div className="flex gap-0.5">
@@ -642,25 +551,11 @@ function MeetingNotesEditor({
                 <span>{typingUsers.join(', ')} typing...</span>
               </div>
             )}
-            {/* Save status */}
-            {saveStatus !== 'idle' && (
-              <span className={`text-xs ${
-                saveStatus === 'saved' ? 'text-green-600' :
-                saveStatus === 'saving' ? 'text-blue-600' :
-                saveStatus === 'error' ? 'text-red-600' :
-                'text-gray-500'
-              }`}>
-                {saveStatus === 'saved' && '✓ Saved'}
-                {saveStatus === 'saving' && 'Saving...'}
-                {saveStatus === 'error' && '⚠ Error saving'}
-                {saveStatus === 'unsaved' && 'Unsaved changes'}
-              </span>
-            )}
+            <SaveStatusIndicator status={saveStatus} />
           </div>
         </div>
       </div>
 
-      {/* Shared Document Editor */}
       <div className="flex-1 p-6 overflow-auto">
         <CollaborativeTiptapEditor
           onContentChange={handleContentChange}
@@ -672,43 +567,39 @@ function MeetingNotesEditor({
   )
 }
 
-// Simple Meeting Editor (fallback when Liveblocks is not configured)
+// ============================================================================
+// SIMPLE MEETING EDITOR (FALLBACK)
+// ============================================================================
+
 function SimpleMeetingEditor({
   meeting,
-  currentUser,
   onContentSaved,
 }: {
   meeting: Meeting
-  currentUser: Person
   onContentSaved: (meetingId: string, content: string) => void
 }) {
   const [content, setContent] = useState(meeting.content || '')
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'unsaved' | 'saving' | 'saved' | 'error'>('idle')
-  const [saveTimer, setSaveTimer] = useState<NodeJS.Timeout | null>(null)
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
+  const saveTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   const supabase = createClient()
 
-  // Reset content when meeting changes
   useEffect(() => {
     setContent(meeting.content || '')
     setSaveStatus('idle')
   }, [meeting.id, meeting.content])
 
-  // Auto-save
   useEffect(() => {
     if (content === meeting.content) return
 
     setSaveStatus('unsaved')
 
-    if (saveTimer) clearTimeout(saveTimer)
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
 
-    const timer = setTimeout(async () => {
+    saveTimerRef.current = setTimeout(async () => {
       setSaveStatus('saving')
 
-      const { error } = await supabase
-        .from('saif_meetings')
-        .update({ content })
-        .eq('id', meeting.id)
+      const { error } = await supabase.from('saif_meetings').update({ content }).eq('id', meeting.id)
 
       if (error) {
         console.error('Error saving:', error)
@@ -720,23 +611,10 @@ function SimpleMeetingEditor({
       }
     }, 2000)
 
-    setSaveTimer(timer)
-
     return () => {
-      if (timer) clearTimeout(timer)
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
     }
-  }, [content, meeting.id, supabase])
-
-  const formatMeetingDate = (dateString: string) => {
-    const [year, month, day] = dateString.split('T')[0].split('-')
-    const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
-    return date.toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    })
-  }
+  }, [content, meeting.id, meeting.content, supabase, onContentSaved])
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full">
@@ -746,21 +624,7 @@ function SimpleMeetingEditor({
             <h2 className="text-xl font-semibold text-gray-900">{meeting.title}</h2>
             <p className="text-sm text-gray-500 mt-1">{formatMeetingDate(meeting.meeting_date)}</p>
           </div>
-          <div className="flex items-center gap-3">
-            {saveStatus !== 'idle' && (
-              <span className={`text-xs ${
-                saveStatus === 'saved' ? 'text-green-600' :
-                saveStatus === 'saving' ? 'text-blue-600' :
-                saveStatus === 'error' ? 'text-red-600' :
-                'text-gray-500'
-              }`}>
-                {saveStatus === 'saved' && '✓ Saved'}
-                {saveStatus === 'saving' && 'Saving...'}
-                {saveStatus === 'error' && '⚠ Error saving'}
-                {saveStatus === 'unsaved' && 'Unsaved changes'}
-              </span>
-            )}
-          </div>
+          <SaveStatusIndicator status={saveStatus} />
         </div>
       </div>
       <div className="flex-1 p-6 overflow-auto">
@@ -775,7 +639,10 @@ function SimpleMeetingEditor({
   )
 }
 
-// Create Meeting Modal Component
+// ============================================================================
+// CREATE MEETING MODAL
+// ============================================================================
+
 function CreateMeetingModal({
   onClose,
   currentUserId,
@@ -785,22 +652,13 @@ function CreateMeetingModal({
   currentUserId: string
   onMeetingCreated: (meeting: Meeting) => void
 }) {
-  // Get today's date in local timezone (YYYY-MM-DD format)
-  const getTodayLocalDate = () => {
-    const today = new Date()
-    const year = today.getFullYear()
-    const month = String(today.getMonth() + 1).padStart(2, '0')
-    const day = String(today.getDate()).padStart(2, '0')
-    return `${year}-${month}-${day}`
-  }
-
   const [title, setTitle] = useState('')
   const [meetingDate, setMeetingDate] = useState(getTodayLocalDate())
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const supabase = createClient()
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  async function handleSubmit(e: React.FormEvent): Promise<void> {
     e.preventDefault()
     if (!title.trim()) return
 
@@ -808,11 +666,7 @@ function CreateMeetingModal({
 
     const { data, error } = await supabase
       .from('saif_meetings')
-      .insert({
-        title: title.trim(),
-        meeting_date: meetingDate,
-        created_by: currentUserId,
-      })
+      .insert({ title: title.trim(), meeting_date: meetingDate, created_by: currentUserId })
       .select()
       .single()
 
@@ -828,21 +682,15 @@ function CreateMeetingModal({
 
   return (
     <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-white rounded-xl shadow-[0_0_50px_rgba(0,0,0,0.3)] z-50 border-2 border-gray-200">
-      {/* Header */}
       <div className="border-b border-gray-200 px-4 py-3 flex items-center justify-between">
         <h2 className="text-base font-semibold text-gray-900">New Meeting</h2>
-        <button
-          onClick={onClose}
-          className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100"
-          disabled={isSubmitting}
-        >
+        <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100" disabled={isSubmitting}>
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
       </div>
 
-      {/* Form */}
       <form onSubmit={handleSubmit} className="p-4 space-y-3">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -871,7 +719,6 @@ function CreateMeetingModal({
           />
         </div>
 
-        {/* Actions */}
         <div className="flex items-center justify-end gap-2 pt-1">
           <button
             type="button"
@@ -894,7 +741,10 @@ function CreateMeetingModal({
   )
 }
 
-// Delete Meeting Confirmation Modal
+// ============================================================================
+// DELETE MEETING MODAL
+// ============================================================================
+
 function DeleteMeetingModal({
   meeting,
   onClose,
@@ -906,14 +756,13 @@ function DeleteMeetingModal({
 }) {
   const [isDeleting, setIsDeleting] = useState(false)
 
-  const handleConfirm = async () => {
+  async function handleConfirm(): Promise<void> {
     setIsDeleting(true)
     await onConfirm()
   }
 
   return (
     <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full max-w-sm bg-white rounded-xl shadow-[0_0_50px_rgba(0,0,0,0.3)] z-50 border-2 border-gray-200">
-      {/* Header */}
       <div className="border-b border-gray-200 px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
@@ -923,22 +772,16 @@ function DeleteMeetingModal({
           </div>
           <h2 className="text-base font-semibold text-gray-900">Delete Meeting</h2>
         </div>
-        <button
-          onClick={onClose}
-          className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100"
-          disabled={isDeleting}
-        >
+        <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100" disabled={isDeleting}>
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
       </div>
 
-      {/* Content */}
       <div className="p-4">
         <p className="text-gray-700 text-sm mb-4">
-          Are you sure you want to delete <span className="font-medium">"{meeting.title}"</span>?
-          This cannot be undone.
+          Are you sure you want to delete <span className="font-medium">"{meeting.title}"</span>? This cannot be undone.
         </p>
 
         <div className="flex items-center justify-end gap-2">
@@ -964,7 +807,10 @@ function DeleteMeetingModal({
   )
 }
 
-// Quick Ticket Creation Modal Component (Simple UI for meetings page)
+// ============================================================================
+// QUICK TICKET MODAL
+// ============================================================================
+
 function QuickTicketModal({
   onClose,
   currentUserId,
@@ -994,14 +840,7 @@ function QuickTicketModal({
   const supabase = createClient()
   const { showToast } = useToast()
 
-  const getPersonName = (person: Person) => {
-    if (person.first_name && person.last_name) {
-      return `${person.first_name} ${person.last_name}`
-    }
-    return person.email || 'Unknown'
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  async function handleSubmit(e: React.FormEvent): Promise<void> {
     e.preventDefault()
 
     if (!formData.title.trim()) {
@@ -1036,461 +875,165 @@ function QuickTicketModal({
   }
 
   return (
-    <>
-      {/* No backdrop - keep meeting notes fully visible */}
+    <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-white rounded-xl shadow-[0_0_50px_rgba(0,0,0,0.3)] z-50 max-h-[85vh] overflow-y-auto border-2 border-gray-200">
+      <div className="sticky top-0 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between rounded-t-xl">
+        <h2 className="text-base font-semibold text-gray-900">Quick Ticket</h2>
+        <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
 
-      {/* Small centered modal with shadow */}
-      <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-white rounded-xl shadow-[0_0_50px_rgba(0,0,0,0.3)] z-50 max-h-[85vh] overflow-y-auto border-2 border-gray-200">
-        {/* Header */}
-        <div className="sticky top-0 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between rounded-t-xl">
-          <h2 className="text-base font-semibold text-gray-900">Quick Ticket</h2>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+      <form onSubmit={handleSubmit} className="p-4 space-y-3">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Title <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="text"
+            value={formData.title}
+            onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent text-sm"
+            placeholder="e.g., Follow up with founder"
+            required
+            autoFocus
+          />
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="p-4 space-y-3">
-          {/* Title */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Title <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              value={formData.title}
-              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent text-sm"
-              placeholder="e.g., Follow up with founder"
-              required
-              autoFocus
-            />
-          </div>
-
-          {/* Description */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Description
-            </label>
-            <textarea
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent text-sm"
-              rows={2}
-              placeholder="Add details..."
-            />
-          </div>
-
-          {/* Priority & Status (Two columns) */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Priority <span className="text-red-500">*</span>
-              </label>
-              <select
-                value={formData.priority}
-                onChange={(e) => setFormData({ ...formData, priority: e.target.value as TicketPriority })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent text-sm"
-                required
-              >
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Status <span className="text-red-500">*</span>
-              </label>
-              <select
-                value={formData.status}
-                onChange={(e) => setFormData({ ...formData, status: e.target.value as TicketStatus })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent text-sm"
-                required
-              >
-                <option value="open">Open</option>
-                <option value="in_progress">In Progress</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Due Date & Assigned To */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Due Date
-              </label>
-              <input
-                type="date"
-                value={formData.due_date}
-                onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent text-sm"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Assign To
-              </label>
-              <select
-                value={formData.assigned_to}
-                onChange={(e) => setFormData({ ...formData, assigned_to: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent text-sm"
-              >
-                <option value="">Unassigned</option>
-                {partners.map(partner => (
-                  <option key={partner.id} value={partner.id}>
-                    {getPersonName(partner)}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Related Company & Person */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Related Company
-              </label>
-              <select
-                value={formData.related_company}
-                onChange={(e) => setFormData({ ...formData, related_company: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent text-sm"
-              >
-                <option value="">None</option>
-                {companies.map(company => (
-                  <option key={company.id} value={company.id}>
-                    {company.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Related Person
-              </label>
-              <select
-                value={formData.related_person}
-                onChange={(e) => setFormData({ ...formData, related_person: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent text-sm"
-              >
-                <option value="">None</option>
-                {people.map(person => (
-                  <option key={person.id} value={person.id}>
-                    {getPersonName(person)}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Tags */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Tags
-            </label>
-            <TagSelector
-              selectedTags={formData.tags}
-              onChange={(tags) => setFormData({ ...formData, tags })}
-              currentUserId={currentUserId}
-            />
-          </div>
-
-          {/* Actions */}
-          <div className="flex items-center justify-end gap-2 pt-1">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-3 py-1.5 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-medium transition-colors text-sm"
-              disabled={loading}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-3 py-1.5 bg-black text-white rounded-lg hover:bg-gray-800 font-medium transition-colors disabled:opacity-50 text-sm"
-              disabled={loading}
-            >
-              {loading ? 'Creating...' : 'Create'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </>
-  )
-}
-
-// Ticket Creation Sidebar Component
-function TicketSidebar({
-  onClose,
-  currentUserId,
-  partners,
-  companies,
-  people,
-}: {
-  onClose: () => void
-  currentUserId: string
-  partners: Person[]
-  companies: Company[]
-  people: Person[]
-}) {
-  const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    status: 'open' as TicketStatus,
-    priority: 'medium' as TicketPriority,
-    due_date: '',
-    assigned_to: '',
-    related_company: '',
-    related_person: '',
-    tags: [] as string[],
-  })
-  const [loading, setLoading] = useState(false)
-
-  const supabase = createClient()
-  const { showToast } = useToast()
-
-  const getPersonName = (person: Person) => {
-    if (person.first_name && person.last_name) {
-      return `${person.first_name} ${person.last_name}`
-    }
-    return person.email || 'Unknown'
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-
-    if (!formData.title.trim()) {
-      showToast('Title is required', 'error')
-      return
-    }
-
-    setLoading(true)
-
-    const { error } = await supabase.from('saif_tickets').insert({
-      title: formData.title.trim(),
-      description: formData.description.trim() || null,
-      status: formData.status,
-      priority: formData.priority,
-      due_date: formData.due_date || null,
-      assigned_to: formData.assigned_to || null,
-      related_company: formData.related_company || null,
-      related_person: formData.related_person || null,
-      tags: formData.tags.length > 0 ? formData.tags : null,
-      created_by: currentUserId,
-    })
-
-    setLoading(false)
-
-    if (error) {
-      showToast('Failed to create ticket', 'error')
-      console.error(error)
-    } else {
-      showToast('Ticket created successfully', 'success')
-      onClose()
-    }
-  }
-
-  return (
-    <>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-black bg-opacity-50 z-40"
-        onClick={onClose}
-      />
-
-      {/* Sidebar */}
-      <div className="fixed right-0 top-0 h-full w-full max-w-2xl bg-white shadow-2xl z-50 overflow-y-auto">
-        {/* Header */}
-        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-          <h2 className="text-xl font-semibold text-gray-900">Create Ticket</h2>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 p-2 -m-2 rounded-lg hover:bg-gray-100"
-          >
-            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+          <textarea
+            value={formData.description}
+            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent text-sm"
+            rows={2}
+            placeholder="Add details..."
+          />
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          {/* Title */}
+        <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Title <span className="text-red-500">*</span>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Priority <span className="text-red-500">*</span>
             </label>
-            <input
-              type="text"
-              value={formData.title}
-              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent"
-              placeholder="e.g., Follow up with founder"
+            <select
+              value={formData.priority}
+              onChange={(e) => setFormData({ ...formData, priority: e.target.value as TicketPriority })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent text-sm"
               required
-            />
-          </div>
-
-          {/* Description */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Description
-            </label>
-            <textarea
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent"
-              rows={4}
-              placeholder="Add details about this ticket..."
-            />
-          </div>
-
-          {/* Priority & Status */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Priority <span className="text-red-500">*</span>
-              </label>
-              <select
-                value={formData.priority}
-                onChange={(e) => setFormData({ ...formData, priority: e.target.value as TicketPriority })}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent"
-                required
-              >
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Status <span className="text-red-500">*</span>
-              </label>
-              <select
-                value={formData.status}
-                onChange={(e) => setFormData({ ...formData, status: e.target.value as TicketStatus })}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent"
-                required
-              >
-                <option value="open">Open</option>
-                <option value="in_progress">In Progress</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Due Date & Assigned To */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Due Date
-              </label>
-              <input
-                type="date"
-                value={formData.due_date}
-                onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Assign To
-              </label>
-              <select
-                value={formData.assigned_to}
-                onChange={(e) => setFormData({ ...formData, assigned_to: e.target.value })}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent"
-              >
-                <option value="">Unassigned</option>
-                {partners.map(partner => (
-                  <option key={partner.id} value={partner.id}>
-                    {getPersonName(partner)}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Related Company & Person */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Related Company
-              </label>
-              <select
-                value={formData.related_company}
-                onChange={(e) => setFormData({ ...formData, related_company: e.target.value })}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent"
-              >
-                <option value="">None</option>
-                {companies.map(company => (
-                  <option key={company.id} value={company.id}>
-                    {company.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Related Person
-              </label>
-              <select
-                value={formData.related_person}
-                onChange={(e) => setFormData({ ...formData, related_person: e.target.value })}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent"
-              >
-                <option value="">None</option>
-                {people.map(person => (
-                  <option key={person.id} value={person.id}>
-                    {getPersonName(person)}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Tags */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Tags
-            </label>
-            <TagSelector
-              selectedTags={formData.tags}
-              onChange={(tags) => setFormData({ ...formData, tags })}
-              currentUserId={currentUserId}
-            />
-          </div>
-
-          {/* Actions */}
-          <div className="flex items-center justify-end gap-3 pt-6 border-t border-gray-200">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-medium transition-colors"
-              disabled={loading}
             >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-6 py-2 bg-black text-white rounded-lg hover:bg-gray-800 font-medium transition-colors disabled:opacity-50"
-              disabled={loading}
-            >
-              {loading ? 'Creating...' : 'Create Ticket'}
-            </button>
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+            </select>
           </div>
-        </form>
-      </div>
-    </>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Status <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={formData.status}
+              onChange={(e) => setFormData({ ...formData, status: e.target.value as TicketStatus })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent text-sm"
+              required
+            >
+              <option value="open">Open</option>
+              <option value="in_progress">In Progress</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Due Date</label>
+            <input
+              type="date"
+              value={formData.due_date}
+              onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent text-sm"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Assign To</label>
+            <select
+              value={formData.assigned_to}
+              onChange={(e) => setFormData({ ...formData, assigned_to: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent text-sm"
+            >
+              <option value="">Unassigned</option>
+              {partners.map((partner) => (
+                <option key={partner.id} value={partner.id}>
+                  {getPersonName(partner)}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Related Company</label>
+            <select
+              value={formData.related_company}
+              onChange={(e) => setFormData({ ...formData, related_company: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent text-sm"
+            >
+              <option value="">None</option>
+              {companies.map((company) => (
+                <option key={company.id} value={company.id}>
+                  {company.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Related Person</label>
+            <select
+              value={formData.related_person}
+              onChange={(e) => setFormData({ ...formData, related_person: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent text-sm"
+            >
+              <option value="">None</option>
+              {people.map((person) => (
+                <option key={person.id} value={person.id}>
+                  {getPersonName(person)}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Tags</label>
+          <TagSelector
+            selectedTags={formData.tags}
+            onChange={(tags) => setFormData({ ...formData, tags })}
+            currentUserId={currentUserId}
+          />
+        </div>
+
+        <div className="flex items-center justify-end gap-2 pt-1">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-3 py-1.5 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-medium transition-colors text-sm"
+            disabled={loading}
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            className="px-3 py-1.5 bg-black text-white rounded-lg hover:bg-gray-800 font-medium transition-colors disabled:opacity-50 text-sm"
+            disabled={loading}
+          >
+            {loading ? 'Creating...' : 'Create'}
+          </button>
+        </div>
+      </form>
+    </div>
   )
 }
