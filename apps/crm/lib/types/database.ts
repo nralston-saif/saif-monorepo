@@ -324,8 +324,11 @@ export type Database = {
           location: string | null
           mobile_phone: string | null
           name: string | null
+          phone_verified: boolean | null
           relationship_notes: string | null
           role: string
+          sms_notification_types: string[] | null
+          sms_notifications_enabled: boolean | null
           status: string | null
           tags: string[] | null
           title: string | null
@@ -348,8 +351,11 @@ export type Database = {
           location?: string | null
           mobile_phone?: string | null
           name?: string | null
+          phone_verified?: boolean | null
           relationship_notes?: string | null
           role: string
+          sms_notification_types?: string[] | null
+          sms_notifications_enabled?: boolean | null
           status?: string | null
           tags?: string[] | null
           title?: string | null
@@ -372,8 +378,11 @@ export type Database = {
           location?: string | null
           mobile_phone?: string | null
           name?: string | null
+          phone_verified?: boolean | null
           relationship_notes?: string | null
           role?: string
+          sms_notification_types?: string[] | null
+          sms_notifications_enabled?: boolean | null
           status?: string | null
           tags?: string[] | null
           title?: string | null
