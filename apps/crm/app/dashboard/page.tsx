@@ -92,14 +92,7 @@ export default async function DashboardPage() {
     const { data: communityPeople } = await supabase
       .from('saif_people')
       .select(`
-        id,
-        first_name,
-        last_name,
-        email,
-        title,
-        avatar_url,
-        role,
-        status,
+        *,
         companies:saif_company_people(
           id,
           relationship_type,
