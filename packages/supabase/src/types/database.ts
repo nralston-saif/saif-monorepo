@@ -45,6 +45,9 @@ export interface Database {
           mobile_phone: string | null
           location: string | null
           tags: string[]
+          sms_notifications_enabled: boolean
+          sms_notification_types: string[]
+          phone_verified: boolean
           first_met_date: string | null
           introduced_by: string | null
           introduction_context: string | null
@@ -69,6 +72,9 @@ export interface Database {
           mobile_phone?: string | null
           location?: string | null
           tags?: string[]
+          sms_notifications_enabled?: boolean
+          sms_notification_types?: string[]
+          phone_verified?: boolean
           first_met_date?: string | null
           introduced_by?: string | null
           introduction_context?: string | null
@@ -93,6 +99,9 @@ export interface Database {
           mobile_phone?: string | null
           location?: string | null
           tags?: string[]
+          sms_notifications_enabled?: boolean
+          sms_notification_types?: string[]
+          phone_verified?: boolean
           first_met_date?: string | null
           introduced_by?: string | null
           introduction_context?: string | null

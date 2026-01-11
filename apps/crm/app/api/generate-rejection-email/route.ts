@@ -1,10 +1,9 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
-import { readFileSync } from 'fs'
-import { join } from 'path'
+import { requirePartnerApi } from '@/lib/auth/requirePartnerApi'
 
-// Initialize Supabase with service role key
+// Initialize Supabase with service role key (for database operations)
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -200,6 +199,12 @@ The SAIF Team`
 ]
 
 export async function POST(request: NextRequest) {
+  // Verify partner authentication
+  const auth = await requirePartnerApi()
+  if (!auth.success) {
+    return auth.response
+  }
+
   try {
     const { applicationId } = await request.json()
 
@@ -379,6 +384,12 @@ Generate ONLY the email text, nothing else.`
 
 // Endpoint to save edited email
 export async function PUT(request: NextRequest) {
+  // Verify partner authentication
+  const auth = await requirePartnerApi()
+  if (!auth.success) {
+    return auth.response
+  }
+
   try {
     const { applicationId, email } = await request.json()
 

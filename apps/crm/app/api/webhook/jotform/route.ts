@@ -85,15 +85,23 @@ async function findOrCreateCompany(
   return newCompany.id
 }
 
-// Webhook secret for authentication (set in JotForm webhook URL as ?secret=xxx)
+// Webhook secret for authentication
+// Preferred: X-Webhook-Secret header
+// Deprecated: ?secret=xxx query parameter (will be removed in future version)
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET
 
 export async function POST(request: NextRequest) {
   try {
     // Verify webhook secret if configured
     if (WEBHOOK_SECRET) {
+      // First, try header-based auth (preferred method)
+      const headerSecret = request.headers.get('X-Webhook-Secret')
+
+      // Fall back to query param (deprecated, for backwards compatibility)
       const url = new URL(request.url)
-      const providedSecret = url.searchParams.get('secret')
+      const querySecret = url.searchParams.get('secret')
+
+      const providedSecret = headerSecret || querySecret
 
       if (providedSecret !== WEBHOOK_SECRET) {
         console.error('Webhook authentication failed - invalid secret')
@@ -102,9 +110,14 @@ export async function POST(request: NextRequest) {
           { status: 401 }
         )
       }
+
+      // Log deprecation warning if using query param
+      if (!headerSecret && querySecret) {
+        console.warn('DEPRECATION WARNING: Webhook using query parameter authentication. Please migrate to X-Webhook-Secret header.')
+      }
     }
 
-    console.log('Received JotForm webhook - v7 with authentication')
+    console.log('Received JotForm webhook - v8 with header authentication')
 
     // JotForm sends data as form-encoded
     const formData = await request.formData()
@@ -240,8 +253,9 @@ export async function GET() {
   return NextResponse.json({
     status: 'ok',
     message: 'JotForm webhook endpoint is ready',
-    version: 'v7-with-authentication',
+    version: 'v8-header-auth',
     authenticated: !!WEBHOOK_SECRET,
+    authMethod: 'X-Webhook-Secret header (preferred) or ?secret= query param (deprecated)',
     timestamp: new Date().toISOString()
   })
 }

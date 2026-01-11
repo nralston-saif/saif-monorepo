@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
@@ -8,9 +8,29 @@ import SearchModal from './SearchModal'
 
 export default function Navigation({ userName, personId }: { userName: string; personId?: string }) {
   const [showSearch, setShowSearch] = useState(false)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const mobileMenuRef = useRef<HTMLDivElement>(null)
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
+
+  // Close mobile menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (mobileMenuRef.current && !mobileMenuRef.current.contains(e.target as Node)) {
+        setMobileMenuOpen(false)
+      }
+    }
+    if (mobileMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [mobileMenuOpen])
+
+  // Close mobile menu on route change
+  useEffect(() => {
+    setMobileMenuOpen(false)
+  }, [pathname])
 
   // Cmd+K / Ctrl+K keyboard shortcut
   useEffect(() => {
@@ -33,8 +53,7 @@ export default function Navigation({ userName, personId }: { userName: string; p
 
   const navItems = [
     { name: 'Dashboard', href: '/dashboard' },
-    { name: 'Pipeline', href: '/pipeline' },
-    { name: 'Deliberation', href: '/deliberation' },
+    { name: 'Deals', href: '/deals' },
     { name: 'Portfolio', href: '/portfolio' },
     { name: 'Tickets', href: '/tickets' },
     { name: 'Meetings', href: '/meetings' },
@@ -62,8 +81,8 @@ export default function Navigation({ userName, personId }: { userName: string; p
               </span>
             </Link>
 
-            {/* Nav Items */}
-            <div className="hidden sm:flex sm:ml-12 sm:space-x-1">
+            {/* Nav Items - hidden on small screens, shown on medium+ */}
+            <div className="hidden md:flex md:ml-10 md:space-x-1">
               {navItems.map((item) => {
                 const isActive = pathname === item.href
                 return (
@@ -121,6 +140,65 @@ export default function Navigation({ userName, personId }: { userName: string; p
 
           {/* Search and User Menu */}
           <div className="flex items-center gap-2">
+            {/* Hamburger Menu Button - shown on small screens only */}
+            <div className="relative md:hidden" ref={mobileMenuRef}>
+              <button
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="p-2 text-[#666666] hover:text-[#1a1a1a] hover:bg-[#f5f5f5] rounded-lg transition-colors"
+                aria-label="Toggle menu"
+              >
+                {mobileMenuOpen ? (
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                ) : (
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                  </svg>
+                )}
+              </button>
+
+              {/* Mobile Dropdown Menu */}
+              {mobileMenuOpen && (
+                <div className="absolute right-0 top-full mt-1 bg-white rounded-lg shadow-lg border border-gray-200 py-2 min-w-[180px] z-50">
+                  {navItems.map((item) => {
+                    const isActive = pathname === item.href
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        className={`block px-4 py-2 text-sm transition-colors ${
+                          isActive
+                            ? 'bg-[#f5f5f5] text-[#1a1a1a] font-medium'
+                            : 'text-[#666666] hover:bg-[#f5f5f5] hover:text-[#1a1a1a]'
+                        }`}
+                      >
+                        {item.name}
+                      </Link>
+                    )
+                  })}
+                  <div className="h-px bg-gray-200 my-1" />
+                  <div className="px-4 py-1 text-xs font-medium text-gray-400 uppercase tracking-wider">CRM</div>
+                  {crmItems.map((item) => {
+                    const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        className={`block px-4 py-2 text-sm transition-colors ${
+                          isActive
+                            ? 'bg-[#f5f5f5] text-[#1a1a1a] font-medium'
+                            : 'text-[#666666] hover:bg-[#f5f5f5] hover:text-[#1a1a1a]'
+                        }`}
+                      >
+                        {item.name}
+                      </Link>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
             {/* Search Button */}
             <button
               onClick={() => setShowSearch(true)}
@@ -139,66 +217,56 @@ export default function Navigation({ userName, personId }: { userName: string; p
                   d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
                 />
               </svg>
-              <span className="hidden sm:inline">Search</span>
-              <kbd className="hidden sm:inline-flex items-center px-1.5 py-0.5 text-xs text-gray-400 bg-gray-100 border border-gray-200 rounded">
+              <span className="hidden md:inline">Search</span>
+              <kbd className="hidden md:inline-flex items-center px-1.5 py-0.5 text-xs text-gray-400 bg-gray-100 border border-gray-200 rounded">
                 ⌘K
               </kbd>
             </button>
 
-            <div className="w-px h-6 bg-gray-200 mx-1 hidden sm:block" />
+            <div className="w-px h-6 bg-gray-200 mx-1 hidden md:block" />
 
-            {personId ? (
-              <Link href={`/people/${personId}`} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+            {/* User Menu Dropdown */}
+            <div className="relative group">
+              <button className="flex items-center gap-3 hover:opacity-80 transition-opacity">
                 <div className="w-8 h-8 bg-[#1a1a1a] rounded-full flex items-center justify-center">
                   <span className="text-white text-sm font-medium">
                     {userName.charAt(0).toUpperCase()}
                   </span>
                 </div>
-                <span className="text-sm font-medium text-[#4a4a4a] hidden sm:block">
+                <span className="text-sm font-medium text-[#4a4a4a] hidden md:block">
                   {userName}
                 </span>
-              </Link>
-            ) : (
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-[#1a1a1a] rounded-full flex items-center justify-center">
-                  <span className="text-white text-sm font-medium">
-                    {userName.charAt(0).toUpperCase()}
-                  </span>
+                <svg className="w-4 h-4 text-gray-400 hidden md:block" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              <div className="absolute right-0 top-full pt-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all">
+                <div className="bg-white rounded-lg shadow-lg border border-gray-200 py-1 min-w-[160px]">
+                  {personId && (
+                    <Link
+                      href={`/people/${personId}`}
+                      className="block px-4 py-2 text-sm text-[#666666] hover:bg-[#f5f5f5] hover:text-[#1a1a1a]"
+                    >
+                      View Profile
+                    </Link>
+                  )}
+                  <Link
+                    href="/profile/settings"
+                    className="block px-4 py-2 text-sm text-[#666666] hover:bg-[#f5f5f5] hover:text-[#1a1a1a]"
+                  >
+                    Settings
+                  </Link>
+                  <div className="h-px bg-gray-200 my-1" />
+                  <button
+                    onClick={handleLogout}
+                    className="w-full text-left px-4 py-2 text-sm text-[#666666] hover:bg-[#f5f5f5] hover:text-[#1a1a1a]"
+                  >
+                    Sign out
+                  </button>
                 </div>
-                <span className="text-sm font-medium text-[#4a4a4a] hidden sm:block">
-                  {userName}
-                </span>
               </div>
-            )}
-            <button
-              onClick={handleLogout}
-              className="text-sm text-[#666666] hover:text-[#1a1a1a] px-3 py-2 rounded-lg hover:bg-[#f5f5f5] transition-colors"
-            >
-              Sign out
-            </button>
+            </div>
           </div>
-        </div>
-      </div>
-
-      {/* Mobile Nav */}
-      <div className="sm:hidden border-t border-gray-200 px-4 py-2">
-        <div className="flex space-x-1 overflow-x-auto">
-          {[...navItems, ...crmItems].map((item) => {
-            const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex-shrink-0 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                  isActive
-                    ? 'bg-[#f5f5f5] text-[#1a1a1a]'
-                    : 'text-[#666666] hover:bg-[#f5f5f5]'
-                }`}
-              >
-                {item.name}
-              </Link>
-            )
-          })}
         </div>
       </div>
 

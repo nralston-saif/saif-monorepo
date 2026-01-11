@@ -219,6 +219,24 @@ export default async function DashboardPage() {
     .order('created_at', { ascending: false })
     .limit(20)
 
+  // Fetch portfolio stats
+  const { data: investments } = await supabase
+    .from('saifcrm_investments')
+    .select('amount')
+
+  const totalInvestments = investments?.length || 0
+  const totalInvested = investments?.reduce((sum, inv) => sum + (inv.amount || 0), 0) || 0
+  const investmentsWithAmount = investments?.filter(inv => inv.amount && inv.amount > 0) || []
+  const averageCheck = investmentsWithAmount.length > 0
+    ? totalInvested / investmentsWithAmount.length
+    : 0
+
+  const portfolioStats = {
+    totalInvestments,
+    totalInvested,
+    averageCheck,
+  }
+
   const notifications = (notificationsData || []).map((n: any) => ({
     id: n.id,
     type: n.type,
@@ -243,6 +261,7 @@ export default async function DashboardPage() {
         myActiveTickets={myActiveTickets || []}
         overdueTicketsCount={overdueTicketsCount || 0}
         stats={stats}
+        portfolioStats={portfolioStats}
         notifications={notifications}
         userId={profile?.id || ''}
       />
