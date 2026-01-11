@@ -88,22 +88,28 @@ export default async function DashboardPage() {
       })).filter((f: any) => f.id)
     }
 
-    // Fetch community (all active/pending people) for the community listing
+    // Fetch community (active/pending people) - limited for performance
     const { data: communityPeople } = await supabase
       .from('saif_people')
       .select(`
-        *,
+        id,
+        first_name,
+        last_name,
+        email,
+        title,
+        avatar_url,
+        role,
+        status,
         companies:saif_company_people(
           id,
           relationship_type,
           title,
-          is_primary_contact,
-          end_date,
           company:saif_companies(id, name, logo_url, stage)
         )
       `)
       .in('status', ['active', 'pending'])
       .order('first_name')
+      .limit(100)
 
     return <FounderDashboard person={typedProfile} userEmail={user.email || ''} company={company} founders={founders} founderTitle={companyRelation?.title} community={communityPeople || []} />
   }
@@ -160,16 +166,14 @@ export default async function DashboardPage() {
     submitted_at: app.submitted_at,
   })) || []
 
-  // Get pipeline stats
-  const { data: allApps } = await supabase
-    .from('saifcrm_applications')
-    .select('stage')
-
+  // Get pipeline stats using database function
+  const { data: statsData } = await supabase.rpc('get_application_stats')
+  const statsRow = Array.isArray(statsData) ? statsData[0] : statsData
   const stats = {
-    pipeline: allApps?.filter(a => a.stage === 'new' || a.stage === 'voting').length || 0,
-    deliberation: allApps?.filter(a => a.stage === 'deliberation').length || 0,
-    invested: allApps?.filter(a => a.stage === 'invested').length || 0,
-    rejected: allApps?.filter(a => a.stage === 'rejected').length || 0,
+    pipeline: Number(statsRow?.pipeline) || 0,
+    deliberation: Number(statsRow?.deliberation) || 0,
+    invested: Number(statsRow?.invested) || 0,
+    rejected: Number(statsRow?.rejected) || 0,
   }
 
   // Get active tickets assigned to user or unassigned
@@ -219,22 +223,13 @@ export default async function DashboardPage() {
     .order('created_at', { ascending: false })
     .limit(20)
 
-  // Fetch portfolio stats
-  const { data: investments } = await supabase
-    .from('saifcrm_investments')
-    .select('amount')
-
-  const totalInvestments = investments?.length || 0
-  const totalInvested = investments?.reduce((sum, inv) => sum + (inv.amount || 0), 0) || 0
-  const investmentsWithAmount = investments?.filter(inv => inv.amount && inv.amount > 0) || []
-  const averageCheck = investmentsWithAmount.length > 0
-    ? totalInvested / investmentsWithAmount.length
-    : 0
-
+  // Fetch portfolio stats using database function
+  const { data: portfolioData } = await supabase.rpc('get_portfolio_stats')
+  const portfolioRow = Array.isArray(portfolioData) ? portfolioData[0] : portfolioData
   const portfolioStats = {
-    totalInvestments,
-    totalInvested,
-    averageCheck,
+    totalInvestments: Number(portfolioRow?.total_investments) || 0,
+    totalInvested: Number(portfolioRow?.total_invested) || 0,
+    averageCheck: Number(portfolioRow?.average_check) || 0,
   }
 
   const notifications = (notificationsData || []).map((n: any) => ({

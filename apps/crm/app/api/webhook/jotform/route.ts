@@ -44,21 +44,19 @@ async function findOrCreateCompany(
     return existingByName.id
   }
 
-  // Try to find by website if provided
+  // Try to find by website if provided - use database filter instead of fetching all
   if (normalizedWebsite) {
+    // Search for websites containing the normalized domain (handles http/https and www variations)
     const { data: existingByWebsite } = await supabase
       .from('saif_companies')
-      .select('id, website')
-      .not('website', 'is', null)
+      .select('id')
+      .ilike('website', `%${normalizedWebsite}%`)
+      .limit(1)
+      .single()
 
     if (existingByWebsite) {
-      const match = existingByWebsite.find(
-        (c) => normalizeWebsite(c.website) === normalizedWebsite
-      )
-      if (match) {
-        console.log(`Found existing company by website: ${website} (${match.id})`)
-        return match.id
-      }
+      console.log(`Found existing company by website: ${website} (${existingByWebsite.id})`)
+      return existingByWebsite.id
     }
   }
 

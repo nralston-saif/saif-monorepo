@@ -1509,6 +1509,23 @@ export type Database = {
       increment_tag_usage: { Args: { tag_name: string }; Returns: undefined }
       is_founder: { Args: never; Returns: boolean }
       is_partner: { Args: never; Returns: boolean }
+      get_portfolio_stats: {
+        Args: never
+        Returns: {
+          total_investments: number
+          total_invested: number
+          average_check: number
+        }[]
+      }
+      get_application_stats: {
+        Args: never
+        Returns: {
+          pipeline: number
+          deliberation: number
+          invested: number
+          rejected: number
+        }[]
+      }
     }
     Enums: {
       ticket_priority: "high" | "medium" | "low"
