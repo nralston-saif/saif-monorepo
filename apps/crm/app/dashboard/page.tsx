@@ -97,6 +97,8 @@ export default async function DashboardPage() {
           id,
           relationship_type,
           title,
+          is_primary_contact,
+          end_date,
           company:saif_companies(id, name, logo_url, stage)
         )
       `)
