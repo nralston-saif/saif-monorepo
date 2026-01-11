@@ -18,6 +18,7 @@ type TicketForLeaderboard = {
   due_date: string | null
   archived_at: string | null
   assigned_to: string | null
+  created_by: string | null
   created_at: string
 }
 
@@ -27,6 +28,7 @@ type LeaderboardEntry = {
   partner: Partner
   points: number
   ticketsClosed: number
+  ticketsCreated: number
   onTimePercent: number
   currentStreak: number
   avgCloseTime: number // days
@@ -60,8 +62,7 @@ export default function LeaderboardModal({
     async function fetchTickets() {
       const { data, error } = await supabase
         .from('saif_tickets')
-        .select('id, status, priority, due_date, archived_at, assigned_to, created_at')
-        .eq('status', 'archived')
+        .select('id, status, priority, due_date, archived_at, assigned_to, created_by, created_at')
 
       if (error) {
         console.error('Error fetching tickets:', error)
@@ -89,12 +90,20 @@ export default function LeaderboardModal({
     return { start, end: now }
   }, [timePeriod])
 
-  // Filter tickets by time period
+  // Filter archived tickets by time period (for completion stats)
   const filteredTickets = useMemo(() => {
     return tickets.filter(t => {
       if (!t.archived_at) return false
       const resolvedDate = new Date(t.archived_at)
       return resolvedDate >= dateRange.start && resolvedDate <= dateRange.end
+    })
+  }, [tickets, dateRange])
+
+  // Filter tickets created within time period (for creation stats)
+  const ticketsCreatedInPeriod = useMemo(() => {
+    return tickets.filter(t => {
+      const createdDate = new Date(t.created_at)
+      return createdDate >= dateRange.start && createdDate <= dateRange.end
     })
   }, [tickets, dateRange])
 
@@ -106,13 +115,18 @@ export default function LeaderboardModal({
         t.assigned_to === partner.id
       )
 
+      // Get tickets created by this partner
+      const ticketsCreated = ticketsCreatedInPeriod.filter(t =>
+        t.created_by === partner.id
+      ).length
+
       // Count by priority
       const highPriority = partnerTickets.filter(t => t.priority === 'high').length
       const medPriority = partnerTickets.filter(t => t.priority === 'medium').length
       const lowPriority = partnerTickets.filter(t => t.priority === 'low').length
 
-      // Calculate points (high=3, medium=2, low=1)
-      const points = (highPriority * 3) + (medPriority * 2) + (lowPriority * 1)
+      // Calculate points (high=3, medium=2, low=1, created=1)
+      const points = (highPriority * 3) + (medPriority * 2) + (lowPriority * 1) + ticketsCreated
 
       // Calculate on-time percentage
       const ticketsWithDueDate = partnerTickets.filter(t => t.due_date && t.archived_at)
@@ -147,6 +161,7 @@ export default function LeaderboardModal({
         partner,
         points,
         ticketsClosed: partnerTickets.length,
+        ticketsCreated,
         onTimePercent,
         currentStreak,
         avgCloseTime,
@@ -158,7 +173,7 @@ export default function LeaderboardModal({
 
     // Sort by points descending
     return entries.sort((a, b) => b.points - a.points)
-  }, [partners, filteredTickets, tickets])
+  }, [partners, filteredTickets, ticketsCreatedInPeriod, tickets])
 
   // Calculate achievements for a partner
   const getAchievements = (entry: LeaderboardEntry): Achievement[] => {
@@ -269,6 +284,20 @@ export default function LeaderboardModal({
         description: 'Close 5+ tickets in a single day',
         icon: '🎪',
         earned: hasNTicketsInOneDay(entry.partner.id, tickets, 5),
+      },
+      {
+        id: 'prolific-creator',
+        name: 'Prolific Creator',
+        description: 'Create 25 tickets total',
+        icon: '📝',
+        earned: tickets.filter(t => t.created_by === entry.partner.id).length >= 25,
+      },
+      {
+        id: 'ticket-machine',
+        name: 'Ticket Machine',
+        description: 'Create 5 tickets in one day',
+        icon: '🎰',
+        earned: hasNTicketsCreatedInOneDay(entry.partner.id, tickets, 5),
       },
     ]
   }
@@ -411,6 +440,7 @@ export default function LeaderboardModal({
                     </div>
                     <div className="flex items-center gap-4 mt-1 text-sm text-gray-500">
                       <span>{entry.ticketsClosed} closed</span>
+                      <span>{entry.ticketsCreated} created</span>
                       <span>{entry.onTimePercent}% on-time</span>
                       {entry.avgCloseTime > 0 && (
                         <span>~{entry.avgCloseTime}d avg</span>
@@ -513,10 +543,11 @@ export default function LeaderboardModal({
           {/* Point System Explanation */}
           <div className="bg-gray-50 rounded-lg p-4 text-sm text-gray-600">
             <div className="font-medium text-gray-900 mb-2">Point System</div>
-            <div className="flex gap-6">
+            <div className="flex gap-6 flex-wrap">
               <span><span className="font-semibold text-red-600">High</span> = 3 pts</span>
               <span><span className="font-semibold text-amber-600">Medium</span> = 2 pts</span>
               <span><span className="font-semibold text-green-600">Low</span> = 1 pt</span>
+              <span><span className="font-semibold text-blue-600">Created</span> = 1 pt</span>
             </div>
           </div>
         </div>
@@ -687,4 +718,17 @@ function isCurrentWeeklyChampion(partnerId: string, leaderboard: LeaderboardEntr
   if (timePeriod !== 'week') return false
   if (leaderboard.length === 0) return false
   return leaderboard[0].partner.id === partnerId && leaderboard[0].points > 0
+}
+
+// Helper: Check if partner created N tickets in one day
+function hasNTicketsCreatedInOneDay(partnerId: string, tickets: TicketForLeaderboard[], n: number): boolean {
+  const partnerTickets = tickets.filter(t => t.created_by === partnerId)
+
+  const countByDate: Record<string, number> = {}
+  partnerTickets.forEach(t => {
+    const dateKey = new Date(t.created_at).toDateString()
+    countByDate[dateKey] = (countByDate[dateKey] || 0) + 1
+  })
+
+  return Object.values(countByDate).some(count => count >= n)
 }
