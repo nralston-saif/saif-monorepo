@@ -110,21 +110,98 @@ export default async function DashboardPage() {
   }
 
   // Partners see the CRM dashboard
-  // Get applications in pipeline that need user's vote
-  const { data: pipelineApps } = await supabase
-    .from('saifcrm_applications')
-    .select(`
-      id,
-      company_name,
-      founder_names,
-      company_description,
-      submitted_at,
-      saifcrm_votes(id, user_id, vote_type)
-    `)
-    .in('stage', ['new', 'voting'])
-    .order('submitted_at', { ascending: false })
+  // Run all queries in parallel for maximum performance
+  const [
+    { data: pipelineApps },
+    { data: deliberationApps },
+    { data: statsData },
+    { data: myActiveTickets },
+    { count: overdueTicketsCount },
+    { data: notificationsData },
+    { data: portfolioData }
+  ] = await Promise.all([
+    // Pipeline applications
+    supabase
+      .from('saifcrm_applications')
+      .select(`
+        id,
+        company_name,
+        founder_names,
+        company_description,
+        submitted_at,
+        saifcrm_votes(id, user_id, vote_type)
+      `)
+      .in('stage', ['new', 'voting'])
+      .order('submitted_at', { ascending: false }),
 
-  // Filter to apps that need user's vote (compare with person id)
+    // Deliberation applications
+    supabase
+      .from('saifcrm_applications')
+      .select(`
+        id,
+        company_name,
+        founder_names,
+        submitted_at,
+        saifcrm_deliberations(decision)
+      `)
+      .eq('stage', 'deliberation')
+      .order('submitted_at', { ascending: false }),
+
+    // Application stats
+    supabase.rpc('get_application_stats'),
+
+    // Active tickets
+    supabase
+      .from('saif_tickets')
+      .select(`
+        id,
+        title,
+        description,
+        priority,
+        due_date,
+        status,
+        tags,
+        company:related_company(name)
+      `)
+      .in('status', ['open', 'in_progress'])
+      .or(`assigned_to.eq.${profile?.id},assigned_to.is.null`)
+      .order('priority', { ascending: true })
+      .order('due_date', { ascending: true, nullsFirst: false })
+      .limit(10),
+
+    // Overdue tickets count
+    supabase
+      .from('saif_tickets')
+      .select('*', { count: 'exact', head: true })
+      .in('status', ['open', 'in_progress'])
+      .lt('due_date', new Date().toISOString().split('T')[0]),
+
+    // Notifications
+    supabase
+      .from('saifcrm_notifications')
+      .select(`
+        id,
+        type,
+        title,
+        message,
+        link,
+        application_id,
+        ticket_id,
+        read_at,
+        created_at,
+        actor:actor_id(name, first_name, last_name)
+      `)
+      .eq('recipient_id', profile?.id)
+      .is('dismissed_at', null)
+      .gt('expires_at', new Date().toISOString())
+      .order('created_at', { ascending: false })
+      .limit(20),
+
+    // Portfolio stats
+    supabase.rpc('get_portfolio_stats')
+  ])
+
+  // Filter pipeline apps that need user's vote
   const needsVote = pipelineApps?.filter((app) => {
     const initialVotes = app.saifcrm_votes?.filter((v: any) => v.vote_type === 'initial') || []
     return !initialVotes.some((v: any) => v.user_id === profile?.id)
@@ -136,20 +213,7 @@ export default async function DashboardPage() {
     submitted_at: app.submitted_at,
   })) || []
 
-  // Get companies in deliberation needing decision
-  const { data: deliberationApps } = await supabase
-    .from('saifcrm_applications')
-    .select(`
-      id,
-      company_name,
-      founder_names,
-      submitted_at,
-      saifcrm_deliberations(decision)
-    `)
-    .eq('stage', 'deliberation')
-    .order('submitted_at', { ascending: false })
-
-  // Filter to those without a final decision
+  // Filter deliberation apps without final decision
   const needsDecision = deliberationApps?.filter(app => {
     const delib = Array.isArray(app.saifcrm_deliberations) ? app.saifcrm_deliberations[0] : app.saifcrm_deliberations
     const decision = (delib as any)?.decision
@@ -161,8 +225,7 @@ export default async function DashboardPage() {
     submitted_at: app.submitted_at,
   })) || []
 
-  // Get pipeline stats using database function
-  const { data: statsData } = await supabase.rpc('get_application_stats')
+  // Process stats
   const statsRow = Array.isArray(statsData) ? statsData[0] : statsData
   const stats = {
     pipeline: Number(statsRow?.pipeline) || 0,
@@ -171,55 +234,6 @@ export default async function DashboardPage() {
     rejected: Number(statsRow?.rejected) || 0,
   }
 
-  // Get active tickets assigned to user or unassigned
-  const { data: myActiveTickets } = await supabase
-    .from('saif_tickets')
-    .select(`
-      id,
-      title,
-      description,
-      priority,
-      due_date,
-      status,
-      tags,
-      company:related_company(name)
-    `)
-    .in('status', ['open', 'in_progress'])
-    .or(`assigned_to.eq.${profile?.id},assigned_to.is.null`)
-    .order('priority', { ascending: true })
-    .order('due_date', { ascending: true, nullsFirst: false })
-    .limit(10)
-
-  // Count overdue tickets
-  const { count: overdueTicketsCount } = await supabase
-    .from('saif_tickets')
-    .select('*', { count: 'exact', head: true })
-    .in('status', ['open', 'in_progress'])
-    .lt('due_date', new Date().toISOString().split('T')[0])
-
-  // Fetch real notifications for this user
-  const { data: notificationsData } = await supabase
-    .from('saifcrm_notifications')
-    .select(`
-      id,
-      type,
-      title,
-      message,
-      link,
-      application_id,
-      ticket_id,
-      read_at,
-      created_at,
-      actor:actor_id(name, first_name, last_name)
-    `)
-    .eq('recipient_id', profile?.id)
-    .is('dismissed_at', null)
-    .gt('expires_at', new Date().toISOString())
-    .order('created_at', { ascending: false })
-    .limit(20)
-
-  // Fetch portfolio stats using database function
-  const { data: portfolioData } = await supabase.rpc('get_portfolio_stats')
   const portfolioRow = Array.isArray(portfolioData) ? portfolioData[0] : portfolioData
   const portfolioStats = {
     totalInvestments: Number(portfolioRow?.total_investments) || 0,
