@@ -132,39 +132,20 @@ export default function ClaimProfilePage() {
         return
       }
 
-      // Use atomic claim function to prevent race conditions
-      const { data, error: rpcError } = await supabase
-        .rpc('claim_profile', {
-          p_profile_id: profileId,
-          p_auth_user_id: user.id,
-          p_user_email: user.email || null
+      // Simple update to claim the profile
+      const { error: updateError } = await supabase
+        .from('saif_people')
+        .update({
+          auth_user_id: user.id,
+          email: user.email,
+          status: 'active'
         })
+        .eq('id', profileId)
+        .is('auth_user_id', null) // Only claim if unclaimed
 
-      if (rpcError) {
-        console.error('Claim RPC error:', rpcError)
+      if (updateError) {
+        console.error('Claim error:', updateError)
         setError('An error occurred while claiming the profile. Please try again.')
-        setClaiming(false)
-        return
-      }
-
-      // Check the result from the function
-      const result = data as { success: boolean; error?: string; message?: string }
-
-      if (!result.success) {
-        // Handle specific error cases
-        switch (result.error) {
-          case 'already_claimed':
-            setError('This profile has already been claimed by another user.')
-            break
-          case 'profile_locked':
-            setError('This profile is currently being claimed. Please try again in a moment.')
-            break
-          case 'profile_not_found':
-            setError('Profile not found. Please search again.')
-            break
-          default:
-            setError(result.message || 'Unable to claim this profile.')
-        }
         setClaiming(false)
         return
       }
