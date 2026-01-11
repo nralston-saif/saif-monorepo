@@ -495,14 +495,23 @@ export default function LeaderboardModal({
                       {getHeatmapData(entry.partner.id).map((day, i) => (
                         <div
                           key={i}
-                          className={`w-3 h-3 rounded-sm ${
-                            day.count === 0 ? 'bg-gray-200' :
-                            day.count === 1 ? 'bg-green-300' :
-                            day.count === 2 ? 'bg-green-400' :
-                            day.count >= 3 ? 'bg-green-600' : 'bg-gray-200'
-                          }`}
-                          title={`${day.date.toLocaleDateString()}: ${day.count} tickets`}
-                        />
+                          className="group/day relative"
+                        >
+                          <div
+                            className={`w-3 h-3 rounded-sm cursor-pointer ${
+                              day.count === 0 ? 'bg-gray-200' :
+                              day.count === 1 ? 'bg-green-300' :
+                              day.count === 2 ? 'bg-green-400' :
+                              day.count >= 3 ? 'bg-green-600' : 'bg-gray-200'
+                            }`}
+                          />
+                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 opacity-0 invisible group-hover/day:opacity-100 group-hover/day:visible transition-all duration-150 z-50 pointer-events-none">
+                            <div className="bg-gray-900 text-white text-xs rounded px-2 py-1 whitespace-nowrap">
+                              {day.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                              {day.count > 0 && ` · ${day.count} ticket${day.count !== 1 ? 's' : ''}`}
+                            </div>
+                          </div>
+                        </div>
                       ))}
                     </div>
                   </div>
