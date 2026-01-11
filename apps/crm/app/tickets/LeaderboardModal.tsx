@@ -302,12 +302,25 @@ export default function LeaderboardModal({
     ]
   }
 
-  // Get activity heatmap data (last 12 weeks)
+  // Find the earliest ticket date (when tickets started being used)
+  const firstTicketDate = useMemo(() => {
+    if (tickets.length === 0) return new Date()
+    const dates = tickets.map(t => new Date(t.created_at).getTime())
+    const earliest = new Date(Math.min(...dates))
+    earliest.setHours(0, 0, 0, 0)
+    return earliest
+  }, [tickets])
+
+  // Get activity heatmap data (from first ticket to now)
   const getHeatmapData = (partnerId: string) => {
     const days: { date: Date; count: number }[] = []
     const now = new Date()
+    now.setHours(23, 59, 59, 999)
 
-    for (let i = 83; i >= 0; i--) { // 12 weeks = 84 days
+    // Calculate days from first ticket to now
+    const daysDiff = Math.ceil((now.getTime() - firstTicketDate.getTime()) / (1000 * 60 * 60 * 24))
+
+    for (let i = daysDiff; i >= 0; i--) {
       const date = new Date(now)
       date.setDate(date.getDate() - i)
       date.setHours(0, 0, 0, 0)
@@ -477,7 +490,7 @@ export default function LeaderboardModal({
                 {/* Activity Heatmap (only for top 3) */}
                 {index < 3 && (
                   <div className="mt-4 pt-4 border-t border-gray-200/50">
-                    <div className="text-xs text-gray-500 mb-2">Last 12 weeks activity</div>
+                    <div className="text-xs text-gray-500 mb-2">Activity</div>
                     <div className="flex gap-[3px] flex-wrap">
                       {getHeatmapData(entry.partner.id).map((day, i) => (
                         <div
