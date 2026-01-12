@@ -90,10 +90,28 @@ export default function PersonView({ person, introducerName, activeCompanies, ca
   const [newTitle, setNewTitle] = useState('')
   const [savingAffiliation, setSavingAffiliation] = useState(false)
 
+  const [copiedEmail, setCopiedEmail] = useState(false)
+  const [copiedAltEmail, setCopiedAltEmail] = useState<number | null>(null)
+
+  const copyEmailToClipboard = async () => {
+    if (person.email) {
+      await navigator.clipboard.writeText(person.email)
+      setCopiedEmail(true)
+      setTimeout(() => setCopiedEmail(false), 2000)
+    }
+  }
+
+  const copyAltEmailToClipboard = async (email: string, idx: number) => {
+    await navigator.clipboard.writeText(email)
+    setCopiedAltEmail(idx)
+    setTimeout(() => setCopiedAltEmail(null), 2000)
+  }
+
   const [formData, setFormData] = useState({
     first_name: person.first_name || '',
     last_name: person.last_name || '',
     email: person.email || '',
+    alternative_emails: person.alternative_emails?.join(', ') || '',
     title: person.title || '',
     bio: person.bio || '',
     linkedin_url: person.linkedin_url || '',
@@ -343,12 +361,18 @@ export default function PersonView({ person, introducerName, activeCompanies, ca
     setSuccess(null)
 
     try {
+      // Parse alternative_emails from comma-separated string to array
+      const alternativeEmailsArray = formData.alternative_emails
+        ? formData.alternative_emails.split(',').map(e => e.trim()).filter(Boolean)
+        : null
+
       const { error: updateError } = await supabase
         .from('saif_people')
         .update({
           first_name: formData.first_name || null,
           last_name: formData.last_name || null,
           email: formData.email || null,
+          alternative_emails: alternativeEmailsArray?.length ? alternativeEmailsArray : null,
           title: formData.title || null,
           bio: formData.bio || null,
           linkedin_url: formData.linkedin_url || null,
@@ -580,6 +604,21 @@ export default function PersonView({ person, introducerName, activeCompanies, ca
                   onChange={handleInputChange}
                   className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-gray-900 focus:border-gray-900"
                 />
+              </div>
+              <div>
+                <label htmlFor="alternative_emails" className="block text-sm font-medium text-gray-700">
+                  Alternative Emails
+                </label>
+                <input
+                  type="text"
+                  id="alternative_emails"
+                  name="alternative_emails"
+                  value={formData.alternative_emails}
+                  onChange={handleInputChange}
+                  placeholder="other@email.com, another@email.com"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-gray-900 focus:border-gray-900"
+                />
+                <p className="mt-1 text-xs text-gray-500">Separate multiple emails with commas</p>
               </div>
               <div>
                 <label htmlFor="mobile_phone" className="block text-sm font-medium text-gray-700">
@@ -833,6 +872,7 @@ export default function PersonView({ person, introducerName, activeCompanies, ca
                   first_name: person.first_name || '',
                   last_name: person.last_name || '',
                   email: person.email || '',
+                  alternative_emails: person.alternative_emails?.join(', ') || '',
                   title: person.title || '',
                   bio: person.bio || '',
                   linkedin_url: person.linkedin_url || '',
@@ -1012,15 +1052,62 @@ export default function PersonView({ person, introducerName, activeCompanies, ca
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Contact</h2>
             <div className="flex flex-wrap gap-3">
               {person.email && (
-                <a
-                  href={`mailto:${person.email}`}
-                  className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition"
-                >
-                  <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                  </svg>
-                  {person.email}
-                </a>
+                <div className="inline-flex items-center border border-gray-300 rounded-lg overflow-hidden">
+                  <a
+                    href={`mailto:${person.email}`}
+                    className="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition"
+                  >
+                    <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                    {person.email}
+                  </a>
+                  <button
+                    onClick={copyEmailToClipboard}
+                    className="px-3 py-2 border-l border-gray-300 text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition"
+                    title="Copy email to clipboard"
+                  >
+                    {copiedEmail ? (
+                      <svg className="w-4 h-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    ) : (
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
+              )}
+              {person.alternative_emails && person.alternative_emails.length > 0 && (
+                person.alternative_emails.map((altEmail, idx) => (
+                  <div key={idx} className="inline-flex items-center border border-gray-300 rounded-lg overflow-hidden">
+                    <a
+                      href={`mailto:${altEmail}`}
+                      className="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition"
+                    >
+                      <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                      </svg>
+                      {altEmail}
+                    </a>
+                    <button
+                      onClick={() => copyAltEmailToClipboard(altEmail, idx)}
+                      className="px-3 py-2 border-l border-gray-300 text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition"
+                      title="Copy email to clipboard"
+                    >
+                      {copiedAltEmail === idx ? (
+                        <svg className="w-4 h-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                      ) : (
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
+                ))
               )}
               {person.mobile_phone && (
                 <a

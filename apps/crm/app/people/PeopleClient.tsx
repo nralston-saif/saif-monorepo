@@ -24,6 +24,7 @@ type Person = {
   last_name: string | null
   displayName: string | null
   email: string | null
+  alternative_emails: string[] | null
   role: UserRole
   status: UserStatus
   title: string | null
@@ -233,8 +234,16 @@ export default function PeopleClient({
 
     return people.filter(person => {
       // Check for exact email match (if email provided)
-      if (email && person.email && email.toLowerCase() === person.email.toLowerCase()) {
-        return true
+      if (email) {
+        const emailLower = email.toLowerCase()
+        // Check primary email
+        if (person.email && emailLower === person.email.toLowerCase()) {
+          return true
+        }
+        // Check alternative emails
+        if (person.alternative_emails?.some(altEmail => emailLower === altEmail.toLowerCase())) {
+          return true
+        }
       }
 
       // Check for similar names
@@ -564,15 +573,15 @@ export default function PeopleClient({
       ) : (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full table-fixed">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50">
-                  <th className="text-left py-4 px-6 text-sm font-medium text-gray-500">Name</th>
-                  <th className="text-left py-4 px-6 text-sm font-medium text-gray-500">Role</th>
-                  <th className="text-left py-4 px-6 text-sm font-medium text-gray-500 hidden md:table-cell">Company</th>
-                  <th className="text-left py-4 px-6 text-sm font-medium text-gray-500 hidden lg:table-cell">Email</th>
-                  <th className="text-left py-4 px-6 text-sm font-medium text-gray-500 hidden lg:table-cell">Location</th>
-                  <th className="text-right py-4 px-6 text-sm font-medium text-gray-500">Actions</th>
+                  <th className="text-left py-4 px-4 text-sm font-medium text-gray-500 w-48">Name</th>
+                  <th className="text-left py-4 px-4 text-sm font-medium text-gray-500">Role</th>
+                  <th className="text-left py-4 px-4 text-sm font-medium text-gray-500 hidden md:table-cell">Company</th>
+                  <th className="text-left py-4 px-4 text-sm font-medium text-gray-500 hidden lg:table-cell">Email</th>
+                  <th className="text-left py-4 px-4 text-sm font-medium text-gray-500 hidden lg:table-cell">Location</th>
+                  <th className="text-right py-4 px-4 text-sm font-medium text-gray-500">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -582,37 +591,37 @@ export default function PeopleClient({
                     className="border-b border-gray-50 hover:bg-gray-50 cursor-pointer transition-colors"
                     onClick={() => setSelectedPerson(person)}
                   >
-                    <td className="py-4 px-6">
+                    <td className="py-4 px-4 max-w-[200px]">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-gradient-to-br from-gray-200 to-gray-300 rounded-full flex items-center justify-center flex-shrink-0">
-                          <span className="text-gray-600 font-medium">
+                        <div className="w-9 h-9 bg-gradient-to-br from-gray-200 to-gray-300 rounded-full flex items-center justify-center flex-shrink-0">
+                          <span className="text-gray-600 font-medium text-sm">
                             {(person.displayName || '?').charAt(0).toUpperCase()}
                           </span>
                         </div>
                         <div className="min-w-0">
-                          <p className="font-medium text-gray-900 truncate">{person.displayName || 'Unknown'}</p>
+                          <p className="font-medium text-gray-900 truncate text-sm">{person.displayName || 'Unknown'}</p>
                           {person.title && (
-                            <p className="text-sm text-gray-500 truncate">{person.title}</p>
+                            <p className="text-xs text-gray-500 truncate">{person.title}</p>
                           )}
                         </div>
                       </div>
                     </td>
-                    <td className="py-4 px-6">
+                    <td className="py-4 px-4">
                       <span className={`badge ${ROLE_COLORS[person.role]}`}>
                         {ROLE_LABELS[person.role]}
                       </span>
                     </td>
-                    <td className="py-4 px-6 hidden md:table-cell">
-                      <span className="text-gray-600 truncate max-w-[200px] block">
+                    <td className="py-4 px-4 hidden md:table-cell">
+                      <span className="text-gray-600 truncate max-w-[180px] block text-sm">
                         {getCompanyNames(person.company_associations) || '-'}
                       </span>
                     </td>
-                    <td className="py-4 px-6 hidden lg:table-cell">
+                    <td className="py-4 px-4 hidden lg:table-cell">
                       {person.email ? (
                         <a
                           href={`mailto:${person.email}`}
                           onClick={(e) => e.stopPropagation()}
-                          className="text-gray-600 hover:text-[#1a1a1a] truncate max-w-[200px] block"
+                          className="text-gray-600 hover:text-[#1a1a1a] truncate max-w-[180px] block text-sm"
                         >
                           {person.email}
                         </a>
@@ -620,10 +629,10 @@ export default function PeopleClient({
                         <span className="text-gray-400">-</span>
                       )}
                     </td>
-                    <td className="py-4 px-6 hidden lg:table-cell">
-                      <span className="text-gray-600">{person.location || '-'}</span>
+                    <td className="py-4 px-4 hidden lg:table-cell">
+                      <span className="text-gray-600 text-sm">{person.location || '-'}</span>
                     </td>
-                    <td className="py-4 px-6">
+                    <td className="py-4 px-4">
                       <div className="flex items-center justify-end gap-2">
                         {person.linkedin_url && (
                           <a
@@ -659,7 +668,7 @@ export default function PeopleClient({
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
-                            openEditModal(person)
+                            router.push(`/people/${person.id}?edit=true`)
                           }}
                           className="p-2 text-gray-400 hover:text-[#1a1a1a] rounded-lg hover:bg-gray-100 transition-colors"
                           title="Edit"

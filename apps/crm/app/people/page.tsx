@@ -20,6 +20,7 @@ type PersonWithNotes = {
   last_name: string | null
   displayName: string | null
   email: string | null
+  alternative_emails: string[] | null
   role: UserRole
   status: UserStatus
   title: string | null
@@ -78,7 +79,7 @@ export default async function PeoplePage({
     // Get all people (limit columns, no nested associations yet)
     const { data: people } = await supabase
       .from('saif_people')
-      .select('id, auth_user_id, first_name, last_name, name, email, role, status, avatar_url, linkedin_url, title, bio, twitter_url, mobile_phone, location, tags, first_met_date, introduced_by, introduction_context, relationship_notes, created_at, updated_at')
+      .select('id, auth_user_id, first_name, last_name, name, email, alternative_emails, role, status, avatar_url, linkedin_url, title, bio, twitter_url, mobile_phone, location, tags, first_met_date, introduced_by, introduction_context, relationship_notes, created_at, updated_at')
       .order('first_name', { ascending: true })
       .limit(500)
 
@@ -174,6 +175,7 @@ export default async function PeoplePage({
         last_name: person.last_name,
         displayName,
         email: person.email,
+        alternative_emails: person.alternative_emails,
         role: person.role as UserRole,
         status: person.status as UserStatus,
         title: person.title,

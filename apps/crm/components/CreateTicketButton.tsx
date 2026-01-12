@@ -30,7 +30,22 @@ export default function CreateTicketButton({ currentUserId, className, onSuccess
   const [partners, setPartners] = useState<Person[]>([])
   const [companies, setCompanies] = useState<Company[]>([])
   const [people, setPeople] = useState<Person[]>([])
+  const [isPartner, setIsPartner] = useState<boolean | null>(null)
   const supabase = createClient()
+
+  // Check if current user is a partner
+  useEffect(() => {
+    const checkPartner = async () => {
+      const { data } = await supabase
+        .from('saif_people')
+        .select('role')
+        .eq('id', currentUserId)
+        .single()
+
+      setIsPartner(data?.role === 'partner')
+    }
+    checkPartner()
+  }, [currentUserId, supabase])
 
   // Fetch data when modal opens
   useEffect(() => {
@@ -61,6 +76,11 @@ export default function CreateTicketButton({ currentUserId, className, onSuccess
       fetchData()
     }
   }, [showModal, supabase])
+
+  // Don't render anything if not a partner (or still checking)
+  if (!isPartner) {
+    return null
+  }
 
   return (
     <>

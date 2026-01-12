@@ -32,6 +32,7 @@ export interface Database {
           id: string
           auth_user_id: string | null
           email: string | null
+          alternative_emails: string[] | null
           role: UserRole
           status: UserStatus
           first_name: string | null
@@ -59,6 +60,7 @@ export interface Database {
           id?: string
           auth_user_id?: string | null
           email?: string | null
+          alternative_emails?: string[] | null
           role: UserRole
           status?: UserStatus
           first_name?: string | null
@@ -86,6 +88,7 @@ export interface Database {
           id?: string
           auth_user_id?: string | null
           email?: string | null
+          alternative_emails?: string[] | null
           role?: UserRole
           status?: UserStatus
           first_name?: string | null

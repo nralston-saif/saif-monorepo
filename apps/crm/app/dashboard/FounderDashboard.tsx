@@ -58,34 +58,46 @@ export default function FounderDashboard({ person, userEmail, company, founders,
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Welcome Section with Avatar */}
-        <div className="mb-8 flex items-center space-x-6">
-          {/* Avatar */}
-          <div className="flex-shrink-0">
-            {person.avatar_url ? (
-              <img
-                src={person.avatar_url}
-                alt={`${person.first_name} ${person.last_name}`}
-                className="h-20 w-20 rounded-full object-cover border-2 border-gray-200"
-              />
-            ) : (
-              <div className="h-20 w-20 rounded-full bg-gray-200 flex items-center justify-center border-2 border-gray-200">
-                <span className="text-2xl font-semibold text-gray-500">
-                  {person.first_name?.[0] || '?'}
-                </span>
-              </div>
-            )}
+        <div className="mb-8 flex items-center justify-between">
+          <div className="flex items-center space-x-6">
+            {/* Avatar */}
+            <div className="flex-shrink-0">
+              {person.avatar_url ? (
+                <img
+                  src={person.avatar_url}
+                  alt={`${person.first_name} ${person.last_name}`}
+                  className="h-20 w-20 rounded-full object-cover border-2 border-gray-200"
+                />
+              ) : (
+                <div className="h-20 w-20 rounded-full bg-gray-200 flex items-center justify-center border-2 border-gray-200">
+                  <span className="text-2xl font-semibold text-gray-500">
+                    {person.first_name?.[0] || '?'}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Welcome Text */}
+            <div>
+              <h2 className="text-3xl font-bold text-gray-900">
+                Welcome back{person.first_name ? `, ${person.first_name}` : ''}
+              </h2>
+              <p className="mt-2 text-sm text-gray-600">
+                {founderTitle || (person.role.charAt(0).toUpperCase() + person.role.slice(1))}
+                {company && <> at <Link href={`/companies/${company.id}`} className="font-medium text-gray-900 hover:underline">{company.name}</Link></>}
+              </p>
+            </div>
           </div>
 
-          {/* Welcome Text */}
-          <div>
-            <h2 className="text-3xl font-bold text-gray-900">
-              Welcome back{person.first_name ? `, ${person.first_name}` : ''}
-            </h2>
-            <p className="mt-2 text-sm text-gray-600">
-              {founderTitle || (person.role.charAt(0).toUpperCase() + person.role.slice(1))}
-              {company && <> at <Link href={`/companies/${company.id}`} className="font-medium text-gray-900 hover:underline">{company.name}</Link></>}
-            </p>
-          </div>
+          {/* Schedule Office Hours */}
+          <a
+            href="https://calendly.com/geoffralston/saif-hours"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 transition"
+          >
+            Schedule Office Hours
+          </a>
         </div>
 
         {/* Company Card */}
@@ -160,30 +172,6 @@ export default function FounderDashboard({ person, userEmail, company, founders,
             </Link>
           </div>
         )}
-
-        {/* Action Bar */}
-        <div className="flex flex-wrap gap-3 mb-8">
-          <Link
-            href="/companies"
-            className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 transition"
-          >
-            Browse SAIF Companies
-          </Link>
-          <Link
-            href="/people"
-            className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 transition"
-          >
-            Browse SAIF People
-          </Link>
-          <a
-            href="https://calendly.com/geoffralston/saif-hours"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 transition"
-          >
-            Schedule Office Hours
-          </a>
-        </div>
 
         {/* SAIF Community */}
         <div className="mt-8">
