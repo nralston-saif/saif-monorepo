@@ -345,11 +345,12 @@ export default function PipelineClient({
 
       // Create a ticket for the email follow-up task
       const stageLabel = action === 'deliberation' ? 'deliberation' : 'rejection'
+      const emailType = action === 'deliberation' ? 'ACCEPT' : 'REJECT'
       const { error: ticketError } = await supabase
         .from('saif_tickets')
         .insert({
-          title: `Send follow-up email to ${app.company_name}`,
-          description: `Send ${stageLabel} follow-up email to ${app.company_name}${app.primary_email ? ` (${app.primary_email})` : ''}${app.founder_names ? `\n\nFounders: ${app.founder_names}` : ''}`,
+          title: `Send ${emailType} email to ${app.company_name}`,
+          description: `Send ${stageLabel} follow-up email to ${app.company_name}${app.primary_email ? ` (${app.primary_email})` : ''}${app.founder_names ? `\n\nFounders: ${app.founder_names}` : ''}\n\nEmail type: ${emailType}`,
           status: 'open',
           priority: 'medium',
           assigned_to: selectedEmailSender,

@@ -666,7 +666,7 @@ export default function TicketDetailModal({
                     className="px-3 py-1.5 bg-emerald-100 text-emerald-700 rounded-lg text-sm font-medium hover:bg-emerald-200 transition-colors"
                     disabled={loading}
                   >
-                    Archive (Mark Complete)
+                    Resolve
                   </button>
                 </div>
               </div>
@@ -947,7 +947,7 @@ export default function TicketDetailModal({
           <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center rounded-2xl">
             <div className="bg-white rounded-xl p-6 max-w-lg mx-4 w-full">
               <h3 className="text-lg font-bold text-gray-900 mb-2">
-                Archive Ticket
+                Resolve Ticket
               </h3>
               <p className="text-gray-600 mb-4">
                 Add a final comment to summarize the outcome (optional).
@@ -982,7 +982,7 @@ export default function TicketDetailModal({
                   className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-medium transition-colors disabled:opacity-50"
                   disabled={loading}
                 >
-                  {loading ? 'Archiving...' : 'Archive & Close'}
+                  {loading ? 'Resolving...' : 'Resolve & Close'}
                 </button>
               </div>
             </div>

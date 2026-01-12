@@ -271,7 +271,7 @@ export default function DashboardClient({
 
     // Make API calls in background
     if (resolveComment.trim()) {
-      await (supabase as any).from('saifcrm_ticket_comments').insert({
+      await supabase.from('saif_ticket_comments').insert({
         ticket_id: ticketId,
         author_id: userId,
         content: resolveComment.trim(),

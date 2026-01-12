@@ -246,7 +246,7 @@ export default function TicketsClient({
 
     // Add comment if provided
     if (resolveComment.trim()) {
-      await (supabase as any).from('saifcrm_ticket_comments').insert({
+      await supabase.from('saif_ticket_comments').insert({
         ticket_id: resolvingTicket.id,
         author_id: currentUserId,
         content: resolveComment.trim(),

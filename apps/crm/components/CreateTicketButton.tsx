@@ -232,7 +232,7 @@ function QuickTicketModal({
             />
           </div>
 
-          {/* Priority & Status (Two columns) */}
+          {/* Priority & Assign To (Two columns) */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -252,21 +252,24 @@ function QuickTicketModal({
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Status <span className="text-red-500">*</span>
+                Assign To
               </label>
               <select
-                value={formData.status}
-                onChange={(e) => setFormData({ ...formData, status: e.target.value as TicketStatus })}
+                value={formData.assigned_to}
+                onChange={(e) => setFormData({ ...formData, assigned_to: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent text-sm"
-                required
               >
-                <option value="open">Open</option>
-                <option value="in_progress">In Progress</option>
+                <option value="">Unassigned</option>
+                {partners.map(partner => (
+                  <option key={partner.id} value={partner.id}>
+                    {getPersonName(partner)}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
 
-          {/* Due Date & Assigned To */}
+          {/* Due Date & Status */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -282,19 +285,16 @@ function QuickTicketModal({
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Assign To
+                Status <span className="text-red-500">*</span>
               </label>
               <select
-                value={formData.assigned_to}
-                onChange={(e) => setFormData({ ...formData, assigned_to: e.target.value })}
+                value={formData.status}
+                onChange={(e) => setFormData({ ...formData, status: e.target.value as TicketStatus })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent text-sm"
+                required
               >
-                <option value="">Unassigned</option>
-                {partners.map(partner => (
-                  <option key={partner.id} value={partner.id}>
-                    {getPersonName(partner)}
-                  </option>
-                ))}
+                <option value="open">Open</option>
+                <option value="in_progress">In Progress</option>
               </select>
             </div>
           </div>
