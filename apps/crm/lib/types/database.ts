@@ -481,6 +481,7 @@ export type Database = {
       }
       saif_tickets: {
         Row: {
+          application_id: string | null
           archived_at: string | null
           assigned_to: string | null
           created_at: string
@@ -497,6 +498,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          application_id?: string | null
           archived_at?: string | null
           assigned_to?: string | null
           created_at?: string
@@ -513,6 +515,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          application_id?: string | null
           archived_at?: string | null
           assigned_to?: string | null
           created_at?: string
