@@ -27,6 +27,7 @@ type Person = {
   last_name: string | null
   name: string | null
   email: string | null
+  alternative_emails: string[] | null
   role: UserRole
   status: UserStatus
   title: string | null
