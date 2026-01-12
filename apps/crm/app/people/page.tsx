@@ -76,10 +76,10 @@ export default async function PeoplePage({
 
   // For partners, show the full CRM people view with notes
   if (isPartner) {
-    // Get all people (limit columns, no nested associations yet)
+    // Get all people
     const { data: people } = await supabase
       .from('saif_people')
-      .select('id, auth_user_id, first_name, last_name, name, email, alternative_emails, role, status, avatar_url, linkedin_url, title, bio, twitter_url, mobile_phone, location, tags, first_met_date, introduced_by, introduction_context, relationship_notes, created_at, updated_at')
+      .select('*')
       .order('first_name', { ascending: true })
       .limit(500)
 
