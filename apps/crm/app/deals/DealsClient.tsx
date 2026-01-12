@@ -54,7 +54,7 @@ type Deliberation = {
 
 type InterviewTag = {
   name: string
-  color: string
+  color: string | null
 }
 
 type DeliberationApplication = BaseApplication & {
