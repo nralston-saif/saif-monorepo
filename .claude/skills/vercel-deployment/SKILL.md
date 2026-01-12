@@ -103,43 +103,49 @@ Use browser MCP to:
 
 **Wait pattern**: Deployments typically take 30s-3min. Check status every 30 seconds.
 
-## Phase 4: Handle Deployment Failures
+## Phase 4: Handle Deployment Failures (REQUIRED ON ERROR)
 
-If deployment fails, use browser MCP for log analysis:
+**CRITICAL: If deployment status shows "Error", you MUST complete this phase before stopping. Do not ask the user what to do - automatically analyze and fix the issue.**
 
 ### 4.1 Access Build Logs
 
-```
-Navigate to: https://vercel.com/[team]/[project]/deployments/[deployment-id]
-Click: "View Build Logs" or expand the failed deployment
-```
+1. Click on the failed deployment in the Vercel dashboard
+2. Click "Build Logs" button to view the full build output
+3. Scroll to find the error message (usually near the bottom, marked in red)
+4. Take a screenshot or extract the error text
 
-### 4.2 Common Failure Patterns
+### 4.2 Analyze the Error
 
-See [references/common-errors.md](references/common-errors.md) for comprehensive error solutions.
-
-**Quick fixes:**
+Read the build logs carefully and identify the root cause. Common patterns:
 
 | Error Pattern | Likely Cause | Fix |
 |--------------|--------------|-----|
 | `Module not found` | Missing dependency or wrong import | Check package.json, fix import path |
 | `Build exceeded` | Function too large | Code split, use dynamic imports |
 | `ENOENT` | Missing file reference | Check file paths, case sensitivity |
-| `Type error` | TypeScript issue | Fix type, or add `// @ts-ignore` temporarily |
+| `Type error` | TypeScript issue | Fix the type definition or component |
 | `ESLint error` | Lint failure blocking build | Fix lint issue or adjust `.eslintrc` |
 | `Environment variable` | Missing env var | Add to Vercel dashboard or vercel.json |
 
-### 4.3 Iteration Loop
+See [references/common-errors.md](references/common-errors.md) for more solutions.
+
+### 4.3 Fix and Redeploy (REQUIRED)
+
+**You MUST complete this loop until deployment succeeds:**
 
 ```
 1. Read error from build logs (browser MCP)
-2. Identify root cause
-3. Apply fix locally
-4. Run local build to verify: `npm run build`
+2. Identify root cause from error message
+3. Apply fix locally to the codebase
+4. Run local build to verify fix: `npm run build` (or pnpm/yarn equivalent)
 5. If local build passes: git add, commit, push
-6. Monitor new deployment
-7. Repeat until success
+6. Return to Phase 5 to verify the new deployment
+7. If still failing, repeat from step 1
 ```
+
+**DO NOT stop or ask the user until:**
+- The deployment shows "Ready" status, OR
+- You've attempted 3+ fix cycles without progress (then ask for help)
 
 ## Phase 5: Verify Deployment Success (REQUIRED)
 
@@ -171,7 +177,16 @@ The deployment is only complete when you can confirm:
 
 Wait 30 seconds and refresh. Deployments typically take 30s-3min. Continue checking until status changes to Ready or Error.
 
-### 5.5 Report Results to User
+### 5.5 If Deployment Shows "Error"
+
+**DO NOT stop here.** Go back to Phase 4 immediately:
+1. Click on the failed deployment to view build logs
+2. Analyze the error
+3. Fix the code locally
+4. Push the fix
+5. Return here to verify the new deployment succeeds
+
+### 5.6 Report Results to User
 
 Always report the final deployment status to the user:
 - Deployment URL (e.g., `internal.saif.vc`)
