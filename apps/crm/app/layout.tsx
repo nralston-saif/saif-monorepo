@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import '@liveblocks/react-tiptap/styles.css'
 import './globals.css'
 import { Providers } from '@saif/ui'
 import NotificationToast from '@/components/NotificationToast'
