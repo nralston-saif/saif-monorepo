@@ -1713,7 +1713,7 @@ export default function DealsClient({
                                     >
                                       <span
                                         className="w-3 h-3 rounded-full flex-shrink-0"
-                                        style={{ backgroundColor: tag.color }}
+                                        style={{ backgroundColor: tag.color || '#9ca3af' }}
                                       />
                                       <span className="flex-1">{formatTagName(tag.name)}</span>
                                       {isSelected && (
