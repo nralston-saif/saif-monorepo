@@ -164,33 +164,35 @@ export default async function PeoplePage({
 
     // Attach associations, note counts, and construct display name
     const peopleWithNotes: PersonWithNotes[] = (people || []).map(person => {
-      const displayName = person.first_name && person.last_name
-        ? `${person.first_name} ${person.last_name}`
-        : person.first_name || person.last_name || person.name || null
+      // Cast to include alternative_emails which may not be in generated types yet
+      const p = person as typeof person & { alternative_emails?: string[] | null }
+      const displayName = p.first_name && p.last_name
+        ? `${p.first_name} ${p.last_name}`
+        : p.first_name || p.last_name || p.name || null
 
       return {
-        id: person.id,
-        name: person.name,
-        first_name: person.first_name,
-        last_name: person.last_name,
+        id: p.id,
+        name: p.name,
+        first_name: p.first_name,
+        last_name: p.last_name,
         displayName,
-        email: person.email,
-        alternative_emails: person.alternative_emails,
-        role: person.role as UserRole,
-        status: person.status as UserStatus,
-        title: person.title,
-        bio: person.bio,
-        linkedin_url: person.linkedin_url,
-        twitter_url: person.twitter_url,
-        mobile_phone: person.mobile_phone,
-        location: person.location,
-        first_met_date: person.first_met_date,
-        introduced_by: person.introduced_by,
-        introduction_context: person.introduction_context,
-        relationship_notes: person.relationship_notes,
-        created_at: person.created_at,
-        company_associations: associationsByPerson[person.id] || [],
-        noteCount: noteCountMap[person.id] || 0,
+        email: p.email,
+        alternative_emails: p.alternative_emails || null,
+        role: p.role as UserRole,
+        status: p.status as UserStatus,
+        title: p.title,
+        bio: p.bio,
+        linkedin_url: p.linkedin_url,
+        twitter_url: p.twitter_url,
+        mobile_phone: p.mobile_phone,
+        location: p.location,
+        first_met_date: p.first_met_date,
+        introduced_by: p.introduced_by,
+        introduction_context: p.introduction_context,
+        relationship_notes: p.relationship_notes,
+        created_at: p.created_at,
+        company_associations: associationsByPerson[p.id] || [],
+        noteCount: noteCountMap[p.id] || 0,
       }
     })
 
