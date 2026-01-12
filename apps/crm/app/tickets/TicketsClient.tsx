@@ -250,6 +250,7 @@ export default function TicketsClient({
         ticket_id: resolvingTicket.id,
         author_id: currentUserId,
         content: resolveComment.trim(),
+        is_final_comment: true,
       })
     }
 

@@ -275,6 +275,7 @@ export default function DashboardClient({
         ticket_id: ticketId,
         author_id: userId,
         content: resolveComment.trim(),
+        is_final_comment: true,
       })
     }
 
