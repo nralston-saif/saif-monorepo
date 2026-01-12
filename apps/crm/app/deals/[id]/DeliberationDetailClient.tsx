@@ -474,7 +474,7 @@ export default function DeliberationDetailClient({
                     ))}
                   </div>
                 </div>
-                <button onClick={handleSaveDeliberation} disabled={loading} className="btn btn-primary w-full">
+                <button onClick={() => handleSaveDeliberation()} disabled={loading} className="btn btn-primary w-full">
                   {loading ? 'Saving...' : 'Save Deliberation'}
                 </button>
               </div>
