@@ -307,7 +307,7 @@ export default function TicketDetailModal({
     const finalEmail = editingDraftEmail || ticket.application?.draft_rejection_email
 
     // If draft email was edited, save it to the application so AI can learn from edits
-    if (editingDraftEmail && ticket.application_id && editingDraftEmail !== ticket.application.draft_rejection_email) {
+    if (editingDraftEmail && ticket.application_id && editingDraftEmail !== ticket.application?.draft_rejection_email) {
       try {
         const response = await fetch('/api/generate-rejection-email', {
           method: 'PUT',
@@ -999,14 +999,14 @@ export default function TicketDetailModal({
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                   </svg>
                   AI-Generated Email Draft
-                  {ticket.application.primary_email && (
+                  {ticket.application?.primary_email && (
                     <span className="text-xs font-normal text-gray-500">
-                      → {ticket.application.primary_email}
+                      → {ticket.application?.primary_email}
                     </span>
                   )}
                 </h4>
                 <textarea
-                  value={editingDraftEmail || ticket.application.draft_rejection_email}
+                  value={editingDraftEmail || ticket.application?.draft_rejection_email || ''}
                   onChange={(e) => setEditingDraftEmail(e.target.value)}
                   onFocus={() =>
                     !editingDraftEmail &&
@@ -1029,7 +1029,7 @@ export default function TicketDetailModal({
                     </svg>
                     Copy Email
                   </button>
-                  {editingDraftEmail && editingDraftEmail !== ticket.application.draft_rejection_email && (
+                  {editingDraftEmail && editingDraftEmail !== ticket.application?.draft_rejection_email && (
                     <button
                       onClick={() => saveDraftEmail(editingDraftEmail)}
                       disabled={savingDraftEmail}
