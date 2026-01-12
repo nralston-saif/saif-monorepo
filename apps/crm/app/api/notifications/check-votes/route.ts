@@ -1,18 +1,36 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { notifyReadyForDeliberation } from '@/lib/notifications'
+import { requirePartnerApi } from '@/lib/auth/requirePartnerApi'
 
-// Server-side Supabase client
+// Server-side Supabase client (service role for notifications)
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
+// Configurable vote threshold (default 3 partners)
+const REQUIRED_VOTES = parseInt(process.env.REQUIRED_VOTES || '3', 10)
+
 /**
  * POST /api/notifications/check-votes
- * Check if an application has reached 3 votes and send notification if so
+ * Check if an application has reached required votes and send notification if so.
+ *
+ * Uses idempotent approach to prevent duplicate notifications:
+ * 1. Check if all_votes_in is already true (skip if so)
+ * 2. Count votes
+ * 3. Atomically set all_votes_in = true only if it was false
+ * 4. Only send notification if WE flipped the flag
+ *
+ * Requires partner authentication.
  */
 export async function POST(request: NextRequest) {
+  // Verify partner authentication
+  const auth = await requirePartnerApi()
+  if (!auth.success) {
+    return auth.response
+  }
+
   try {
     const { applicationId, voterId } = await request.json()
 
@@ -20,7 +38,28 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'applicationId required' }, { status: 400 })
     }
 
-    // Get the application with vote count
+    // First, check if notification was already sent (all_votes_in flag)
+    const { data: app, error: appError } = await supabase
+      .from('saifcrm_applications')
+      .select('company_name, all_votes_in')
+      .eq('id', applicationId)
+      .single()
+
+    if (appError) {
+      console.error('Error fetching application:', appError)
+      return NextResponse.json({ error: 'Application not found' }, { status: 404 })
+    }
+
+    // If already marked as all votes in, skip (idempotent)
+    if (app.all_votes_in) {
+      return NextResponse.json({
+        notified: false,
+        reason: 'already_notified',
+        voteCount: REQUIRED_VOTES
+      })
+    }
+
+    // Count current votes
     const { data: votes, error: votesError } = await supabase
       .from('saifcrm_votes')
       .select('id')
@@ -34,22 +73,43 @@ export async function POST(request: NextRequest) {
 
     const voteCount = votes?.length || 0
 
-    // If exactly 3 votes, send notification (this triggers on the 3rd vote)
-    if (voteCount === 3) {
-      // Get the application name
-      const { data: app } = await supabase
-        .from('saifcrm_applications')
-        .select('company_name')
-        .eq('id', applicationId)
-        .single()
-
-      if (app) {
-        await notifyReadyForDeliberation(applicationId, app.company_name, voterId)
-        return NextResponse.json({ notified: true, voteCount })
-      }
+    // Not enough votes yet
+    if (voteCount < REQUIRED_VOTES) {
+      return NextResponse.json({ notified: false, voteCount })
     }
 
-    return NextResponse.json({ notified: false, voteCount })
+    // We have enough votes - try to atomically set the flag
+    // The WHERE clause ensures only ONE concurrent request succeeds
+    const { data: updated, error: updateError } = await supabase
+      .from('saifcrm_applications')
+      .update({ all_votes_in: true })
+      .eq('id', applicationId)
+      .eq('all_votes_in', false)  // Only update if still false
+      .select('id')
+
+    if (updateError) {
+      console.error('Error updating application:', updateError)
+      return NextResponse.json({ error: 'Failed to update application' }, { status: 500 })
+    }
+
+    // Check if WE were the one who flipped the flag
+    if (updated && updated.length > 0) {
+      // We won the race - send the notification
+      await notifyReadyForDeliberation(applicationId, app.company_name, voterId)
+      return NextResponse.json({
+        notified: true,
+        voteCount,
+        message: 'Notification sent - all votes are in'
+      })
+    }
+
+    // Another request already flipped the flag (race condition handled)
+    return NextResponse.json({
+      notified: false,
+      reason: 'handled_by_another_request',
+      voteCount
+    })
+
   } catch (error) {
     console.error('Error in check-votes:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

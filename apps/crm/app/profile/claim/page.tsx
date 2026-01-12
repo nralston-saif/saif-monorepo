@@ -132,21 +132,20 @@ export default function ClaimProfilePage() {
         return
       }
 
-      // Update the profile to link it to this auth user
+      // Simple update to claim the profile
       const { error: updateError } = await supabase
         .from('saif_people')
         .update({
           auth_user_id: user.id,
-          status: 'active', // Activate the account
-          email: user.email || undefined, // Update email if not set
-          updated_at: new Date().toISOString(),
+          email: user.email,
+          status: 'active'
         })
         .eq('id', profileId)
-        .is('auth_user_id', null) // Only claim if not already claimed
+        .is('auth_user_id', null) // Only claim if unclaimed
 
       if (updateError) {
-        setError('Unable to claim this profile. It may have already been claimed.')
         console.error('Claim error:', updateError)
+        setError('An error occurred while claiming the profile. Please try again.')
         setClaiming(false)
         return
       }

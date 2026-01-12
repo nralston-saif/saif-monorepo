@@ -6,8 +6,13 @@ import NotificationToast from '@/components/NotificationToast'
 import TicketModalProvider from '@/components/TicketModalProvider'
 
 export const metadata: Metadata = {
-  title: 'SAIF CRM',
-  description: 'VC Fund CRM for SAIF',
+  title: 'SAIF Internal',
+  description: 'SAIF Ventures internal platform',
+  openGraph: {
+    title: 'SAIF Internal',
+    description: 'SAIF Ventures internal platform',
+    siteName: 'SAIF Internal',
+  },
 }
 
 export default function RootLayout({

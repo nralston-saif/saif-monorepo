@@ -1,8 +1,9 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { notifyNewDeliberationNotes } from '@/lib/notifications'
+import { requirePartnerApi } from '@/lib/auth/requirePartnerApi'
 
-// Server-side Supabase client
+// Server-side Supabase client (service role for notifications)
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -12,8 +13,15 @@ const supabase = createClient(
  * POST /api/notifications/deliberation-notes
  * Send notification about new deliberation notes
  * Rate limited to prevent spam during auto-save
+ * Requires partner authentication.
  */
 export async function POST(request: NextRequest) {
+  // Verify partner authentication
+  const auth = await requirePartnerApi()
+  if (!auth.success) {
+    return auth.response
+  }
+
   try {
     const { applicationId, actorId, actorName } = await request.json()
 

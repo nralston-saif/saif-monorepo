@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { sendSMS, formatNotificationForSMS } from './twilio'
 
 // Server-side client with service role for creating notifications
 const getServiceClient = () => {
@@ -7,6 +8,14 @@ const getServiceClient = () => {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 }
+
+// Notification types that are eligible for SMS
+const SMS_ELIGIBLE_TYPES: NotificationType[] = [
+  'new_application',
+  'ready_for_deliberation',
+  'decision_made',
+  'ticket_assigned',
+]
 
 export type NotificationType =
   | 'new_application'
@@ -29,8 +38,60 @@ export type CreateNotificationParams = {
 }
 
 /**
+ * Check if a recipient has opted into SMS for this notification type
+ * and send SMS if enabled
+ */
+async function maybeSendSMSNotification(
+  recipientId: string,
+  type: NotificationType,
+  title: string,
+  message?: string
+) {
+  // Skip if this notification type isn't SMS-eligible
+  if (!SMS_ELIGIBLE_TYPES.includes(type)) {
+    return
+  }
+
+  const supabase = getServiceClient()
+
+  // Get recipient's SMS preferences and phone number
+  const { data: recipient, error } = await supabase
+    .from('saif_people')
+    .select('mobile_phone, sms_notifications_enabled, sms_notification_types')
+    .eq('id', recipientId)
+    .single()
+
+  if (error || !recipient) {
+    console.log('[SMS] Could not fetch recipient preferences:', error?.message)
+    return
+  }
+
+  // Check if SMS is enabled globally for this user
+  if (!recipient.sms_notifications_enabled) {
+    return
+  }
+
+  // Check if user has a phone number
+  if (!recipient.mobile_phone) {
+    console.log('[SMS] Recipient has no phone number')
+    return
+  }
+
+  // Check if this notification type is enabled for SMS
+  const enabledTypes = recipient.sms_notification_types || []
+  if (!enabledTypes.includes(type)) {
+    return
+  }
+
+  // Format and send SMS
+  const smsText = formatNotificationForSMS(title, message)
+  await sendSMS(recipient.mobile_phone, smsText)
+}
+
+/**
  * Create a notification for a single recipient
  * Use this from server-side code (API routes, server actions)
+ * Also sends SMS if the recipient has opted in
  */
 export async function createNotification(params: CreateNotificationParams) {
   const supabase = getServiceClient()
@@ -48,6 +109,10 @@ export async function createNotification(params: CreateNotificationParams) {
 
   if (error) {
     console.error('Error creating notification:', error)
+  } else {
+    // Send SMS notification if recipient has opted in (fire and forget)
+    maybeSendSMSNotification(params.recipientId, params.type, params.title, params.message)
+      .catch(err => console.error('[SMS] Error sending SMS:', err))
   }
 
   return { error }
@@ -56,6 +121,7 @@ export async function createNotification(params: CreateNotificationParams) {
 /**
  * Create notifications for multiple recipients
  * Excludes the actor from receiving the notification
+ * Also sends SMS to recipients who have opted in
  */
 export async function createNotificationForMany(
   params: Omit<CreateNotificationParams, 'recipientId'> & {
@@ -89,6 +155,15 @@ export async function createNotificationForMany(
 
   if (error) {
     console.error('Error creating notifications:', error)
+  } else {
+    // Send SMS notifications to recipients who have opted in (fire and forget)
+    // Process in parallel for efficiency
+    Promise.all(
+      recipients.map(recipientId =>
+        maybeSendSMSNotification(recipientId, params.type, params.title, params.message)
+          .catch(err => console.error(`[SMS] Error sending to ${recipientId}:`, err))
+      )
+    )
   }
 
   return { error }

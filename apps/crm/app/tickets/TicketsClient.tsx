@@ -7,6 +7,7 @@ import type { TicketStatus, TicketPriority, TicketComment as BaseTicketComment, 
 type BaseTicket = Database['public']['Tables']['saif_tickets']['Row']
 import CreateTicketModal from './CreateTicketModal'
 import TicketDetailModal from './TicketDetailModal'
+import LeaderboardModal from './LeaderboardModal'
 import { useTicketModal } from '@/components/TicketModalProvider'
 
 type Partner = {
@@ -68,6 +69,7 @@ export default function TicketsClient({
   const [sortOption, setSortOption] = useState<SortOption>('date-newest')
 
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [showLeaderboard, setShowLeaderboard] = useState(false)
   const [selectedTicket, setSelectedTicket] = useState<TicketWithRelations | null>(null)
   const [localTickets, setLocalTickets] = useState<TicketWithRelations[]>(tickets)
 
@@ -541,6 +543,15 @@ export default function TicketsClient({
             <StatCard label="In Progress" value={stats.inProgress} color="amber" />
             <StatCard label="Archived" value={stats.archived} color="green" />
             <StatCard label="Overdue" value={stats.overdue} color="red" />
+
+            {/* Leaderboard Button */}
+            <button
+              onClick={() => setShowLeaderboard(true)}
+              className="w-full mt-2 px-3 py-2.5 bg-gradient-to-r from-amber-100 to-yellow-100 hover:from-amber-200 hover:to-yellow-200 border border-amber-200 rounded-lg text-sm font-medium text-amber-800 transition-all flex items-center justify-center gap-2"
+            >
+              <span>🏆</span>
+              <span>Leaderboard</span>
+            </button>
           </div>
         </div>
       </div>
@@ -624,6 +635,13 @@ export default function TicketsClient({
             setSelectedTicket(null)
             router.refresh()
           }}
+        />
+      )}
+
+      {showLeaderboard && (
+        <LeaderboardModal
+          partners={partners}
+          onClose={() => setShowLeaderboard(false)}
         />
       )}
     </div>

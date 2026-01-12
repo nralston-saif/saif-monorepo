@@ -159,43 +159,31 @@ export default function PipelineClient({
     appIdsRef.current = clientApplications.map(app => app.id)
   }, [clientApplications])
 
-  // Function to fetch votes and update application state
-  const fetchVotesAndUpdateApplications = useCallback(async () => {
-    const appIds = appIdsRef.current
-    if (appIds.length === 0) return
-
+  // Function to fetch votes for a specific application and update state
+  const fetchVotesForApp = useCallback(async (appId: string) => {
     const { data: votes, error } = await supabase
       .from('saifcrm_votes')
       .select('id, application_id, vote, user_id, notes, vote_type, saif_people(name)')
-      .in('application_id', appIds)
+      .eq('application_id', appId)
       .eq('vote_type', 'initial')
 
     if (error) {
-      console.error('Error fetching votes:', error)
+      console.error('Error fetching votes for app:', appId, error)
       return
     }
 
-    // Group votes by application_id
-    const votesByApp: Record<string, typeof votes> = {}
-    votes?.forEach(vote => {
-      if (!votesByApp[vote.application_id]) {
-        votesByApp[vote.application_id] = []
-      }
-      votesByApp[vote.application_id].push(vote)
-    })
-
-    // Update applications with new vote data
+    // Update only the affected application
     setClientApplications(prevApps =>
       prevApps.map(app => {
-        const appVotes = votesByApp[app.id] || []
-        const userVoteRecord = appVotes.find(v => v.user_id === userId)
+        if (app.id !== appId) return app
 
+        const userVoteRecord = votes?.find(v => v.user_id === userId)
         return {
           ...app,
-          voteCount: appVotes.length,
+          voteCount: votes?.length || 0,
           userVote: userVoteRecord?.vote || null,
           userNotes: userVoteRecord?.notes || null,
-          allVotes: appVotes.map(v => ({
+          allVotes: (votes || []).map(v => ({
             oduserId: v.user_id,
             userName: (v.saif_people as { name: string } | null)?.name || 'Unknown',
             vote: v.vote || '',
@@ -205,6 +193,27 @@ export default function PipelineClient({
       })
     )
   }, [supabase, userId])
+
+  // Debounce ref to prevent rapid successive fetches
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const pendingAppIds = useRef<Set<string>>(new Set())
+
+  // Debounced function to batch vote fetches
+  const debouncedFetchVotes = useCallback((appId: string) => {
+    pendingAppIds.current.add(appId)
+
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current)
+    }
+
+    debounceTimerRef.current = setTimeout(() => {
+      const appIds = Array.from(pendingAppIds.current)
+      pendingAppIds.current.clear()
+
+      // Fetch votes for all pending apps
+      appIds.forEach(id => fetchVotesForApp(id))
+    }, 300) // 300ms debounce
+  }, [fetchVotesForApp])
 
   // Subscribe to real-time vote updates
   useEffect(() => {
@@ -220,26 +229,26 @@ export default function PipelineClient({
           table: 'saifcrm_votes',
         },
         (payload) => {
-          console.log('[Realtime] Vote change received:', payload)
-          // Check if the vote is for an application we're tracking
+          // Only refetch for the specific affected application
           const newRecord = payload.new as { application_id?: string } | null
           const oldRecord = payload.old as { application_id?: string } | null
           const affectedAppId = newRecord?.application_id || oldRecord?.application_id
           if (affectedAppId && appIdsRef.current.includes(affectedAppId)) {
-            console.log('[Realtime] Refetching votes for app:', affectedAppId)
-            fetchVotesAndUpdateApplications()
+            console.log('[Realtime] Vote change for app:', affectedAppId)
+            debouncedFetchVotes(affectedAppId)
           }
         }
       )
-      .subscribe((status) => {
-        console.log('[Realtime] Subscription status:', status)
-      })
+      .subscribe()
 
     return () => {
       console.log('[Realtime] Cleaning up subscription')
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current)
+      }
       supabase.removeChannel(channel)
     }
-  }, [supabase, fetchVotesAndUpdateApplications])
+  }, [supabase, debouncedFetchVotes])
 
   const handleVoteSubmit = async () => {
     if (!selectedApp || !vote) return
