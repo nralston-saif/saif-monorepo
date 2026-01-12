@@ -571,6 +571,7 @@ export type Database = {
           draft_rejection_email: string | null
           email_sender_id: string | null
           email_sent: boolean | null
+          email_sent_at: string | null
           founder_bios: string | null
           founder_linkedins: string | null
           founder_names: string | null
@@ -597,6 +598,7 @@ export type Database = {
           draft_rejection_email?: string | null
           email_sender_id?: string | null
           email_sent?: boolean | null
+          email_sent_at?: string | null
           founder_bios?: string | null
           founder_linkedins?: string | null
           founder_names?: string | null
@@ -623,6 +625,7 @@ export type Database = {
           draft_rejection_email?: string | null
           email_sender_id?: string | null
           email_sent?: boolean | null
+          email_sent_at?: string | null
           founder_bios?: string | null
           founder_linkedins?: string | null
           founder_names?: string | null

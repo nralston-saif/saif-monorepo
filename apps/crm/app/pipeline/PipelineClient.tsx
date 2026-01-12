@@ -46,6 +46,7 @@ type OldApplication = {
   stage: string | null
   submitted_at: string | null
   email_sent: boolean | null
+  email_sent_at: string | null
   email_sender_name: string | null
   allVotes: Vote[]
   draft_rejection_email: string | null
@@ -292,6 +293,17 @@ export default function PipelineClient({
         }),
       }).catch(console.error) // Fire and forget
 
+      // Dismiss "new application" notification for this user
+      fetch('/api/notifications/dismiss', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          applicationId: selectedApp.id,
+          types: ['new_application'],
+        }),
+      }).catch(console.error)
+
       setSelectedApp(null)
       setVote('')
       setNotes('')
@@ -344,26 +356,59 @@ export default function PipelineClient({
       }
 
       // Create a ticket for the email follow-up task
-      const stageLabel = action === 'deliberation' ? 'deliberation' : 'rejection'
-      const emailType = action === 'deliberation' ? 'ACCEPT' : 'REJECT'
-      const { error: ticketError } = await supabase
+      const stageLabel = action === 'deliberation' ? 'interview' : 'rejection'
+      const ticketTitle = `Send follow-up email to ${app.company_name}`
+      const { data: ticketData, error: ticketError } = await supabase
         .from('saif_tickets')
         .insert({
-          title: `Send ${emailType} email to ${app.company_name}`,
-          description: `Send ${stageLabel} follow-up email to ${app.company_name}${app.primary_email ? ` (${app.primary_email})` : ''}${app.founder_names ? `\n\nFounders: ${app.founder_names}` : ''}\n\nEmail type: ${emailType}`,
+          title: ticketTitle,
+          description: `Send ${stageLabel} follow-up email to ${app.company_name}${app.primary_email ? ` (${app.primary_email})` : ''}${app.founder_names ? `\n\nFounders: ${app.founder_names}` : ''}`,
           status: 'open',
           priority: 'medium',
           assigned_to: selectedEmailSender,
           created_by: userId,
           tags: ['email-follow-up', newStage],
+          application_id: app.id,
         })
+        .select('id')
+        .single()
 
       if (ticketError) {
         console.error('Error creating ticket:', ticketError)
         // Don't fail the whole operation if ticket creation fails
       }
 
-      const message = action === 'deliberation' ? 'Moved to deliberation' : 'Marked as rejected'
+      // Send notification to the assigned person
+      if (ticketData?.id) {
+        const currentUserName = partners.find((p) => p.id === userId)?.name || 'Someone'
+        fetch('/api/notifications/ticket', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            type: 'assigned',
+            ticketId: ticketData.id,
+            ticketTitle,
+            targetId: selectedEmailSender,
+            actorId: userId,
+            actorName: currentUserName,
+          }),
+        }).catch(console.error)
+      }
+
+      // Dismiss "ready to be advanced" notifications for all partners
+      fetch('/api/notifications/dismiss', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          applicationId: app.id,
+          types: ['ready_for_deliberation'],
+          recipientId: null,
+        }),
+      }).catch(console.error)
+
+      const message = action === 'deliberation' ? 'Moved to Interviews' : 'Marked as rejected'
       showToast(message, 'success')
       setEmailSenderModal(null)
 
@@ -460,7 +505,7 @@ export default function PipelineClient({
         return
       }
 
-      showToast('Moved to deliberation', 'success')
+      showToast('Moved to Interviews', 'success')
       router.refresh()
     } catch (err) {
       showToast('An unexpected error occurred', 'error')
@@ -493,7 +538,7 @@ export default function PipelineClient({
 
       setConfirmMoveApp(null)
       setOpenMenuId(null)
-      showToast('Moved to deliberation', 'success')
+      showToast('Moved to Interviews', 'success')
       router.refresh()
     } catch (err) {
       showToast('An unexpected error occurred', 'error')
@@ -546,6 +591,16 @@ export default function PipelineClient({
       month: 'short',
       day: 'numeric'
     })
+  }
+
+  const formatFounderNames = (names: string | null) => {
+    if (!names) return ''
+    // Handle both newline-separated and comma-separated names consistently
+    return names
+      .replace(/\r?\n/g, ', ')  // Convert newlines to commas first
+      .split(/\s*,\s*/)          // Split on commas
+      .filter(Boolean)           // Remove empty strings
+      .join(' • ')               // Join with bullet separator
   }
 
   // Render company info - used in both vote modal and detail modal
@@ -623,7 +678,7 @@ export default function PipelineClient({
               Website
             </h3>
             <a
-              href={app.website}
+              href={app.website.startsWith('http') ? app.website : `https://${app.website}`}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 text-[#1a1a1a] hover:text-black underline"
@@ -690,7 +745,7 @@ export default function PipelineClient({
                 {app.company_name}
               </h3>
               {app.founder_names && (
-                <p className="text-sm text-gray-500 mt-0.5 truncate">{app.founder_names}</p>
+                <p className="text-sm text-gray-500 mt-0.5 truncate">{formatFounderNames(app.founder_names)}</p>
               )}
             </div>
             <div className="flex items-center gap-2 ml-2 flex-shrink-0">
@@ -732,7 +787,7 @@ export default function PipelineClient({
                           }}
                           className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                         >
-                          Move to Deliberation without voting
+                          Move to Interviews without voting
                         </button>
                       </div>
                     </>
@@ -752,7 +807,7 @@ export default function PipelineClient({
           <div className="flex flex-wrap gap-2 mb-4">
             {app.website && (
               <a
-                href={app.website}
+                href={app.website.startsWith('http') ? app.website : `https://${app.website}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 text-sm text-[#1a1a1a] hover:text-black bg-[#f5f5f5] hover:bg-[#e5e5e5] px-3 py-1.5 rounded-lg transition-colors"
@@ -885,13 +940,13 @@ export default function PipelineClient({
           <div className="flex-1 min-w-0">
             <h3 className="font-medium text-gray-900 truncate">{app.company_name}</h3>
             {app.founder_names && (
-              <p className="text-sm text-gray-500 truncate">{app.founder_names}</p>
+              <p className="text-sm text-gray-500 truncate">{formatFounderNames(app.founder_names)}</p>
             )}
           </div>
           <div className="flex items-center gap-2 ml-2 flex-shrink-0">
             {app.email_sent ? (
               <span className="badge text-xs bg-blue-100 text-blue-700">
-                Email Sent
+                Email Sent{app.email_sent_at ? `: ${formatDate(app.email_sent_at)}` : ''}
               </span>
             ) : app.email_sender_name && (
               <span className="badge text-xs bg-purple-100 text-purple-700">
@@ -1070,7 +1125,7 @@ export default function PipelineClient({
                     {selectedApp.company_name}
                   </h2>
                   {selectedApp.founder_names && (
-                    <p className="text-gray-500 mt-1">{selectedApp.founder_names}</p>
+                    <p className="text-gray-500 mt-1">{formatFounderNames(selectedApp.founder_names)}</p>
                   )}
                 </div>
                 <button
@@ -1182,7 +1237,7 @@ export default function PipelineClient({
                     )}
                   </div>
                   {detailApp.founder_names && (
-                    <p className="text-gray-500 mt-1">{detailApp.founder_names}</p>
+                    <p className="text-gray-500 mt-1">{formatFounderNames(detailApp.founder_names)}</p>
                   )}
                 </div>
                 <button
@@ -1371,7 +1426,7 @@ export default function PipelineClient({
                         disabled={movingToDelib === detailApp.id}
                         className="btn bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50"
                       >
-                        Move to Deliberation
+                        Move to Interviews
                       </button>
                     </>
                   )}
@@ -1413,7 +1468,7 @@ export default function PipelineClient({
             {/* Modal Header */}
             <div className="p-6 border-b border-gray-100">
               <h2 className="text-xl font-bold text-gray-900">
-                Confirm Move to Deliberation
+                Confirm Move to Interviews
               </h2>
             </div>
 
@@ -1465,7 +1520,7 @@ export default function PipelineClient({
             {/* Modal Header */}
             <div className="p-6 border-b border-gray-100">
               <h2 className="text-xl font-bold text-gray-900">
-                {emailSenderModal.action === 'deliberation' ? 'Move to Deliberation' : 'Reject Application'}
+                {emailSenderModal.action === 'deliberation' ? 'Move to Interviews' : 'Reject Application'}
               </h2>
               <p className="text-gray-500 mt-1">{emailSenderModal.app.company_name}</p>
             </div>
@@ -1512,7 +1567,7 @@ export default function PipelineClient({
                     Processing...
                   </span>
                 ) : emailSenderModal.action === 'deliberation' ? (
-                  'Move to Deliberation'
+                  'Move to Interviews'
                 ) : (
                   'Reject Application'
                 )}

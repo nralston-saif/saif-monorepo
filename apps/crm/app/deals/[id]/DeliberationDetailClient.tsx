@@ -1,0 +1,803 @@
+'use client'
+
+import { useState } from 'react'
+import { createClient } from '@/lib/supabase/client'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import MeetingNotes from '@/components/MeetingNotes'
+import { useToast } from '@saif/ui'
+import CreateTicketButton from '@/components/CreateTicketButton'
+
+type Vote = {
+  oduserId: string
+  userName: string
+  vote: string
+  notes: string | null
+}
+
+type Deliberation = {
+  id: string
+  meeting_date: string | null
+  idea_summary: string | null
+  thoughts: string | null
+  decision: string
+  status: string | null
+} | null
+
+type Application = {
+  id: string
+  company_name: string
+  founder_names: string | null
+  founder_linkedins: string | null
+  founder_bios: string | null
+  primary_email: string | null
+  company_description: string | null
+  website: string | null
+  previous_funding: string | null
+  deck_link: string | null
+  submitted_at: string | null
+  stage: string | null
+  votes: Vote[]
+  deliberation: Deliberation
+}
+
+export default function DeliberationDetailClient({
+  application,
+  userId,
+  userName,
+}: {
+  application: Application
+  userId: string
+  userName: string
+}) {
+  const [isEditingDeliberation, setIsEditingDeliberation] = useState(false)
+  const [showDecisionModal, setShowDecisionModal] = useState(false)
+  const [ideaSummary, setIdeaSummary] = useState(application.deliberation?.idea_summary || '')
+  const [thoughts, setThoughts] = useState(application.deliberation?.thoughts || '')
+  const [decision, setDecision] = useState(application.deliberation?.decision || 'pending')
+  const [status, setStatus] = useState(application.deliberation?.status || 'scheduled')
+  const [meetingDate, setMeetingDate] = useState(application.deliberation?.meeting_date || '')
+  const [loading, setLoading] = useState(false)
+  const [showMoveBackConfirm, setShowMoveBackConfirm] = useState(false)
+  const [moveBackLoading, setMoveBackLoading] = useState(false)
+
+  // Investment fields (shown when decision is 'yes')
+  const [investmentAmount, setInvestmentAmount] = useState<number | null>(null)
+  const [investmentTerms, setInvestmentTerms] = useState('10mm cap safe')
+  const [investmentDate, setInvestmentDate] = useState(new Date().toISOString().split('T')[0])
+  const [otherFunders, setOtherFunders] = useState('')
+
+  const router = useRouter()
+  const supabase = createClient()
+  const { showToast } = useToast()
+
+  const formatFounderNames = (names: string | null) => {
+    if (!names) return ''
+    // Handle both newline-separated and comma-separated names consistently
+    return names
+      .replace(/\r?\n/g, ', ')  // Convert newlines to commas first
+      .split(/\s*,\s*/)          // Split on commas
+      .filter(Boolean)           // Remove empty strings
+      .join(' • ')               // Join with bullet separator
+  }
+
+  const openDecisionModal = () => {
+    setIdeaSummary(application.deliberation?.idea_summary || '')
+    setThoughts(application.deliberation?.thoughts || '')
+    setDecision(application.deliberation?.decision || 'pending')
+    setStatus(application.deliberation?.status || 'scheduled')
+    setMeetingDate(application.deliberation?.meeting_date || '')
+    setInvestmentAmount(null)
+    setInvestmentTerms('10mm cap safe')
+    setInvestmentDate(new Date().toISOString().split('T')[0])
+    setOtherFunders('')
+    setShowDecisionModal(true)
+  }
+
+  const handleMoveBackToVoting = async () => {
+    setMoveBackLoading(true)
+    try {
+      // Update application stage back to voting
+      const { error } = await supabase
+        .from('saifcrm_applications')
+        .update({ stage: 'voting' })
+        .eq('id', application.id)
+
+      if (error) {
+        showToast('Error moving back to voting: ' + error.message, 'error')
+        setMoveBackLoading(false)
+        return
+      }
+
+      // Reset deliberation decision to pending if it exists
+      if (application.deliberation) {
+        await supabase
+          .from('saifcrm_deliberations')
+          .update({ decision: 'pending', status: null })
+          .eq('application_id', application.id)
+      }
+
+      showToast('Application moved back to Applications', 'success')
+      setShowMoveBackConfirm(false)
+      router.push('/deals')
+      router.refresh()
+    } catch (err) {
+      showToast('An unexpected error occurred', 'error')
+    }
+    setMoveBackLoading(false)
+  }
+
+  const handleSaveDeliberation = async (fromModal: boolean = false) => {
+    // Validate investment fields if decision is 'yes'
+    if (decision === 'yes') {
+      if (!investmentAmount || investmentAmount <= 0) {
+        showToast('Please enter an investment amount', 'warning')
+        return
+      }
+      if (!investmentTerms) {
+        showToast('Please enter investment terms', 'warning')
+        return
+      }
+      if (!investmentDate) {
+        showToast('Please enter an investment date', 'warning')
+        return
+      }
+    }
+
+    setLoading(true)
+    try {
+      const previousDecision = application.deliberation?.decision
+      const { error } = await supabase.from('saifcrm_deliberations').upsert(
+        {
+          application_id: application.id,
+          idea_summary: ideaSummary || null,
+          thoughts: thoughts || null,
+          decision: decision as 'pending' | 'maybe' | 'yes' | 'no',
+          status: decision === 'yes' ? 'invested' : status,
+          meeting_date: meetingDate || null,
+        },
+        { onConflict: 'application_id' }
+      )
+
+      if (error) {
+        showToast('Error saving deliberation: ' + error.message, 'error')
+        setLoading(false)
+        return
+      }
+
+      // If decision is 'yes', create investment record and update application stage
+      if (decision === 'yes') {
+        const { error: investmentError } = await supabase
+          .from('saifcrm_investments')
+          .insert({
+            company_name: application.company_name,
+            investment_date: investmentDate,
+            amount: investmentAmount,
+            terms: investmentTerms,
+            other_funders: otherFunders || null,
+            founders: application.founder_names,
+            description: ideaSummary || application.company_description,
+            website: application.website,
+            contact_email: application.primary_email,
+            contact_name: null,
+            stealthy: false,
+            notes: thoughts || null,
+          })
+
+        if (investmentError) {
+          showToast('Error creating investment: ' + investmentError.message, 'error')
+          setLoading(false)
+          return
+        }
+
+        // Update application stage to invested
+        await supabase
+          .from('saifcrm_applications')
+          .update({ stage: 'invested' })
+          .eq('id', application.id)
+
+        showToast('Investment recorded and added to portfolio', 'success')
+      } else if (decision === 'no') {
+        // Update application stage to rejected
+        await supabase
+          .from('saifcrm_applications')
+          .update({ stage: 'rejected' })
+          .eq('id', application.id)
+
+        showToast('Application marked as rejected', 'success')
+      } else {
+        showToast('Deliberation saved', 'success')
+      }
+
+      setIsEditingDeliberation(false)
+      if (fromModal) {
+        setShowDecisionModal(false)
+      }
+
+      // Send notification if decision changed to yes/no
+      if ((decision === 'yes' || decision === 'no') && decision !== previousDecision) {
+        fetch('/api/notifications/decision-made', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            applicationId: application.id,
+            decision,
+            actorId: userId,
+            actorName: userName,
+          }),
+        }).catch(console.error) // Fire and forget
+      }
+
+      router.refresh()
+    } catch (err) {
+      showToast('An unexpected error occurred', 'error')
+    }
+    setLoading(false)
+  }
+
+  const getVoteBadgeStyle = (vote: string) => {
+    switch (vote) {
+      case 'yes':
+        return 'badge-success'
+      case 'maybe':
+        return 'badge-warning'
+      case 'no':
+        return 'badge-danger'
+      default:
+        return 'bg-gray-100 text-gray-700'
+    }
+  }
+
+  const getDecisionBadgeStyle = (decision: string) => {
+    switch (decision) {
+      case 'yes':
+        return 'bg-emerald-500 text-white'
+      case 'no':
+        return 'bg-red-500 text-white'
+      case 'maybe':
+        return 'bg-amber-500 text-white'
+      default:
+        return 'bg-gray-200 text-gray-700'
+    }
+  }
+
+  const yesVotes = application.votes.filter((v) => v.vote === 'yes').length
+  const maybeVotes = application.votes.filter((v) => v.vote === 'maybe').length
+  const noVotes = application.votes.filter((v) => v.vote === 'no').length
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* Breadcrumb and Actions */}
+      <div className="mb-6 flex items-center justify-between">
+        <Link
+          href="/deals"
+          className="inline-flex items-center gap-2 text-gray-500 hover:text-gray-700 transition-colors"
+        >
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+          Back to Deals
+        </Link>
+        <div className="flex gap-3">
+          <button
+            onClick={() => setShowMoveBackConfirm(true)}
+            className="btn btn-secondary flex items-center gap-2 text-gray-600"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            Move to Applications
+          </button>
+          <button
+            onClick={openDecisionModal}
+            className="btn btn-primary flex items-center gap-2"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Decision
+          </button>
+          <CreateTicketButton currentUserId={userId} />
+        </div>
+      </div>
+
+      {/* Header */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
+        <div className="flex items-start justify-between flex-wrap gap-4">
+          <div>
+            <div className="flex items-center gap-3 flex-wrap">
+              <h1 className="text-3xl font-bold text-gray-900">{application.company_name}</h1>
+              {application.deliberation?.decision && (
+                <span className={`badge ${getDecisionBadgeStyle(application.deliberation.decision)}`}>
+                  {application.deliberation.decision.toUpperCase()}
+                </span>
+              )}
+            </div>
+            {application.founder_names && (
+              <p className="text-gray-500 mt-1 text-lg">{formatFounderNames(application.founder_names)}</p>
+            )}
+          </div>
+
+          {/* Vote Summary */}
+          <div className="flex gap-3 items-center">
+            <div className="flex items-center gap-2 bg-emerald-50 px-4 py-2 rounded-lg">
+              <span className="text-emerald-600 font-semibold text-lg">{yesVotes}</span>
+              <span className="text-emerald-500">Yes</span>
+            </div>
+            <div className="flex items-center gap-2 bg-amber-50 px-4 py-2 rounded-lg">
+              <span className="text-amber-600 font-semibold text-lg">{maybeVotes}</span>
+              <span className="text-amber-500">Maybe</span>
+            </div>
+            <div className="flex items-center gap-2 bg-red-50 px-4 py-2 rounded-lg">
+              <span className="text-red-600 font-semibold text-lg">{noVotes}</span>
+              <span className="text-red-500">No</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Description */}
+        {application.company_description && (
+          <p className="text-gray-600 mt-4">{application.company_description}</p>
+        )}
+
+        {/* Links */}
+        <div className="flex flex-wrap gap-3 mt-4">
+          {application.website && (
+            <a
+              href={application.website.startsWith('http') ? application.website : `https://${application.website}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-sm text-gray-700 hover:text-black bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-lg transition-colors"
+            >
+              <span>🌐</span> Website
+            </a>
+          )}
+          {application.deck_link && (
+            <a
+              href={application.deck_link}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-sm text-purple-600 hover:text-purple-700 bg-purple-50 hover:bg-purple-100 px-3 py-1.5 rounded-lg transition-colors"
+            >
+              <span>📊</span> Deck
+            </a>
+          )}
+          {application.primary_email && (
+            <a
+              href={`mailto:${application.primary_email}`}
+              className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors"
+            >
+              <span>📧</span> {application.primary_email}
+            </a>
+          )}
+        </div>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-3">
+        {/* Left Column - Votes and Deliberation */}
+        <div className="lg:col-span-1 space-y-6">
+          {/* Partner Votes */}
+          {application.votes.length > 0 && (
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Partner Votes</h2>
+              <div className="space-y-3">
+                {application.votes.map((vote) => (
+                  <div key={vote.oduserId} className="bg-gray-50 rounded-xl p-4">
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="w-10 h-10 bg-gradient-to-br from-gray-400 to-gray-500 rounded-full flex items-center justify-center">
+                        <span className="text-white font-medium">
+                          {vote.userName.charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-900">{vote.userName}</p>
+                      </div>
+                      <span className={`badge ${getVoteBadgeStyle(vote.vote)}`}>{vote.vote}</span>
+                    </div>
+                    {vote.notes && <p className="text-sm text-gray-600 mt-2">{vote.notes}</p>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Deliberation Summary */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-900">Deliberation</h2>
+              <button
+                onClick={() => setIsEditingDeliberation(!isEditingDeliberation)}
+                className="btn btn-secondary text-sm"
+              >
+                {isEditingDeliberation ? 'Cancel' : 'Edit'}
+              </button>
+            </div>
+
+            {isEditingDeliberation ? (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Meeting Date</label>
+                  <input
+                    type="date"
+                    value={meetingDate}
+                    onChange={(e) => setMeetingDate(e.target.value)}
+                    className="input"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                  <select value={status} onChange={(e) => setStatus(e.target.value)} className="input">
+                    <option value="scheduled">Scheduled</option>
+                    <option value="met">Met</option>
+                    <option value="emailed">Emailed</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Idea Summary</label>
+                  <textarea
+                    value={ideaSummary}
+                    onChange={(e) => setIdeaSummary(e.target.value)}
+                    rows={2}
+                    className="input resize-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Thoughts</label>
+                  <textarea
+                    value={thoughts}
+                    onChange={(e) => setThoughts(e.target.value)}
+                    rows={3}
+                    className="input resize-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Decision</label>
+                  <div className="flex gap-2">
+                    {['pending', 'yes', 'maybe', 'no'].map((opt) => (
+                      <button
+                        key={opt}
+                        onClick={() => setDecision(opt)}
+                        className={`flex-1 py-2 rounded-lg font-medium text-sm transition-all ${
+                          decision === opt
+                            ? opt === 'yes'
+                              ? 'bg-emerald-500 text-white'
+                              : opt === 'no'
+                              ? 'bg-red-500 text-white'
+                              : opt === 'maybe'
+                              ? 'bg-amber-500 text-white'
+                              : 'bg-gray-500 text-white'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                      >
+                        {opt.charAt(0).toUpperCase() + opt.slice(1)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <button onClick={handleSaveDeliberation} disabled={loading} className="btn btn-primary w-full">
+                  {loading ? 'Saving...' : 'Save Deliberation'}
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {application.deliberation?.idea_summary && (
+                  <div>
+                    <p className="text-sm font-medium text-gray-500">Summary</p>
+                    <p className="text-gray-900">{application.deliberation.idea_summary}</p>
+                  </div>
+                )}
+                {!application.deliberation?.idea_summary && (
+                  <p className="text-gray-500 italic">No summary yet. Click Edit to add one.</p>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Right Column - Meeting Notes */}
+        <div className="lg:col-span-2">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                  />
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">Meeting Notes</h2>
+                <p className="text-sm text-gray-500">Collaborate with your team in real-time</p>
+              </div>
+            </div>
+
+            <MeetingNotes
+              applicationId={application.id}
+              userId={userId}
+              userName={userName}
+              deliberationNotes={application.deliberation?.thoughts}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Decision Modal */}
+      {showDecisionModal && (
+        <div className="modal-backdrop" onClick={() => !loading && setShowDecisionModal(false)}>
+          <div
+            className="modal-content max-w-3xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="p-6 border-b border-gray-100">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900">
+                    {application.company_name}
+                  </h2>
+                  <p className="text-gray-500 mt-1">Add deliberation notes and final decision</p>
+                </div>
+                <button
+                  onClick={() => !loading && setShowDecisionModal(false)}
+                  className="text-gray-400 hover:text-gray-600 p-2 -m-2"
+                >
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 space-y-6">
+              <div className="grid gap-6 sm:grid-cols-2">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Meeting Date
+                  </label>
+                  <input
+                    type="date"
+                    value={meetingDate}
+                    onChange={(e) => setMeetingDate(e.target.value)}
+                    className="input"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Status
+                  </label>
+                  <select
+                    value={status}
+                    onChange={(e) => setStatus(e.target.value)}
+                    className="input"
+                  >
+                    <option value="scheduled">Scheduled</option>
+                    <option value="met">Met</option>
+                    <option value="emailed">Emailed</option>
+                    <option value="invested">Invested</option>
+                    <option value="rejected">Rejected</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Idea Summary
+                </label>
+                <textarea
+                  value={ideaSummary}
+                  onChange={(e) => setIdeaSummary(e.target.value)}
+                  rows={3}
+                  className="input resize-none"
+                  placeholder="Brief summary of the company's idea..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Thoughts & Notes
+                </label>
+                <textarea
+                  value={thoughts}
+                  onChange={(e) => setThoughts(e.target.value)}
+                  rows={4}
+                  className="input resize-none"
+                  placeholder="Discussion notes, concerns, opportunities..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  Final Decision
+                </label>
+                <div className="flex gap-3">
+                  {[
+                    { value: 'pending', label: 'Pending', icon: '⏳', color: 'gray' },
+                    { value: 'yes', label: 'Yes', icon: '✅', color: 'emerald' },
+                    { value: 'maybe', label: 'Maybe', icon: '🤔', color: 'amber' },
+                    { value: 'no', label: 'No', icon: '❌', color: 'red' },
+                  ].map((option) => (
+                    <button
+                      key={option.value}
+                      onClick={() => setDecision(option.value)}
+                      className={`flex-1 py-3 px-4 rounded-xl border-2 font-semibold text-center transition-all ${
+                        decision === option.value
+                          ? option.color === 'emerald'
+                            ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                            : option.color === 'amber'
+                            ? 'border-amber-500 bg-amber-50 text-amber-700'
+                            : option.color === 'red'
+                            ? 'border-red-500 bg-red-50 text-red-700'
+                            : 'border-gray-400 bg-gray-50 text-gray-700'
+                          : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      <div className="text-xl mb-1">{option.icon}</div>
+                      <div>{option.label}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Investment Details - shown when decision is 'yes' */}
+              {decision === 'yes' && (
+                <div className="bg-emerald-50 rounded-xl p-6 border-2 border-emerald-200">
+                  <h3 className="text-lg font-semibold text-emerald-800 mb-4 flex items-center gap-2">
+                    <span>💰</span> Investment Details
+                  </h3>
+                  <p className="text-sm text-emerald-700 mb-4">
+                    Please enter the investment details. This will create a portfolio entry.
+                  </p>
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <label className="block text-sm font-medium text-emerald-800 mb-1.5">
+                        Investment Amount *
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                        <input
+                          type="number"
+                          value={investmentAmount || ''}
+                          onChange={(e) => setInvestmentAmount(e.target.value ? parseFloat(e.target.value) : null)}
+                          className="input pl-7"
+                          placeholder="100000"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-emerald-800 mb-1.5">
+                        Investment Date *
+                      </label>
+                      <input
+                        type="date"
+                        value={investmentDate}
+                        onChange={(e) => setInvestmentDate(e.target.value)}
+                        className="input"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="mt-4">
+                    <label className="block text-sm font-medium text-emerald-800 mb-1.5">
+                      Terms *
+                    </label>
+                    <input
+                      type="text"
+                      value={investmentTerms}
+                      onChange={(e) => setInvestmentTerms(e.target.value)}
+                      onFocus={(e) => {
+                        if (e.target.value === '10mm cap safe') {
+                          setInvestmentTerms('')
+                        }
+                      }}
+                      className="input"
+                    />
+                  </div>
+
+                  <div className="mt-4">
+                    <label className="block text-sm font-medium text-emerald-800 mb-1.5">
+                      Co-Investors (optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={otherFunders}
+                      onChange={(e) => setOtherFunders(e.target.value)}
+                      className="input"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex gap-3">
+              <button
+                onClick={() => setShowDecisionModal(false)}
+                className="btn btn-secondary flex-1"
+                disabled={loading}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleSaveDeliberation(true)}
+                disabled={loading}
+                className="btn btn-primary flex-1"
+              >
+                {loading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    Saving...
+                  </span>
+                ) : (
+                  'Save Decision'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Move Back to Voting Confirmation Modal */}
+      {showMoveBackConfirm && (
+        <div className="modal-backdrop" onClick={() => !moveBackLoading && setShowMoveBackConfirm(false)}>
+          <div
+            className="modal-content max-w-md"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center">
+                  <svg className="w-6 h-6 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Move back to Applications?</h3>
+                  <p className="text-sm text-gray-500">This will undo the move to Interviews</p>
+                </div>
+              </div>
+
+              <p className="text-gray-600 mb-6">
+                <strong>{application.company_name}</strong> will be moved back to the Applications tab. Any deliberation decision will be reset to &quot;Pending&quot;.
+              </p>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowMoveBackConfirm(false)}
+                  className="btn btn-secondary flex-1"
+                  disabled={moveBackLoading}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleMoveBackToVoting}
+                  disabled={moveBackLoading}
+                  className="btn btn-primary flex-1 bg-amber-500 hover:bg-amber-600"
+                >
+                  {moveBackLoading ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                      Moving...
+                    </span>
+                  ) : (
+                    'Move to Applications'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}

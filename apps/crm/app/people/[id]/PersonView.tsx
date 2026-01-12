@@ -367,11 +367,18 @@ export default function PersonView({ person, introducerName, activeCompanies, ca
         ? formData.alternative_emails.split(',').map(e => e.trim()).filter(Boolean)
         : null
 
+      // Build full name from first and last name
+      const fullName = [formData.first_name, formData.last_name]
+        .filter(Boolean)
+        .join(' ')
+        .trim() || null
+
       const { error: updateError } = await supabase
         .from('saif_people')
         .update({
           first_name: formData.first_name || null,
           last_name: formData.last_name || null,
+          name: fullName, // Keep name field in sync with first/last name
           email: formData.email || null,
           alternative_emails: alternativeEmailsArray?.length ? alternativeEmailsArray : null,
           title: formData.title || null,

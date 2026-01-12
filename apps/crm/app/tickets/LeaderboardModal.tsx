@@ -35,6 +35,7 @@ type LeaderboardEntry = {
   highPriority: number
   medPriority: number
   lowPriority: number
+  selfAssignedResolved: number // self-assigned tickets completed (no points)
 }
 
 type Achievement = {
@@ -111,13 +112,19 @@ export default function LeaderboardModal({
   const leaderboard = useMemo(() => {
     const entries: LeaderboardEntry[] = partners.map(partner => {
       // Get tickets completed by this partner (based on assigned_to)
+      // Exclude tickets they created for themselves (no points for self-assigned tickets)
       const partnerTickets = filteredTickets.filter(t =>
-        t.assigned_to === partner.id
+        t.assigned_to === partner.id && t.created_by !== partner.id
       )
 
-      // Get tickets created by this partner
+      // Get tickets created by this partner for others (not self-assigned)
       const ticketsCreated = ticketsCreatedInPeriod.filter(t =>
-        t.created_by === partner.id
+        t.created_by === partner.id && t.assigned_to !== partner.id
+      ).length
+
+      // Count self-assigned tickets that were resolved (no points, just display)
+      const selfAssignedResolved = filteredTickets.filter(t =>
+        t.assigned_to === partner.id && t.created_by === partner.id
       ).length
 
       // Count by priority
@@ -168,6 +175,7 @@ export default function LeaderboardModal({
         highPriority,
         medPriority,
         lowPriority,
+        selfAssignedResolved,
       }
     })
 
@@ -517,39 +525,50 @@ export default function LeaderboardModal({
                   </div>
                 )}
 
-                {/* Achievements - hover to reveal */}
-                {(() => {
-                  const earnedAchievements = getAchievements(entry).filter(a => a.earned)
-                  if (earnedAchievements.length === 0) return null
-                  return (
-                    <div className="mt-3 relative group/achievements inline-block">
-                      <div className="flex items-center gap-1.5 cursor-pointer text-amber-600 hover:text-amber-700 transition-colors">
-                        <span className="text-lg">🏅</span>
-                        <span className="text-xs font-medium">{earnedAchievements.length} Achievement{earnedAchievements.length !== 1 ? 's' : ''}</span>
-                      </div>
-                      <div className="absolute left-0 bottom-full mb-2 opacity-0 invisible group-hover/achievements:opacity-100 group-hover/achievements:visible transition-all duration-200 z-50">
-                        <div className="bg-white rounded-lg shadow-xl border border-gray-200 p-2 flex gap-1">
-                          {earnedAchievements.map(achievement => (
-                            <div
-                              key={achievement.id}
-                              className="group/single relative"
-                            >
-                              <span className="text-2xl cursor-pointer hover:scale-110 transition-transform inline-block">{achievement.icon}</span>
-                              <div className="absolute left-0 bottom-full mb-2 opacity-0 invisible group-hover/single:opacity-100 group-hover/single:visible transition-all duration-150 z-50 pointer-events-none">
-                                <div className="bg-gray-900 text-white rounded-lg px-3 py-2 whitespace-nowrap">
-                                  <div className="text-sm font-medium">{achievement.name}</div>
-                                  <div className="text-xs text-gray-300">{achievement.description}</div>
-                                </div>
-                                <div className="absolute left-3 bottom-0 translate-y-full w-0 h-0 border-l-6 border-r-6 border-t-6 border-transparent border-t-gray-900" />
-                              </div>
-                            </div>
-                          ))}
+                {/* Achievements and Self-Assigned */}
+                <div className="mt-3 flex items-center gap-4">
+                  {/* Achievements - hover to reveal */}
+                  {(() => {
+                    const earnedAchievements = getAchievements(entry).filter(a => a.earned)
+                    if (earnedAchievements.length === 0) return null
+                    return (
+                      <div className="relative group/achievements inline-block">
+                        <div className="flex items-center gap-1.5 cursor-pointer text-amber-600 hover:text-amber-700 transition-colors">
+                          <span className="text-lg">🏅</span>
+                          <span className="text-xs font-medium">{earnedAchievements.length} Achievement{earnedAchievements.length !== 1 ? 's' : ''}</span>
                         </div>
-                        <div className="absolute left-4 bottom-0 transform translate-y-full w-0 h-0 border-l-8 border-r-8 border-t-8 border-transparent border-t-white" />
+                        <div className="absolute left-0 bottom-full mb-2 opacity-0 invisible group-hover/achievements:opacity-100 group-hover/achievements:visible transition-all duration-200 z-50">
+                          <div className="bg-white rounded-lg shadow-xl border border-gray-200 p-2 flex gap-1">
+                            {earnedAchievements.map(achievement => (
+                              <div
+                                key={achievement.id}
+                                className="group/single relative"
+                              >
+                                <span className="text-2xl cursor-pointer hover:scale-110 transition-transform inline-block">{achievement.icon}</span>
+                                <div className="absolute left-0 bottom-full mb-2 opacity-0 invisible group-hover/single:opacity-100 group-hover/single:visible transition-all duration-150 z-50 pointer-events-none">
+                                  <div className="bg-gray-900 text-white rounded-lg px-3 py-2 whitespace-nowrap">
+                                    <div className="text-sm font-medium">{achievement.name}</div>
+                                    <div className="text-xs text-gray-300">{achievement.description}</div>
+                                  </div>
+                                  <div className="absolute left-3 bottom-0 translate-y-full w-0 h-0 border-l-6 border-r-6 border-t-6 border-transparent border-t-gray-900" />
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="absolute left-4 bottom-0 transform translate-y-full w-0 h-0 border-l-8 border-r-8 border-t-8 border-transparent border-t-white" />
+                        </div>
                       </div>
+                    )
+                  })()}
+
+                  {/* Self-Assigned Resolved (no points) */}
+                  {entry.selfAssignedResolved > 0 && (
+                    <div className="flex items-center gap-1.5 text-gray-400">
+                      <span className="text-sm">🔄</span>
+                      <span className="text-xs">{entry.selfAssignedResolved} self-assigned</span>
                     </div>
-                  )
-                })()}
+                  )}
+                </div>
               </div>
             ))}
 
@@ -571,6 +590,7 @@ export default function LeaderboardModal({
               <span><span className="font-semibold text-green-600">Low</span> = 1 pt</span>
               <span><span className="font-semibold text-blue-600">Created</span> = 1 pt</span>
             </div>
+            <div className="text-xs text-gray-400 mt-2">Self-assigned tickets don't count</div>
           </div>
         </div>
       </div>

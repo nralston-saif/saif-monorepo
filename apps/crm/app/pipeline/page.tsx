@@ -120,6 +120,7 @@ export default async function PipelinePage() {
             stage: app.stage,
             submitted_at: app.submitted_at,
             email_sent: app.email_sent,
+            email_sent_at: app.email_sent_at,
             email_sender_name: (app.email_sender as any)?.name || null,
             allVotes: votesWithNames,
             draft_rejection_email: (app as any).draft_rejection_email || null,

@@ -100,10 +100,10 @@ export default function SearchModal({ onClose }: { onClose: () => void }) {
       type: 'application' as const,
       id: app.id,
       title: app.company_name,
-      subtitle: app.founder_names,
+      subtitle: formatFounderNames(app.founder_names),
       badge: app.stage,
       badgeStyle: getStageBadgeStyle(app.stage),
-      href: app.stage === 'deliberation' ? '/deliberation' : '/pipeline',
+      href: app.stage === 'deliberation' ? '/deals' : '/pipeline',
       hash: `app-${app.id}`,
     })),
     ...results.investments.map((inv) => ({
@@ -417,7 +417,7 @@ export default function SearchModal({ onClose }: { onClose: () => void }) {
                             subtitle: app.founder_names,
                             badge: app.stage,
                             badgeStyle: getStageBadgeStyle(app.stage),
-                            href: app.stage === 'deliberation' ? '/deliberation' : '/pipeline',
+                            href: app.stage === 'deliberation' ? '/deals' : '/pipeline',
                             hash: `app-${app.id}`,
                           })
                         }
@@ -434,7 +434,7 @@ export default function SearchModal({ onClose }: { onClose: () => void }) {
                         <div className="flex-1 min-w-0">
                           <p className="font-medium text-gray-900 truncate">{app.company_name}</p>
                           {app.founder_names && (
-                            <p className="text-sm text-gray-500 truncate">{app.founder_names}</p>
+                            <p className="text-sm text-gray-500 truncate">{formatFounderNames(app.founder_names)}</p>
                           )}
                         </div>
                         <span className={`badge ${getStageBadgeStyle(app.stage)} capitalize`}>
@@ -547,6 +547,16 @@ function formatCurrency(amount: number): string {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(amount)
+}
+
+function formatFounderNames(names: string | null): string {
+  if (!names) return ''
+  // Handle both newline-separated and comma-separated names consistently
+  return names
+    .replace(/\r?\n/g, ', ')  // Convert newlines to commas first
+    .split(/\s*,\s*/)          // Split on commas
+    .filter(Boolean)           // Remove empty strings
+    .join(' • ')               // Join with bullet separator
 }
 
 function getRoleLabel(role: string): string {

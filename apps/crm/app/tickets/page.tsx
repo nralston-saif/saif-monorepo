@@ -56,10 +56,12 @@ export default async function TicketsPage() {
       created_at,
       updated_at,
       archived_at,
+      application_id,
       assigned_partner:saif_people!saif_tickets_assigned_to_fkey(id, first_name, last_name, email, avatar_url),
       creator:saif_people!saif_tickets_created_by_fkey(id, first_name, last_name, email, avatar_url),
       company:saif_companies!saif_tickets_related_company_fkey(id, name, logo_url),
       person:saif_people!saif_tickets_related_person_fkey(id, first_name, last_name, email),
+      application:saifcrm_applications!saif_tickets_application_id_fkey(id, company_name, draft_rejection_email, primary_email),
       comments:saif_ticket_comments(
         id,
         ticket_id,

@@ -225,7 +225,7 @@ export async function notifyNewApplication(applicationId: string, companyName: s
 }
 
 /**
- * Notification: Application reached 3 votes (ready for deliberation)
+ * Notification: Application reached 3 votes (ready to be advanced)
  */
 export async function notifyReadyForDeliberation(
   applicationId: string,
@@ -239,8 +239,8 @@ export async function notifyReadyForDeliberation(
     excludeActorId: actorId,
     actorId,
     type: 'ready_for_deliberation',
-    title: `${companyName} ready for deliberation`,
-    message: 'All 3 votes are in. Ready to advance.',
+    title: `${companyName} ready to be advanced`,
+    message: 'All 3 votes are in.',
     link: `/pipeline#app-${applicationId}`,
     applicationId,
   })
@@ -264,7 +264,7 @@ export async function notifyNewDeliberationNotes(
     type: 'new_deliberation_notes',
     title: `New notes on ${companyName}`,
     message: `${actorName} added deliberation notes.`,
-    link: `/deliberation/${applicationId}`,
+    link: `/deals/${applicationId}`,
     applicationId,
   })
 }
@@ -290,13 +290,14 @@ export async function notifyDecisionMade(
     type: 'decision_made',
     title: `${companyName} ${decisionText}`,
     message: `${actorName} marked ${companyName} as ${decision}.`,
-    link: decision === 'invested' ? `/portfolio` : `/deliberation/${applicationId}`,
+    link: decision === 'invested' ? `/portfolio` : `/deals/${applicationId}`,
     applicationId,
   })
 }
 
 /**
  * Notification: Ticket assigned to someone
+ * Note: We notify even for self-assignments as a reminder
  */
 export async function notifyTicketAssigned(
   ticketId: string,
@@ -305,11 +306,6 @@ export async function notifyTicketAssigned(
   actorId: string,
   actorName: string
 ) {
-  // Don't notify if self-assigning
-  if (assigneeId === actorId) {
-    return { error: null }
-  }
-
   return createNotification({
     recipientId: assigneeId,
     actorId,
@@ -374,4 +370,71 @@ export async function notifyTicketStatusChanged(
     link: `/tickets?id=${ticketId}`,
     ticketId,
   })
+}
+
+// ============================================
+// Dismissal Functions
+// ============================================
+
+/**
+ * Dismiss all notifications for a specific application
+ * Optionally filter by recipient and/or notification types
+ */
+export async function dismissNotificationsForApplication(
+  applicationId: string,
+  recipientId?: string,
+  types?: NotificationType[]
+) {
+  const supabase = getServiceClient()
+
+  let query = supabase
+    .from('saifcrm_notifications')
+    .update({ dismissed_at: new Date().toISOString() })
+    .eq('application_id', applicationId)
+    .is('dismissed_at', null)
+
+  if (recipientId) {
+    query = query.eq('recipient_id', recipientId)
+  }
+
+  if (types && types.length > 0) {
+    query = query.in('type', types)
+  }
+
+  const { error } = await query
+
+  if (error) {
+    console.error('Error dismissing application notifications:', error)
+  }
+
+  return { error }
+}
+
+/**
+ * Dismiss all notifications for a specific ticket
+ * Optionally filter by recipient
+ */
+export async function dismissNotificationsForTicket(
+  ticketId: string,
+  recipientId?: string
+) {
+  const supabase = getServiceClient()
+
+  let query = supabase
+    .from('saifcrm_notifications')
+    .update({ dismissed_at: new Date().toISOString() })
+    .eq('ticket_id', ticketId)
+    .is('dismissed_at', null)
+
+  if (recipientId) {
+    query = query.eq('recipient_id', recipientId)
+  }
+
+  const { error } = await query
+
+  if (error) {
+    console.error('Error dismissing ticket notifications:', error)
+  }
+
+  return { error }
 }

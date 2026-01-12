@@ -43,6 +43,16 @@ export default function ApplicationDetailModal({ application, investment, onClos
     })
   }
 
+  const formatFounderNames = (names: string | null) => {
+    if (!names) return ''
+    // Handle both newline-separated and comma-separated names consistently
+    return names
+      .replace(/\r?\n/g, ', ')  // Convert newlines to commas first
+      .split(/\s*,\s*/)          // Split on commas
+      .filter(Boolean)           // Remove empty strings
+      .join(' • ')               // Join with bullet separator
+  }
+
   const formatCurrency = (amount: number | null) => {
     if (!amount) return '-'
     return new Intl.NumberFormat('en-US', {
@@ -88,7 +98,7 @@ export default function ApplicationDetailModal({ application, investment, onClos
                 )}
               </div>
               {application.founder_names && (
-                <p className="text-gray-500 mt-1">{application.founder_names}</p>
+                <p className="text-gray-500 mt-1">{formatFounderNames(application.founder_names)}</p>
               )}
             </div>
             <button

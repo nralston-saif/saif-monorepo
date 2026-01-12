@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 
 const SMS_NOTIFICATION_OPTIONS = [
   { value: 'new_application', label: 'New Applications', description: 'When a new company applies' },
-  { value: 'ready_for_deliberation', label: 'Ready for Deliberation', description: 'When an application gets 3 votes' },
+  { value: 'ready_for_deliberation', label: 'Application Ready to Advance', description: 'When an application gets 3 votes' },
   { value: 'decision_made', label: 'Decisions Made', description: 'When an investment decision is finalized' },
   { value: 'ticket_assigned', label: 'Ticket Assignments', description: 'When a ticket is assigned to you' },
 ]

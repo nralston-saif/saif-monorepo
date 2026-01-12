@@ -29,6 +29,13 @@ type Person = {
   email: string | null
 }
 
+type Application = {
+  id: string
+  company_name: string
+  draft_rejection_email: string | null
+  primary_email: string | null
+}
+
 type TicketCommentWithAuthor = BaseTicketComment & {
   author?: Partner | null
 }
@@ -38,6 +45,7 @@ type TicketWithRelations = BaseTicket & {
   creator?: Partner | null
   company?: Company | null
   person?: Person | null
+  application?: Application | null
   comments?: TicketCommentWithAuthor[]
 }
 
@@ -96,6 +104,10 @@ export default function TicketDetailModal({
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null)
   const [editContent, setEditContent] = useState('')
   const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null)
+
+  // Draft email editing state
+  const [editingDraftEmail, setEditingDraftEmail] = useState<string>('')
+  const [savingDraftEmail, setSavingDraftEmail] = useState(false)
 
   const supabase = createClient()
   const { showToast } = useToast()
@@ -197,6 +209,33 @@ export default function TicketDetailModal({
     }
   }
 
+  const saveDraftEmail = async (email: string) => {
+    if (!ticket.application_id) return
+
+    setSavingDraftEmail(true)
+    try {
+      const response = await fetch('/api/generate-rejection-email', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ applicationId: ticket.application_id, email }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        showToast(`Failed to save email: ${errorData.error}`, 'error')
+        return
+      }
+
+      showToast('Email saved!', 'success')
+      onUpdate()
+    } catch {
+      showToast('Failed to save email', 'error')
+    } finally {
+      setSavingDraftEmail(false)
+    }
+  }
+
   const handleAddComment = async () => {
     if (!newComment.trim()) return
 
@@ -264,6 +303,26 @@ export default function TicketDetailModal({
   const handleArchiveWithComment = async () => {
     setLoading(true)
 
+    // Get the final email (either edited or original)
+    const finalEmail = editingDraftEmail || ticket.application?.draft_rejection_email
+
+    // If draft email was edited, save it to the application so AI can learn from edits
+    if (editingDraftEmail && ticket.application_id && editingDraftEmail !== ticket.application.draft_rejection_email) {
+      try {
+        const response = await fetch('/api/generate-rejection-email', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ applicationId: ticket.application_id, email: editingDraftEmail }),
+        })
+        if (!response.ok) {
+          console.error('Failed to save edited email to application')
+        }
+      } catch (err) {
+        console.error('Error saving edited email:', err)
+      }
+    }
+
     // Add final comment if provided
     if (finalComment.trim()) {
       const { error: commentError } = await supabase.from('saif_ticket_comments').insert({
@@ -281,6 +340,34 @@ export default function TicketDetailModal({
       }
     }
 
+    // Save the final email as a comment for record keeping
+    if (finalEmail) {
+      const { error: emailCommentError } = await supabase.from('saif_ticket_comments').insert({
+        ticket_id: ticket.id,
+        author_id: currentUserId,
+        content: `📧 Final Email Sent:\n\n${finalEmail}`,
+        is_final_comment: true,
+      })
+
+      if (emailCommentError) {
+        console.error('Failed to save email as comment:', emailCommentError)
+        // Don't block archiving if this fails
+      }
+    }
+
+    // If this ticket has an associated application, mark email as sent
+    if (ticket.application_id) {
+      const { error: emailSentError } = await supabase
+        .from('saifcrm_applications')
+        .update({ email_sent: true, email_sent_at: new Date().toISOString() })
+        .eq('id', ticket.application_id)
+
+      if (emailSentError) {
+        console.error('Failed to update email_sent status:', emailSentError)
+        // Don't block archiving if this fails
+      }
+    }
+
     // Update ticket status to archived
     const { error } = await supabase
       .from('saif_tickets')
@@ -293,9 +380,20 @@ export default function TicketDetailModal({
       showToast('Failed to archive ticket', 'error')
       console.error(error)
     } else {
+      // Dismiss ticket_assigned notification for the assignee
+      fetch('/api/notifications/dismiss', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          ticketId: ticket.id,
+        }),
+      }).catch(console.error)
+
       showToast('Ticket archived successfully', 'success')
       setShowArchiveModal(false)
       setFinalComment('')
+      setEditingDraftEmail('')
       // Close the modal first, then trigger update in background
       onClose()
       onUpdate()
@@ -358,6 +456,19 @@ export default function TicketDetailModal({
       // Send notification if status changed
       if (formData.status !== previousStatus) {
         if (formData.status === 'archived') {
+          // If this ticket has an associated application, mark email as sent
+          if (ticket.application_id) {
+            supabase
+              .from('saifcrm_applications')
+              .update({ email_sent: true, email_sent_at: new Date().toISOString() })
+              .eq('id', ticket.application_id)
+              .then(({ error: emailSentError }) => {
+                if (emailSentError) {
+                  console.error('Failed to update email_sent status:', emailSentError)
+                }
+              })
+          }
+
           // Archived notification
           fetch('/api/notifications/ticket', {
             method: 'POST',
@@ -369,6 +480,16 @@ export default function TicketDetailModal({
               creatorId: ticket.created_by,
               actorId: currentUserId,
               actorName: currentUserName,
+            }),
+          }).catch(console.error)
+
+          // Dismiss ticket_assigned notification for the assignee
+          fetch('/api/notifications/dismiss', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              ticketId: ticket.id,
             }),
           }).catch(console.error)
         } else {
@@ -431,6 +552,19 @@ export default function TicketDetailModal({
 
       // Send notification for status change
       if (newStatus === 'archived' && ticket.status !== 'archived') {
+        // If this ticket has an associated application, mark email as sent
+        if (ticket.application_id) {
+          supabase
+            .from('saifcrm_applications')
+            .update({ email_sent: true, email_sent_at: new Date().toISOString() })
+            .eq('id', ticket.application_id)
+            .then(({ error: emailSentError }) => {
+              if (emailSentError) {
+                console.error('Failed to update email_sent status:', emailSentError)
+              }
+            })
+        }
+
         // Archived notification
         fetch('/api/notifications/ticket', {
           method: 'POST',
@@ -442,6 +576,16 @@ export default function TicketDetailModal({
             creatorId: ticket.created_by,
             actorId: currentUserId,
             actorName: currentUserName,
+          }),
+        }).catch(console.error)
+
+        // Dismiss ticket_assigned notification for the assignee
+        fetch('/api/notifications/dismiss', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            ticketId: ticket.id,
           }),
         }).catch(console.error)
       } else if (newStatus !== ticket.status) {
@@ -846,6 +990,72 @@ export default function TicketDetailModal({
                 </div>
               </div>
             </div>
+
+            {/* Draft Email Section */}
+            {ticket.application?.draft_rejection_email && (
+              <div className="pt-6 border-t border-gray-100">
+                <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                  AI-Generated Email Draft
+                  {ticket.application.primary_email && (
+                    <span className="text-xs font-normal text-gray-500">
+                      → {ticket.application.primary_email}
+                    </span>
+                  )}
+                </h4>
+                <textarea
+                  value={editingDraftEmail || ticket.application.draft_rejection_email}
+                  onChange={(e) => setEditingDraftEmail(e.target.value)}
+                  onFocus={() =>
+                    !editingDraftEmail &&
+                    setEditingDraftEmail(ticket.application?.draft_rejection_email || '')
+                  }
+                  rows={10}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-gray-900 focus:border-gray-900 font-mono text-sm resize-y min-h-[200px]"
+                  placeholder="Draft rejection email..."
+                />
+                <div className="mt-3 flex gap-2">
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(editingDraftEmail || ticket.application?.draft_rejection_email || '')
+                      showToast('Email copied to clipboard', 'success')
+                    }}
+                    className="text-xs px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-1"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                    Copy Email
+                  </button>
+                  {editingDraftEmail && editingDraftEmail !== ticket.application.draft_rejection_email && (
+                    <button
+                      onClick={() => saveDraftEmail(editingDraftEmail)}
+                      disabled={savingDraftEmail}
+                      className="text-xs px-3 py-1.5 bg-gray-900 text-white rounded-lg hover:bg-black transition-colors flex items-center gap-1 disabled:opacity-50"
+                    >
+                      {savingDraftEmail ? (
+                        <>
+                          <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                          Save Changes
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Metadata */}
             <div className="pt-6 border-t border-gray-100 space-y-2 text-sm text-gray-500">

@@ -48,7 +48,14 @@ type Deliberation = {
   thoughts: string | null
   decision: string
   status: string | null
+  tags: string[]
+  created_at: string | null
 } | null
+
+type InterviewTag = {
+  name: string
+  color: string
+}
 
 type DeliberationApplication = BaseApplication & {
   stage: string | null
@@ -57,12 +64,14 @@ type DeliberationApplication = BaseApplication & {
   allVotes: Vote[]
   deliberation: Deliberation
   email_sent: boolean | null
+  email_sent_at: string | null
   email_sender_name: string | null
 }
 
 type ArchivedApplication = BaseApplication & {
   stage: string | null
   email_sent: boolean | null
+  email_sent_at: string | null
   email_sender_name: string | null
   allVotes: Vote[]
   draft_rejection_email: string | null
@@ -100,6 +109,16 @@ function formatDate(dateString: string | null): string {
     month: 'short',
     day: 'numeric',
   })
+}
+
+function formatFounderNames(names: string | null): string {
+  if (!names) return ''
+  // Handle both newline-separated and comma-separated names consistently
+  return names
+    .replace(/\r?\n/g, ', ')  // Convert newlines to commas first
+    .split(/\s*,\s*/)          // Split on commas
+    .filter(Boolean)           // Remove empty strings
+    .join(' • ')               // Join with bullet separator
 }
 
 function getVoteBadgeStyle(voteValue: string): string {
@@ -324,6 +343,7 @@ type DealsClientProps = {
   archivedApplications: ArchivedApplication[]
   userId: string
   partners: Partner[]
+  interviewTags: InterviewTag[]
 }
 
 // ============================================
@@ -337,6 +357,7 @@ export default function DealsClient({
   archivedApplications,
   userId,
   partners,
+  interviewTags,
 }: DealsClientProps): React.ReactElement {
   const searchParams = useSearchParams()
   const initialTab = (searchParams.get('tab') as Tab) || 'voting'
@@ -376,16 +397,27 @@ export default function DealsClient({
   const [detailDelibApp, setDetailDelibApp] = useState<DeliberationApplication | null>(null)
   const [detailArchivedApp, setDetailArchivedApp] = useState<ArchivedApplication | null>(null)
 
+  // Move back to voting state
+  const [showMoveBackConfirm, setShowMoveBackConfirm] = useState(false)
+  const [moveBackLoading, setMoveBackLoading] = useState(false)
+  const [showArchivedMoveBackConfirm, setShowArchivedMoveBackConfirm] = useState(false)
+  const [archivedMoveBackLoading, setArchivedMoveBackLoading] = useState(false)
+
   // Search state
   const [archiveSearchQuery, setArchiveSearchQuery] = useState('')
   const [archiveSortOption, setArchiveSortOption] = useState<SortOption>('date-newest')
   const [delibSearchQuery, setDelibSearchQuery] = useState('')
   const [delibSortOption, setDelibSortOption] = useState<SortOption>('date-newest')
+  const [showDelibArchive, setShowDelibArchive] = useState(false)
 
   // Rejection email state
   const [editingEmail, setEditingEmail] = useState<string>('')
   const [savingEmail, setSavingEmail] = useState(false)
   const [generatingEmail, setGeneratingEmail] = useState<string | null>(null)
+
+  // Tag management state
+  const [tagMenuAppId, setTagMenuAppId] = useState<string | null>(null)
+  const [updatingTags, setUpdatingTags] = useState<string | null>(null)
 
   const router = useRouter()
   const supabase = createClient()
@@ -469,6 +501,17 @@ export default function DealsClient({
       supabase.removeChannel(channel)
     }
   }, [supabase, fetchVotesAndUpdateApplications])
+
+  // Close tag menu when clicking outside
+  useEffect(() => {
+    function handleClickOutside() {
+      if (tagMenuAppId) {
+        setTagMenuAppId(null)
+      }
+    }
+    document.addEventListener('click', handleClickOutside)
+    return () => document.removeEventListener('click', handleClickOutside)
+  }, [tagMenuAppId])
 
   // ============================================
   // Voting Tab Handlers
@@ -565,20 +608,55 @@ export default function DealsClient({
         return
       }
 
-      const stageLabel = action === 'deliberation' ? 'deliberation' : 'rejection'
-      const emailType = action === 'deliberation' ? 'ACCEPT' : 'REJECT'
-      await supabase.from('saif_tickets').insert({
-        title: `Send ${emailType} email to ${app.company_name}`,
-        description: `Send ${stageLabel} follow-up email to ${app.company_name}${app.primary_email ? ` (${app.primary_email})` : ''}${app.founder_names ? `\n\nFounders: ${app.founder_names}` : ''}\n\nEmail type: ${emailType}`,
-        status: 'open',
-        priority: 'medium',
-        assigned_to: selectedEmailSender,
-        created_by: userId,
-        tags: ['email-follow-up', newStage],
-      })
+      const stageLabel = action === 'deliberation' ? 'interview' : 'rejection'
+      const ticketTitle = `Send follow-up email to ${app.company_name}`
+      const { data: ticketData } = await supabase
+        .from('saif_tickets')
+        .insert({
+          title: ticketTitle,
+          description: `Send ${stageLabel} follow-up email to ${app.company_name}${app.primary_email ? ` (${app.primary_email})` : ''}${app.founder_names ? `\n\nFounders: ${app.founder_names}` : ''}`,
+          status: 'open',
+          priority: 'medium',
+          assigned_to: selectedEmailSender,
+          created_by: userId,
+          tags: ['email-follow-up', newStage],
+          application_id: app.id,
+        })
+        .select('id')
+        .single()
+
+      // Send notification to the assigned person
+      if (ticketData?.id) {
+        const currentUserName = partners.find((p) => p.id === userId)?.name || 'Someone'
+        fetch('/api/notifications/ticket', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            type: 'assigned',
+            ticketId: ticketData.id,
+            ticketTitle,
+            targetId: selectedEmailSender,
+            actorId: userId,
+            actorName: currentUserName,
+          }),
+        }).catch(console.error)
+      }
+
+      // Dismiss "ready to be advanced" notifications for all partners
+      fetch('/api/notifications/dismiss', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          applicationId: app.id,
+          types: ['ready_for_deliberation'],
+          recipientId: null, // Dismiss for all recipients
+        }),
+      }).catch(console.error)
 
       const message =
-        action === 'deliberation' ? 'Moved to deliberation' : 'Marked as rejected'
+        action === 'deliberation' ? 'Moved to Interviews' : 'Marked as rejected'
       showToast(message, 'success')
       setEmailSenderModal(null)
 
@@ -616,9 +694,21 @@ export default function DealsClient({
         return
       }
 
+      // Dismiss "ready to be advanced" notifications for all partners
+      fetch('/api/notifications/dismiss', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          applicationId: confirmMoveApp.id,
+          types: ['ready_for_deliberation'],
+          recipientId: null,
+        }),
+      }).catch(console.error)
+
       setConfirmMoveApp(null)
       setOpenMenuId(null)
-      showToast('Moved to deliberation', 'success')
+      showToast('Moved to Interviews', 'success')
       router.refresh()
     } catch {
       showToast('An unexpected error occurred', 'error')
@@ -647,6 +737,74 @@ export default function DealsClient({
     setInvestmentTerms('10mm cap safe')
     setInvestmentDate(new Date().toISOString().split('T')[0])
     setOtherFunders('')
+  }
+
+  async function handleMoveBackToVoting(): Promise<void> {
+    if (!detailDelibApp) return
+
+    setMoveBackLoading(true)
+    try {
+      // Update application stage back to voting
+      const { error } = await supabase
+        .from('saifcrm_applications')
+        .update({ stage: 'voting' })
+        .eq('id', detailDelibApp.id)
+
+      if (error) {
+        showToast('Error moving back to voting: ' + error.message, 'error')
+        setMoveBackLoading(false)
+        return
+      }
+
+      // Reset deliberation decision to pending if it exists
+      if (detailDelibApp.deliberation) {
+        await supabase
+          .from('saifcrm_deliberations')
+          .update({ decision: 'pending', status: null })
+          .eq('application_id', detailDelibApp.id)
+      }
+
+      showToast('Application moved back to Applications', 'success')
+      setShowMoveBackConfirm(false)
+      setDetailDelibApp(null)
+      router.refresh()
+    } catch (err) {
+      showToast('An unexpected error occurred', 'error')
+    }
+    setMoveBackLoading(false)
+  }
+
+  async function handleArchivedMoveBackToVoting(): Promise<void> {
+    if (!detailArchivedApp) return
+
+    setArchivedMoveBackLoading(true)
+    try {
+      // Update application stage back to voting
+      const { error } = await supabase
+        .from('saifcrm_applications')
+        .update({ stage: 'voting' })
+        .eq('id', detailArchivedApp.id)
+
+      if (error) {
+        showToast('Error moving back to voting: ' + error.message, 'error')
+        setArchivedMoveBackLoading(false)
+        return
+      }
+
+      // Reset deliberation decision to pending if it exists
+      await supabase
+        .from('saifcrm_deliberations')
+        .update({ decision: 'pending', status: null })
+        .eq('application_id', detailArchivedApp.id)
+
+      showToast('Application moved back to Applications', 'success')
+      setShowArchivedMoveBackConfirm(false)
+      setDetailArchivedApp(null)
+      router.refresh()
+    } catch (err) {
+      showToast('An unexpected error occurred', 'error')
+    }
+    setArchivedMoveBackLoading(false)
   }
 
   async function handleSaveDeliberation(): Promise<void> {
@@ -749,6 +907,75 @@ export default function DealsClient({
     const filtered = filterBySearchQuery(archivedApplications, archiveSearchQuery)
     return sortByDateAndName(filtered, archiveSortOption)
   }, [archivedApplications, archiveSearchQuery, archiveSortOption])
+
+  // ============================================
+  // Tag Management
+  // ============================================
+
+  async function toggleTag(app: DeliberationApplication, tagName: string): Promise<void> {
+    setUpdatingTags(app.id)
+
+    const currentTags = app.deliberation?.tags || []
+    const hasTag = currentTags.includes(tagName)
+    const newTags = hasTag
+      ? currentTags.filter((t) => t !== tagName)
+      : [...currentTags, tagName]
+
+    try {
+      const { error } = await supabase.from('saifcrm_deliberations').upsert(
+        {
+          application_id: app.id,
+          tags: newTags,
+          decision: app.deliberation?.decision || 'pending',
+        },
+        { onConflict: 'application_id' }
+      )
+
+      if (error) {
+        showToast('Error updating tags: ' + error.message, 'error')
+      } else {
+        router.refresh()
+      }
+    } catch {
+      showToast('An unexpected error occurred', 'error')
+    }
+
+    setUpdatingTags(null)
+  }
+
+  function getTagColor(tagName: string): string {
+    const tag = interviewTags.find((t) => t.name === tagName)
+    return tag?.color || '#6B7280'
+  }
+
+  // Tag display order (process flow)
+  const tagOrder = [
+    'not-scheduled',
+    'intro-call-scheduled',
+    'intro-call-done',
+    'followup-scheduled',
+    'followup-done',
+    'awaiting-response',
+    'decision-needed',
+  ]
+
+  function formatTagName(tagName: string): string {
+    return tagName
+      .split('-')
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ')
+  }
+
+  function getOrderedTags(tags: InterviewTag[]): InterviewTag[] {
+    return [...tags].sort((a, b) => {
+      const indexA = tagOrder.indexOf(a.name)
+      const indexB = tagOrder.indexOf(b.name)
+      // If tag not in order list, put it at the end
+      if (indexA === -1) return 1
+      if (indexB === -1) return -1
+      return indexA - indexB
+    })
+  }
 
   // ============================================
   // Shared Helpers
@@ -909,7 +1136,7 @@ export default function DealsClient({
               Website
             </h3>
             <a
-              href={app.website}
+              href={app.website.startsWith('http') ? app.website : `https://${app.website}`}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 text-[#1a1a1a] hover:text-black underline"
@@ -1051,8 +1278,8 @@ export default function DealsClient({
       {/* Tabs */}
       <div className="border-b border-gray-200 mb-3">
         <nav className="-mb-px flex gap-4">
-          {renderTabButton('voting', 'Voting', votingCount)}
-          {renderTabButton('deliberation', 'Deliberation', deliberationCount)}
+          {renderTabButton('voting', 'Applications', votingCount)}
+          {renderTabButton('deliberation', 'Interviews', deliberationCount)}
           {renderTabButton('archive', 'Archive', archiveCount)}
         </nav>
       </div>
@@ -1063,13 +1290,7 @@ export default function DealsClient({
       {activeTab === 'voting' && (
         <div>
           {clientVotingApps.length === 0 ? (
-            <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-3 text-center">
-              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-2">
-                <span className="text-3xl">No applications</span>
-              </div>
-              <h3 className="text-sm font-semibold text-gray-900 mb-2">
-                No applications in voting
-              </h3>
+            <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6 text-center">
               <p className="text-gray-500">New applications will appear here when submitted.</p>
             </div>
           ) : (
@@ -1092,7 +1313,7 @@ export default function DealsClient({
                               </h3>
                               {app.founder_names && (
                                 <p className="text-xs text-gray-500 truncate">
-                                  {app.founder_names}
+                                  {formatFounderNames(app.founder_names)}
                                 </p>
                               )}
                             </div>
@@ -1124,7 +1345,7 @@ export default function DealsClient({
                                       }}
                                       className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
                                     >
-                                      Move to Deliberation
+                                      Move to Interviews
                                     </button>
                                   </div>
                                 </>
@@ -1141,7 +1362,7 @@ export default function DealsClient({
                           <div className="flex flex-wrap gap-1.5 mb-2">
                             {app.website && (
                               <a
-                                href={app.website}
+                                href={app.website.startsWith('http') ? app.website : `https://${app.website}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="text-xs text-gray-600 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded transition-colors"
@@ -1202,7 +1423,7 @@ export default function DealsClient({
                                 </h3>
                                 {app.founder_names && (
                                   <p className="text-sm text-gray-500 mt-0.5 truncate">
-                                    {app.founder_names}
+                                    {formatFounderNames(app.founder_names)}
                                   </p>
                                 )}
                               </div>
@@ -1222,7 +1443,7 @@ export default function DealsClient({
                             <div className="flex flex-wrap gap-2 mb-2">
                               {app.website && (
                                 <a
-                                  href={app.website}
+                                  href={app.website.startsWith('http') ? app.website : `https://${app.website}`}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="inline-flex items-center gap-1 text-sm text-[#1a1a1a] hover:text-black bg-[#f5f5f5] hover:bg-[#e5e5e5] px-3 py-1.5 rounded-lg transition-colors"
@@ -1374,21 +1595,39 @@ export default function DealsClient({
                                 {app.company_name}
                               </h3>
                               {app.founder_names && (
-                                <p className="text-xs text-gray-500 truncate">{app.founder_names}</p>
+                                <p className="text-xs text-gray-500 truncate">{formatFounderNames(app.founder_names)}</p>
+                              )}
+                              {app.deliberation?.created_at && (
+                                <p className="text-xs text-gray-400">
+                                  Voted: {formatDate(app.deliberation.created_at)}
+                                </p>
                               )}
                             </div>
                             <div className="flex items-center gap-1 ml-2 flex-shrink-0">
-                              {app.deliberation?.status &&
-                                app.deliberation.status !== 'scheduled' && (
-                                  <span className={`badge text-xs ${getStatusBadgeStyle(app.deliberation.status)}`}>
-                                    {app.deliberation.status}
-                                  </span>
-                                )}
                               {app.email_sent && (
-                                <span className="badge text-xs bg-blue-100 text-blue-700">Sent</span>
+                                <span className="badge text-xs bg-blue-100 text-blue-700">
+                                  Email Sent{app.email_sent_at ? `: ${formatDate(app.email_sent_at)}` : ''}
+                                </span>
                               )}
                             </div>
                           </div>
+
+                          {/* Interview Tags */}
+                          {app.deliberation?.tags && app.deliberation.tags.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mb-2">
+                              {[...app.deliberation.tags]
+                                .sort((a, b) => tagOrder.indexOf(a) - tagOrder.indexOf(b))
+                                .map((tagName) => (
+                                  <span
+                                    key={tagName}
+                                    className="text-xs px-2 py-0.5 rounded-full text-white"
+                                    style={{ backgroundColor: getTagColor(tagName) }}
+                                  >
+                                    {formatTagName(tagName)}
+                                  </span>
+                                ))}
+                            </div>
+                          )}
 
                           {app.company_description && (
                             <p className="text-xs text-gray-600 line-clamp-2 mb-2">
@@ -1437,20 +1676,63 @@ export default function DealsClient({
                           </div>
                         </div>
 
-                        <div className="px-3 py-2 bg-gray-50 border-t border-gray-100 flex gap-2">
+                        <div className="px-3 py-2 bg-gray-50 border-t border-gray-100 flex gap-2 items-center">
                           <Link
-                            href={`/deliberation/${app.id}`}
+                            href={`/deals/${app.id}`}
                             onClick={(e) => e.stopPropagation()}
                             className="text-xs px-2 py-1 rounded bg-white border border-gray-200 text-gray-700 hover:bg-gray-50"
                           >
                             Notes
                           </Link>
+                          <div className="relative">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setTagMenuAppId(tagMenuAppId === app.id ? null : app.id)
+                              }}
+                              className="text-xs px-2 py-1 rounded bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 flex items-center gap-1"
+                            >
+                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                              </svg>
+                              Tag
+                            </button>
+                            {tagMenuAppId === app.id && (
+                              <div
+                                className="absolute bottom-full left-0 mb-1 bg-white rounded-lg shadow-lg border border-gray-200 py-1 min-w-[200px] z-50"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {getOrderedTags(interviewTags).map((tag) => {
+                                  const isSelected = app.deliberation?.tags?.includes(tag.name)
+                                  return (
+                                    <button
+                                      key={tag.name}
+                                      onClick={() => toggleTag(app, tag.name)}
+                                      disabled={updatingTags === app.id}
+                                      className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"
+                                    >
+                                      <span
+                                        className="w-3 h-3 rounded-full flex-shrink-0"
+                                        style={{ backgroundColor: tag.color }}
+                                      />
+                                      <span className="flex-1">{formatTagName(tag.name)}</span>
+                                      {isSelected && (
+                                        <svg className="w-4 h-4 text-emerald-500" fill="currentColor" viewBox="0 0 20 20">
+                                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                        </svg>
+                                      )}
+                                    </button>
+                                  )
+                                })}
+                              </div>
+                            )}
+                          </div>
                           <button
                             onClick={(e) => {
                               e.stopPropagation()
                               openDeliberationModal(app)
                             }}
-                            className="text-xs px-2 py-1 rounded bg-[#1a1a1a] text-white hover:bg-black"
+                            className="text-xs px-2 py-1 rounded bg-[#1a1a1a] text-white hover:bg-black ml-auto"
                           >
                             Decide
                           </button>
@@ -1461,90 +1743,124 @@ export default function DealsClient({
                 </section>
               )}
 
-              {/* Already Decided Section */}
+              {/* Archive Section Separator */}
               {decidedDeliberations.length > 0 && (
-                <section>
-                  {/* Search and Sort Controls */}
-                  <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-3 mb-2">
-                    <div className="flex flex-col sm:flex-row gap-2">
-                      <div className="flex-1 relative">
-                        <SearchIcon />
-                        <input
-                          type="text"
-                          placeholder="Search by company, founder, or description..."
-                          value={delibSearchQuery}
-                          onChange={(e) => setDelibSearchQuery(e.target.value)}
-                          className="input !pl-11"
-                        />
-                      </div>
-                      <div className="sm:w-48">
-                        <select
-                          value={delibSortOption}
-                          onChange={(e) => setDelibSortOption(e.target.value as SortOption)}
-                          className="input"
+                <>
+                  {/* Separator */}
+                  <div className="relative py-4">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t border-gray-200"></div>
+                    </div>
+                    <div className="relative flex justify-center">
+                      <button
+                        onClick={() => setShowDelibArchive(!showDelibArchive)}
+                        className="bg-white px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 flex items-center gap-2 rounded-lg border border-gray-200 hover:border-gray-300 transition-colors"
+                      >
+                        <svg
+                          className={`w-4 h-4 transition-transform ${showDelibArchive ? 'rotate-180' : ''}`}
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
                         >
-                          <option value="date-newest">Newest First</option>
-                          <option value="date-oldest">Oldest First</option>
-                          <option value="name-az">Name (A-Z)</option>
-                          <option value="name-za">Name (Z-A)</option>
-                          <option value="decision-yes">Yes Decisions First</option>
-                          <option value="decision-no">No Decisions First</option>
-                        </select>
-                      </div>
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                        {showDelibArchive ? 'Hide Archive' : 'Show Archive'}
+                        <span className="text-gray-400">({decidedDeliberations.length})</span>
+                      </button>
                     </div>
                   </div>
 
-                  {filteredDecidedDeliberations.length === 0 ? (
-                    <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 text-center">
-                      <p className="text-gray-500">No applications match your search.</p>
-                    </div>
-                  ) : (
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      {filteredDecidedDeliberations.map((app) => (
-                        <div
-                          key={app.id}
-                          className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden card-hover cursor-pointer"
-                          onClick={() => setDetailDelibApp(app)}
-                        >
-                          <div className="p-3">
-                            <div className="flex items-start justify-between mb-2">
-                              <div className="flex-1 min-w-0">
-                                <h3 className="text-sm font-semibold text-gray-900 truncate">{app.company_name}</h3>
-                                {app.founder_names && (
-                                  <p className="text-xs text-gray-500 truncate">{app.founder_names}</p>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-1 ml-2">
-                                {app.deliberation?.decision && (
-                                  <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${getDecisionBadgeStyle(app.deliberation.decision)}`}>
-                                    {app.deliberation.decision.toUpperCase()}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            {app.company_description && (
-                              <p className="text-xs text-gray-600 line-clamp-2 mb-2">{app.company_description}</p>
-                            )}
-                            {/* Compact vote summary */}
-                            {app.votes && app.votes.length > 0 && (
-                              <div className="flex flex-wrap gap-1 mb-2">
-                                {app.votes.map((voteItem, idx) => (
-                                  <span
-                                    key={`${app.id}-vote-${idx}`}
-                                    className={`text-xs px-1.5 py-0.5 rounded ${getVoteBadgeStyle(voteItem.vote)}`}
-                                  >
-                                    {voteItem.userName.split(' ')[0]}: {voteItem.vote}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
-                            <p className="text-xs text-gray-400">{formatDate(app.submitted_at)}</p>
+                  {/* Already Decided Section - Collapsible */}
+                  {showDelibArchive && (
+                    <section>
+                      {/* Search and Sort Controls */}
+                      <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-3 mb-2">
+                        <div className="flex flex-col sm:flex-row gap-2">
+                          <div className="flex-1 relative">
+                            <SearchIcon />
+                            <input
+                              type="text"
+                              placeholder="Search by company, founder, or description..."
+                              value={delibSearchQuery}
+                              onChange={(e) => setDelibSearchQuery(e.target.value)}
+                              className="input !pl-11"
+                            />
+                          </div>
+                          <div className="sm:w-48">
+                            <select
+                              value={delibSortOption}
+                              onChange={(e) => setDelibSortOption(e.target.value as SortOption)}
+                              className="input"
+                            >
+                              <option value="date-newest">Newest First</option>
+                              <option value="date-oldest">Oldest First</option>
+                              <option value="name-az">Name (A-Z)</option>
+                              <option value="name-za">Name (Z-A)</option>
+                              <option value="decision-yes">Yes Decisions First</option>
+                              <option value="decision-no">No Decisions First</option>
+                            </select>
                           </div>
                         </div>
-                      ))}
-                    </div>
+                      </div>
+
+                      {filteredDecidedDeliberations.length === 0 ? (
+                        <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 text-center">
+                          <p className="text-gray-500">No applications match your search.</p>
+                        </div>
+                      ) : (
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          {filteredDecidedDeliberations.map((app) => (
+                            <div
+                              key={app.id}
+                              className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden card-hover cursor-pointer"
+                              onClick={() => setDetailDelibApp(app)}
+                            >
+                              <div className="p-3">
+                                <div className="flex items-start justify-between mb-2">
+                                  <div className="flex-1 min-w-0">
+                                    <h3 className="text-sm font-semibold text-gray-900 truncate">{app.company_name}</h3>
+                                    {app.founder_names && (
+                                      <p className="text-xs text-gray-500 truncate">{formatFounderNames(app.founder_names)}</p>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-1 ml-2">
+                                    {app.deliberation?.decision && (
+                                      <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${getDecisionBadgeStyle(app.deliberation.decision)}`}>
+                                        {app.deliberation.decision.toUpperCase()}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                {app.deliberation?.created_at && (
+                                  <p className="text-xs text-gray-400 mb-1">
+                                    Voted: {formatDate(app.deliberation.created_at)}
+                                  </p>
+                                )}
+                                {app.company_description && (
+                                  <p className="text-xs text-gray-600 line-clamp-2 mb-2">{app.company_description}</p>
+                                )}
+                                {/* Compact vote summary */}
+                                {app.votes && app.votes.length > 0 && (
+                                  <div className="flex flex-wrap gap-1 mb-2">
+                                    {app.votes.map((voteItem, idx) => (
+                                      <span
+                                        key={`${app.id}-vote-${idx}`}
+                                        className={`text-xs px-1.5 py-0.5 rounded ${getVoteBadgeStyle(voteItem.vote)}`}
+                                      >
+                                        {voteItem.userName.split(' ')[0]}: {voteItem.vote}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                                <p className="text-xs text-gray-400">{formatDate(app.submitted_at)}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </section>
                   )}
-                </section>
+                </>
               )}
             </div>
           )}
@@ -1617,18 +1933,18 @@ export default function DealsClient({
                             {app.company_name}
                           </h3>
                           {app.founder_names && (
-                            <p className="text-sm text-gray-500 truncate">{app.founder_names}</p>
+                            <p className="text-sm text-gray-500 truncate">{formatFounderNames(app.founder_names)}</p>
                           )}
                         </div>
                         <div className="flex items-center gap-2 ml-2 flex-shrink-0">
                           {app.email_sent ? (
                             <span className="badge text-xs bg-blue-100 text-blue-700">
-                              Email Sent
+                              Email Sent{app.email_sent_at ? `: ${formatDate(app.email_sent_at)}` : ''}
                             </span>
                           ) : (
                             app.email_sender_name && (
                               <span className="badge text-xs bg-purple-100 text-purple-700">
-                                {app.email_sender_name} sending
+                                {app.email_sender_name.split(' ')[0]} sending
                               </span>
                             )
                           )}
@@ -1674,7 +1990,7 @@ export default function DealsClient({
                     {selectedVoteApp.company_name}
                   </h2>
                   {selectedVoteApp.founder_names && (
-                    <p className="text-gray-500 mt-1">{selectedVoteApp.founder_names}</p>
+                    <p className="text-gray-500 mt-1">{formatFounderNames(selectedVoteApp.founder_names)}</p>
                   )}
                 </div>
                 <button
@@ -1765,7 +2081,7 @@ export default function DealsClient({
                     {detailVotingApp.company_name}
                   </h2>
                   {detailVotingApp.founder_names && (
-                    <p className="text-gray-500 mt-1">{detailVotingApp.founder_names}</p>
+                    <p className="text-gray-500 mt-1">{formatFounderNames(detailVotingApp.founder_names)}</p>
                   )}
                 </div>
                 <button
@@ -1827,7 +2143,7 @@ export default function DealsClient({
                         disabled={movingToDelib === detailVotingApp.id}
                         className="btn bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50"
                       >
-                        Move to Deliberation
+                        Move to Interviews
                       </button>
                     </>
                   )}
@@ -1861,7 +2177,7 @@ export default function DealsClient({
         >
           <div className="modal-content max-w-md" onClick={(e) => e.stopPropagation()}>
             <div className="px-3 py-2 border-b border-gray-100">
-              <h2 className="text-xl font-bold text-gray-900">Confirm Move to Deliberation</h2>
+              <h2 className="text-xl font-bold text-gray-900">Confirm Move to Interviews</h2>
             </div>
 
             <div className="p-3">
@@ -1909,7 +2225,7 @@ export default function DealsClient({
             <div className="px-3 py-2 border-b border-gray-100">
               <h2 className="text-xl font-bold text-gray-900">
                 {emailSenderModal.action === 'deliberation'
-                  ? 'Move to Deliberation'
+                  ? 'Move to Interviews'
                   : 'Reject Application'}
               </h2>
               <p className="text-gray-500 mt-1">{emailSenderModal.app.company_name}</p>
@@ -1952,7 +2268,7 @@ export default function DealsClient({
                     Processing...
                   </span>
                 ) : emailSenderModal.action === 'deliberation' ? (
-                  'Move to Deliberation'
+                  'Move to Interviews'
                 ) : (
                   'Reject Application'
                 )}
@@ -2186,17 +2502,83 @@ export default function DealsClient({
           application={detailDelibApp}
           onClose={() => setDetailDelibApp(null)}
           actions={
-            <button
-              onClick={() => {
-                setDetailDelibApp(null)
-                openDeliberationModal(detailDelibApp)
-              }}
-              className="btn btn-primary"
-            >
-              {detailDelibApp.deliberation ? 'Edit Deliberation' : 'Add Deliberation'}
-            </button>
+            <>
+              <button
+                onClick={() => setShowMoveBackConfirm(true)}
+                className="btn btn-secondary flex items-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                Move to Applications
+              </button>
+              <button
+                onClick={() => {
+                  setDetailDelibApp(null)
+                  openDeliberationModal(detailDelibApp)
+                }}
+                className="btn btn-primary"
+              >
+                Decision
+              </button>
+            </>
           }
         />
+      )}
+
+      {/* Move Back to Voting Confirmation Modal */}
+      {showMoveBackConfirm && detailDelibApp && (
+        <div className="modal-backdrop z-[60]" onClick={() => !moveBackLoading && setShowMoveBackConfirm(false)}>
+          <div
+            className="modal-content max-w-md"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center">
+                  <svg className="w-6 h-6 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Move back to Applications?</h3>
+                  <p className="text-sm text-gray-500">This will undo the move to Interviews</p>
+                </div>
+              </div>
+
+              <p className="text-gray-600 mb-6">
+                <strong>{detailDelibApp.company_name}</strong> will be moved back to the Applications tab. Any deliberation decision will be reset to &quot;Pending&quot;.
+              </p>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowMoveBackConfirm(false)}
+                  className="btn btn-secondary flex-1"
+                  disabled={moveBackLoading}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleMoveBackToVoting}
+                  disabled={moveBackLoading}
+                  className="btn btn-primary flex-1 bg-amber-500 hover:bg-amber-600"
+                >
+                  {moveBackLoading ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                      Moving...
+                    </span>
+                  ) : (
+                    'Move to Applications'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Archived App Detail Modal */}
@@ -2217,7 +2599,7 @@ export default function DealsClient({
                     </span>
                   </div>
                   {detailArchivedApp.founder_names && (
-                    <p className="text-gray-500 mt-1">{detailArchivedApp.founder_names}</p>
+                    <p className="text-gray-500 mt-1">{formatFounderNames(detailArchivedApp.founder_names)}</p>
                   )}
                 </div>
                 <button
@@ -2351,10 +2733,79 @@ export default function DealsClient({
               )}
             </div>
 
-            <div className="px-3 py-2 bg-gray-50 border-t border-gray-100 flex justify-end">
+            <div className="px-3 py-2 bg-gray-50 border-t border-gray-100 flex justify-end gap-3">
+              <button
+                onClick={() => setShowArchivedMoveBackConfirm(true)}
+                className="btn btn-secondary flex items-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                Move to Applications
+              </button>
               <button onClick={() => setDetailArchivedApp(null)} className="btn btn-secondary">
                 Close
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Move Archived App Back to Voting Confirmation Modal */}
+      {showArchivedMoveBackConfirm && detailArchivedApp && (
+        <div className="modal-backdrop z-[60]" onClick={() => !archivedMoveBackLoading && setShowArchivedMoveBackConfirm(false)}>
+          <div
+            className="modal-content max-w-md"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center">
+                  <svg className="w-6 h-6 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Move back to Applications?</h3>
+                  <p className="text-sm text-gray-500">This will restore the application from Archive</p>
+                </div>
+              </div>
+
+              <p className="text-gray-600 mb-6">
+                <strong>{detailArchivedApp.company_name}</strong> will be moved back to the Applications tab.
+                {detailArchivedApp.stage === 'invested' && (
+                  <span className="block mt-2 text-amber-600 font-medium">
+                    Note: This will NOT remove any investment records.
+                  </span>
+                )}
+              </p>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowArchivedMoveBackConfirm(false)}
+                  className="btn btn-secondary flex-1"
+                  disabled={archivedMoveBackLoading}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleArchivedMoveBackToVoting}
+                  disabled={archivedMoveBackLoading}
+                  className="btn btn-primary flex-1 bg-amber-500 hover:bg-amber-600"
+                >
+                  {archivedMoveBackLoading ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                      Moving...
+                    </span>
+                  ) : (
+                    'Move to Applications'
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>

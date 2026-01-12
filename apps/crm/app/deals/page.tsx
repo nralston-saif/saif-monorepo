@@ -65,6 +65,13 @@ export default async function DealsPage(): Promise<React.ReactElement> {
 
   const { data: people } = await supabase.from('saif_people').select('id, name')
 
+  // Fetch interview tags
+  const { data: interviewTags } = await supabase
+    .from('saif_tags')
+    .select('name, color')
+    .eq('category', 'interview')
+    .order('name')
+
   const peopleMap = new Map(people?.map((p) => [p.id, p.name]) || [])
 
   // Voting applications
@@ -141,8 +148,12 @@ export default async function DealsPage(): Promise<React.ReactElement> {
         votes,
         voteCount: votes.length,
         allVotes: votes,
-        deliberation,
+        deliberation: deliberation ? {
+          ...deliberation,
+          tags: deliberation.tags || [],
+        } : null,
         email_sent: app.email_sent,
+        email_sent_at: app.email_sent_at,
         email_sender_name: (app.email_sender as { name: string } | null)?.name || null,
       }
     }) || []
@@ -196,6 +207,7 @@ export default async function DealsPage(): Promise<React.ReactElement> {
     stage: app.stage,
     submitted_at: app.submitted_at,
     email_sent: app.email_sent,
+    email_sent_at: app.email_sent_at,
     email_sender_name: (app.email_sender as { name: string } | null)?.name || null,
     allVotes: transformVotes(app.saifcrm_votes as RawVote[]),
     draft_rejection_email: (app as { draft_rejection_email?: string }).draft_rejection_email || null,
@@ -211,6 +223,7 @@ export default async function DealsPage(): Promise<React.ReactElement> {
         archivedApplications={archivedAppsTransformed}
         userId={profile?.id || ''}
         partners={partners || []}
+        interviewTags={interviewTags || []}
       />
     </div>
   )
