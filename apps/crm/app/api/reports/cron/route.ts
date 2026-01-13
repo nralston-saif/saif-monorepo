@@ -199,16 +199,56 @@ export async function GET(request: NextRequest) {
   }
 }
 
+// Get Pacific time date boundaries (handles PST/PDT automatically)
+function getPacificDayBoundaries(date: Date): { start: Date; end: Date } {
+  // Format date in Pacific timezone to get the local date
+  const pacificDate = date.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
+
+  // Create start of day in Pacific (midnight PT)
+  const startPT = new Date(`${pacificDate}T00:00:00-08:00`)
+  // Create end of day in Pacific (23:59:59.999 PT)
+  const endPT = new Date(`${pacificDate}T23:59:59.999-08:00`)
+
+  // Adjust for PDT if needed by checking actual offset
+  const testDate = new Date(`${pacificDate}T12:00:00`)
+  const pacificOffset = -new Date(testDate.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' })).getTimezoneOffset() / 60
+
+  if (pacificOffset === -7) {
+    // PDT: adjust from -08:00 to -07:00
+    startPT.setHours(startPT.getHours() - 1)
+    endPT.setHours(endPT.getHours() - 1)
+  }
+
+  return { start: startPT, end: endPT }
+}
+
 async function generateReport(
   reportType: 'daily' | 'weekly',
   endDate: Date
 ): Promise<{ generated: boolean; saved: boolean; ticketCount: number; error?: string }> {
   try {
-    const startDate = new Date(endDate)
+    let startDate: Date
+    let periodEnd: Date
+
     if (reportType === 'daily') {
-      startDate.setHours(startDate.getHours() - 24)
+      // Use Pacific time calendar day for daily reports
+      // Get yesterday's date in Pacific time
+      const yesterday = new Date(endDate)
+      yesterday.setDate(yesterday.getDate() - 1)
+      const boundaries = getPacificDayBoundaries(yesterday)
+      startDate = boundaries.start
+      periodEnd = boundaries.end
     } else {
-      startDate.setDate(startDate.getDate() - 7)
+      // Weekly: go back 7 days from end of yesterday (Pacific)
+      const yesterday = new Date(endDate)
+      yesterday.setDate(yesterday.getDate() - 1)
+      const endBoundaries = getPacificDayBoundaries(yesterday)
+      periodEnd = endBoundaries.end
+
+      const weekAgo = new Date(yesterday)
+      weekAgo.setDate(weekAgo.getDate() - 6)
+      const startBoundaries = getPacificDayBoundaries(weekAgo)
+      startDate = startBoundaries.start
     }
 
     // Fetch completed tickets with comments in the date range
@@ -229,7 +269,7 @@ async function generateReport(
       `)
       .eq('status', 'archived')
       .gte('archived_at', startDate.toISOString())
-      .lte('archived_at', endDate.toISOString())
+      .lte('archived_at', periodEnd.toISOString())
       .order('archived_at', { ascending: false })
 
     if (ticketsError) {
@@ -256,7 +296,7 @@ async function generateReport(
         assigned_partner:saif_people!saif_tickets_assigned_to_fkey(id, first_name, last_name)
       `)
       .neq('status', 'archived')
-      .or(`priority.eq.high,due_date.lte.${endDate.toISOString()}`)
+      .or(`priority.eq.high,due_date.lte.${periodEnd.toISOString()}`)
       .order('priority', { ascending: true })
       .limit(10)
 
@@ -307,7 +347,7 @@ async function generateReport(
       assignee: t.assigned_partner
         ? `${(t.assigned_partner as any).first_name} ${(t.assigned_partner as any).last_name}`.trim()
         : 'Unassigned',
-      isOverdue: t.due_date && new Date(t.due_date) < endDate,
+      isOverdue: t.due_date && new Date(t.due_date) < periodEnd,
     })) || []
 
     const unassignedData = unassignedTickets?.map(t => ({
@@ -385,7 +425,7 @@ Generate a JSON report summarizing the completed work. Include ticket titles and
       .insert({
         report_type: reportType,
         period_start: startDate.toISOString(),
-        period_end: endDate.toISOString(),
+        period_end: periodEnd.toISOString(),
         total_completed: ticketCount,
         summary: reportData.summary,
         report_data: {

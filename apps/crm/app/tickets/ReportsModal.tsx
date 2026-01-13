@@ -92,10 +92,20 @@ export default function ReportsModal({
     })
   }
 
-  const formatDateRange = (start: string, end: string) => {
-    const startDate = new Date(start)
+  const formatDateRange = (start: string, end: string, reportType?: ReportType) => {
     const endDate = new Date(end)
-    return `${startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+    // For daily reports, show just the single day (Pacific time)
+    if (reportType === 'daily') {
+      return endDate.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        timeZone: 'America/Los_Angeles'
+      })
+    }
+    // For weekly reports, show the full range
+    const startDate = new Date(start)
+    return `${startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Los_Angeles' })} - ${endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/Los_Angeles' })}`
   }
 
   const filteredReports = pastReports.filter(r =>
@@ -316,7 +326,7 @@ export default function ReportsModal({
                             {r.report_type}
                           </span>
                           <span className="font-medium text-gray-900">
-                            {formatDateRange(r.period_start, r.period_end)}
+                            {formatDateRange(r.period_start, r.period_end, r.report_type)}
                           </span>
                         </div>
                         <div className="flex items-center gap-4 text-sm text-gray-500">
@@ -359,7 +369,7 @@ export default function ReportsModal({
                       {selectedReport.report_type}
                     </span>
                     <h3 className="font-semibold text-gray-900">
-                      {formatDateRange(selectedReport.period_start, selectedReport.period_end)}
+                      {formatDateRange(selectedReport.period_start, selectedReport.period_end, selectedReport.report_type)}
                     </h3>
                   </div>
                   <span className="text-xs text-gray-500">
