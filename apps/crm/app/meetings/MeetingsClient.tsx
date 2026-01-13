@@ -861,6 +861,7 @@ function QuickTicketModal({
       related_person: formData.related_person || null,
       tags: formData.tags.length > 0 ? formData.tags : null,
       created_by: currentUserId,
+      was_unassigned_at_creation: !formData.assigned_to,
     })
 
     setLoading(false)

@@ -20,6 +20,7 @@ type TicketForLeaderboard = {
   assigned_to: string | null
   created_by: string | null
   created_at: string
+  was_unassigned_at_creation: boolean | null
 }
 
 type TimePeriod = 'week' | 'month' | 'all'
@@ -36,6 +37,7 @@ type LeaderboardEntry = {
   medPriority: number
   lowPriority: number
   selfAssignedResolved: number // self-assigned tickets completed (no points)
+  unassignedPickedUp: number // originally unassigned tickets completed (2x points)
 }
 
 type Achievement = {
@@ -63,7 +65,7 @@ export default function LeaderboardModal({
     async function fetchTickets() {
       const { data, error } = await supabase
         .from('saif_tickets')
-        .select('id, status, priority, due_date, archived_at, assigned_to, created_by, created_at')
+        .select('id, status, priority, due_date, archived_at, assigned_to, created_by, created_at, was_unassigned_at_creation')
 
       if (error) {
         console.error('Error fetching tickets:', error)
@@ -127,13 +129,25 @@ export default function LeaderboardModal({
         t.assigned_to === partner.id && t.created_by === partner.id
       ).length
 
-      // Count by priority
-      const highPriority = partnerTickets.filter(t => t.priority === 'high').length
-      const medPriority = partnerTickets.filter(t => t.priority === 'medium').length
-      const lowPriority = partnerTickets.filter(t => t.priority === 'low').length
+      // Count originally unassigned tickets that were picked up and completed (2x points)
+      const unassignedPickedUp = partnerTickets.filter(t => t.was_unassigned_at_creation).length
 
-      // Calculate points (high=3, medium=2, low=1, created=1)
-      const points = (highPriority * 3) + (medPriority * 2) + (lowPriority * 1) + ticketsCreated
+      // Count by priority (excluding unassigned tickets which get separate 2x calculation)
+      const normalTickets = partnerTickets.filter(t => !t.was_unassigned_at_creation)
+      const highPriority = normalTickets.filter(t => t.priority === 'high').length
+      const medPriority = normalTickets.filter(t => t.priority === 'medium').length
+      const lowPriority = normalTickets.filter(t => t.priority === 'low').length
+
+      // Calculate unassigned ticket points by priority (2x multiplier)
+      const unassignedTickets = partnerTickets.filter(t => t.was_unassigned_at_creation)
+      const unassignedHighPriority = unassignedTickets.filter(t => t.priority === 'high').length
+      const unassignedMedPriority = unassignedTickets.filter(t => t.priority === 'medium').length
+      const unassignedLowPriority = unassignedTickets.filter(t => t.priority === 'low').length
+
+      // Calculate points (high=3, medium=2, low=1, created=1, unassigned=2x)
+      const normalPoints = (highPriority * 3) + (medPriority * 2) + (lowPriority * 1)
+      const unassignedPoints = ((unassignedHighPriority * 3) + (unassignedMedPriority * 2) + (unassignedLowPriority * 1)) * 2
+      const points = normalPoints + unassignedPoints + ticketsCreated
 
       // Calculate on-time percentage
       const ticketsWithDueDate = partnerTickets.filter(t => t.due_date && t.archived_at)
@@ -172,10 +186,11 @@ export default function LeaderboardModal({
         onTimePercent,
         currentStreak,
         avgCloseTime,
-        highPriority,
-        medPriority,
-        lowPriority,
+        highPriority: highPriority + unassignedHighPriority,
+        medPriority: medPriority + unassignedMedPriority,
+        lowPriority: lowPriority + unassignedLowPriority,
         selfAssignedResolved,
+        unassignedPickedUp,
       }
     })
 
@@ -561,6 +576,14 @@ export default function LeaderboardModal({
                     )
                   })()}
 
+                  {/* Unassigned Picked Up (2x points) */}
+                  {entry.unassignedPickedUp > 0 && (
+                    <div className="flex items-center gap-1.5 text-purple-600">
+                      <span className="text-sm">🎯</span>
+                      <span className="text-xs font-medium">{entry.unassignedPickedUp} unassigned (2x)</span>
+                    </div>
+                  )}
+
                   {/* Self-Assigned Resolved (no points) */}
                   {entry.selfAssignedResolved > 0 && (
                     <div className="flex items-center gap-1.5 text-gray-400">
@@ -589,8 +612,9 @@ export default function LeaderboardModal({
               <span><span className="font-semibold text-amber-600">Medium</span> = 2 pts</span>
               <span><span className="font-semibold text-green-600">Low</span> = 1 pt</span>
               <span><span className="font-semibold text-blue-600">Created</span> = 1 pt</span>
+              <span><span className="font-semibold text-purple-600">Unassigned</span> = 2x pts</span>
             </div>
-            <div className="text-xs text-gray-400 mt-2">Self-assigned tickets don't count</div>
+            <div className="text-xs text-gray-400 mt-2">Self-assigned tickets don't count · Picking up unassigned tickets earns double points</div>
           </div>
         </div>
       </div>
