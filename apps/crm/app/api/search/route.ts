@@ -50,19 +50,19 @@ export async function GET(request: NextRequest) {
         .order('investment_date', { ascending: false })
         .limit(10),
 
-      // Search companies
+      // Search companies (including array contains for tags)
       supabase
         .from('saif_companies')
-        .select('id, name, short_description, logo_url, industry, city, country')
-        .or(`name.ilike.${searchPattern},short_description.ilike.${searchPattern},industry.ilike.${searchPattern}`)
+        .select('id, name, short_description, logo_url, industry, city, country, tags')
+        .or(`name.ilike.${searchPattern},short_description.ilike.${searchPattern},industry.ilike.${searchPattern},tags.cs.{${searchWords[0]}}`)
         .order('name', { ascending: true })
-        .limit(10),
+        .limit(50),
 
-      // Search people
+      // Search people (including array contains for tags)
       supabase
         .from('saif_people')
-        .select('id, name, first_name, last_name, email, role, status, title, location, avatar_url')
-        .or(`name.ilike.${firstWordPattern},first_name.ilike.${firstWordPattern},last_name.ilike.${firstWordPattern},email.ilike.${firstWordPattern},title.ilike.${firstWordPattern}`)
+        .select('id, name, first_name, last_name, email, role, status, title, location, avatar_url, tags')
+        .or(`name.ilike.${firstWordPattern},first_name.ilike.${firstWordPattern},last_name.ilike.${firstWordPattern},email.ilike.${firstWordPattern},title.ilike.${firstWordPattern},tags.cs.{${searchWords[0]}}`)
         .order('first_name', { ascending: true })
         .limit(50)
     ])
@@ -73,7 +73,7 @@ export async function GET(request: NextRequest) {
     if (compError) console.error('Error searching companies:', compError)
     if (peopleError) console.error('Error searching people:', peopleError)
 
-    // Filter people to only include results where ALL search words match
+    // Filter people to only include results where ALL search words match (including tags)
     const people = (peopleRaw || []).filter(person => {
       const searchableText = [
         person.name,
@@ -81,6 +81,21 @@ export async function GET(request: NextRequest) {
         person.last_name,
         person.email,
         person.title,
+        ...((person as any).tags || []),
+      ].filter(Boolean).join(' ').toLowerCase()
+
+      return searchWords.every(word => searchableText.includes(word))
+    }).slice(0, 10)
+
+    // Filter companies to include tag matches
+    const filteredCompanies = (companies || []).filter(company => {
+      const searchableText = [
+        company.name,
+        company.short_description,
+        company.industry,
+        company.city,
+        company.country,
+        ...((company as any).tags || []),
       ].filter(Boolean).join(' ').toLowerCase()
 
       return searchWords.every(word => searchableText.includes(word))
@@ -89,7 +104,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       applications: applications || [],
       investments: investments || [],
-      companies: companies || [],
+      companies: filteredCompanies,
       people: people || [],
     })
   } catch (error: any) {

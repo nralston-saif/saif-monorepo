@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import type { UserRole, UserStatus } from '@saif/supabase'
+import TagSelector from '@/app/tickets/TagSelector'
 
 type CompanyAssociation = {
   id: string
@@ -37,6 +38,7 @@ type Person = {
   twitter_url: string | null
   mobile_phone: string | null
   location: string | null
+  tags: string[]
   first_met_date: string | null
   introduced_by: string | null
   introduction_context: string | null
@@ -121,6 +123,7 @@ export default function PersonView({ person, introducerName, activeCompanies, ca
     location: person.location || '',
     role: person.role,
     status: person.status,
+    tags: person.tags || [],
     first_met_date: person.first_met_date || '',
     introduction_context: person.introduction_context || '',
     relationship_notes: person.relationship_notes || '',
@@ -389,6 +392,7 @@ export default function PersonView({ person, introducerName, activeCompanies, ca
           location: formData.location || null,
           role: formData.role,
           status: formData.status,
+          tags: formData.tags,
           first_met_date: formData.first_met_date || null,
           introduction_context: formData.introduction_context || null,
           relationship_notes: formData.relationship_notes || null,
@@ -591,6 +595,18 @@ export default function PersonView({ person, introducerName, activeCompanies, ca
                   onChange={handleInputChange}
                   placeholder="Brief background..."
                   className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-gray-900 focus:border-gray-900"
+                />
+              </div>
+
+              {/* Tags */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Tags
+                </label>
+                <TagSelector
+                  selectedTags={formData.tags}
+                  onChange={(tags) => setFormData({ ...formData, tags })}
+                  currentUserId={person.id}
                 />
               </div>
             </div>
@@ -889,6 +905,7 @@ export default function PersonView({ person, introducerName, activeCompanies, ca
                   location: person.location || '',
                   role: person.role,
                   status: person.status,
+                  tags: person.tags || [],
                   first_met_date: person.first_met_date || '',
                   introduction_context: person.introduction_context || '',
                   relationship_notes: person.relationship_notes || '',
@@ -958,6 +975,20 @@ export default function PersonView({ person, introducerName, activeCompanies, ca
             <div className="mb-8">
               <h2 className="text-lg font-semibold text-gray-900 mb-2">About</h2>
               <p className="text-gray-700 whitespace-pre-wrap">{person.bio}</p>
+            </div>
+          )}
+
+          {/* Tags */}
+          {person.tags && person.tags.length > 0 && (
+            <div className="mb-8">
+              <h2 className="text-lg font-semibold text-gray-900 mb-2">Tags</h2>
+              <div className="flex flex-wrap gap-2">
+                {person.tags.map((tag, index) => (
+                  <span key={index} className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+                    {tag}
+                  </span>
+                ))}
+              </div>
             </div>
           )}
 

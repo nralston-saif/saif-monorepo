@@ -253,9 +253,15 @@ export default function SearchModal({ onClose }: { onClose: () => void }) {
               />
             </svg>
           )}
-          <kbd className="hidden sm:inline-flex items-center px-2 py-1 text-xs text-gray-400 bg-gray-100 rounded">
-            esc
-          </kbd>
+          <button
+            onClick={onClose}
+            className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
+            aria-label="Close search"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
 
         {/* Results */}
@@ -513,10 +519,13 @@ export default function SearchModal({ onClose }: { onClose: () => void }) {
               <span className="ml-1">Open</span>
             </span>
           </div>
-          <span className="flex items-center gap-1">
+          <button
+            onClick={onClose}
+            className="flex items-center gap-1 hover:text-gray-700 transition-colors"
+          >
             <kbd className="px-1.5 py-0.5 bg-white border border-gray-200 rounded">esc</kbd>
             <span className="ml-1">Close</span>
-          </span>
+          </button>
         </div>
       </div>
     </div>

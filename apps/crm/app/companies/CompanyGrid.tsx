@@ -151,8 +151,9 @@ export default function CompanyGrid({ companies, isPartner = false }: CompanyGri
       const descriptionMatch = company.short_description?.toLowerCase().includes(query)
       const industryMatch = company.industry?.toLowerCase().includes(query)
       const cityMatch = company.city?.toLowerCase().includes(query)
+      const tagsMatch = company.tags?.some(tag => tag.toLowerCase().includes(query))
 
-      return nameMatch || descriptionMatch || industryMatch || cityMatch
+      return nameMatch || descriptionMatch || industryMatch || cityMatch || tagsMatch
     })
     .sort((a, b) => {
       const comparison = a.name.localeCompare(b.name)

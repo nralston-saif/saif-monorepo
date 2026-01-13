@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import type { Database } from '@/lib/types/database'
 import CreateTicketButton from '@/components/CreateTicketButton'
 import PersonModal from '@/components/PersonModal'
+import TagSelector from '@/app/tickets/TagSelector'
 import { ensureProtocol } from '@/lib/utils'
 
 type Company = Database['public']['Tables']['saif_companies']['Row']
@@ -81,6 +82,7 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
     country: company.country || '',
     yc_batch: company.yc_batch || '',
     is_aisafety_company: company.is_aisafety_company,
+    tags: company.tags || [],
   })
 
   const [logoUrl, setLogoUrl] = useState(company.logo_url)
@@ -211,6 +213,7 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
           country: formData.country || null,
           yc_batch: formData.yc_batch || null,
           is_aisafety_company: formData.is_aisafety_company,
+          tags: formData.tags,
           updated_at: new Date().toISOString(),
         })
         .eq('id', company.id)
@@ -706,6 +709,18 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
                   AI Safety Company
                 </label>
               </div>
+
+              {/* Tags */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Tags
+                </label>
+                <TagSelector
+                  selectedTags={formData.tags}
+                  onChange={(tags) => setFormData({ ...formData, tags })}
+                  currentUserId={currentPersonId}
+                />
+              </div>
             </div>
           </div>
 
@@ -818,6 +833,7 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
                   country: company.country || '',
                   yc_batch: company.yc_batch || '',
                   is_aisafety_company: company.is_aisafety_company,
+                  tags: company.tags || [],
                 })
                 // Reset investment data
                 const inv = company.investments?.[0]
@@ -897,6 +913,20 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
               )}
             </dl>
           </div>
+
+          {/* Tags */}
+          {company.tags && company.tags.length > 0 && (
+            <div className="bg-white border border-gray-200 rounded-lg p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Tags</h2>
+              <div className="flex flex-wrap gap-2">
+                {company.tags.map((tag, index) => (
+                  <span key={index} className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Founders */}
           {currentFounders.length > 0 && (

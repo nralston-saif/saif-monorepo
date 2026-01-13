@@ -33,6 +33,7 @@ type Person = {
   twitter_url: string | null
   mobile_phone: string | null
   location: string | null
+  tags: string[]
   first_met_date: string | null
   introduced_by: string | null
   introduction_context: string | null
@@ -155,6 +156,7 @@ export default function PeopleClient({
           person.title,
           person.bio,
           ...person.company_associations.map(ca => ca.company?.name),
+          ...(person.tags || []),
         ].filter(Boolean).join(' ').toLowerCase()
 
         // All search words must be found

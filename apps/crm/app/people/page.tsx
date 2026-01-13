@@ -29,6 +29,7 @@ type PersonWithNotes = {
   twitter_url: string | null
   mobile_phone: string | null
   location: string | null
+  tags: string[]
   first_met_date: string | null
   introduced_by: string | null
   introduction_context: string | null
@@ -164,8 +165,8 @@ export default async function PeoplePage({
 
     // Attach associations, note counts, and construct display name
     const peopleWithNotes: PersonWithNotes[] = (people || []).map(person => {
-      // Cast to include alternative_emails which may not be in generated types yet
-      const p = person as typeof person & { alternative_emails?: string[] | null }
+      // Cast to include fields which may not be in generated types yet
+      const p = person as typeof person & { alternative_emails?: string[] | null; tags?: string[] }
       const displayName = p.first_name && p.last_name
         ? `${p.first_name} ${p.last_name}`
         : p.first_name || p.last_name || p.name || null
@@ -186,6 +187,7 @@ export default async function PeoplePage({
         twitter_url: p.twitter_url,
         mobile_phone: p.mobile_phone,
         location: p.location,
+        tags: p.tags || [],
         first_met_date: p.first_met_date,
         introduced_by: p.introduced_by,
         introduction_context: p.introduction_context,
