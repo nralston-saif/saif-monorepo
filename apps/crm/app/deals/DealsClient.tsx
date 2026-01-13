@@ -2531,6 +2531,10 @@ export default function DealsClient({
         <ApplicationDetailModal
           application={detailDelibApp}
           onClose={() => setDetailDelibApp(null)}
+          userTags={detailDelibApp.deliberation?.tags?.map(tagName => ({
+            name: tagName,
+            color: interviewTags.find(t => t.name === tagName)?.color || null
+          }))}
           actions={
             <>
               <button

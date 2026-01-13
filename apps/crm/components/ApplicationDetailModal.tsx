@@ -28,14 +28,20 @@ type InvestmentData = {
   stealthy?: boolean
 }
 
+type UserTag = {
+  name: string
+  color: string | null
+}
+
 type Props = {
   application: ApplicationData
   investment?: InvestmentData | null
   onClose: () => void
   actions?: React.ReactNode
+  userTags?: UserTag[]
 }
 
-export default function ApplicationDetailModal({ application, investment, onClose, actions }: Props) {
+export default function ApplicationDetailModal({ application, investment, onClose, actions, userTags }: Props) {
   const formatDate = (dateString: string | null) => {
     if (!dateString) return '-'
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -90,10 +96,30 @@ export default function ApplicationDetailModal({ application, investment, onClos
                 <h2 className="text-2xl font-bold text-gray-900">
                   {application.company_name}
                 </h2>
-                {application.stage && (
-                  <span className={`badge capitalize ${getStageBadgeStyle(application.stage)}`}>
-                    {application.stage}
-                  </span>
+                {/* Show user tags for deliberation stage, otherwise show stage badge */}
+                {application.stage === 'deliberation' ? (
+                  userTags && userTags.length > 0 && (
+                    <>
+                      {userTags.map((tag) => (
+                        <span
+                          key={tag.name}
+                          className="text-xs px-2 py-1 rounded-full font-medium"
+                          style={{
+                            backgroundColor: tag.color ? `${tag.color}20` : '#f3f4f6',
+                            color: tag.color || '#374151',
+                          }}
+                        >
+                          {tag.name}
+                        </span>
+                      ))}
+                    </>
+                  )
+                ) : (
+                  application.stage && (
+                    <span className={`badge capitalize ${getStageBadgeStyle(application.stage)}`}>
+                      {application.stage}
+                    </span>
+                  )
                 )}
                 {investment?.stealthy && (
                   <span className="badge badge-purple">Stealth</span>
