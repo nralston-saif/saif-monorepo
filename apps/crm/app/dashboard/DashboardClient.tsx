@@ -62,6 +62,17 @@ type PortfolioStats = {
   averageCheck: number
 }
 
+type AINewsArticle = {
+  id: string
+  title: string
+  url: string
+  source_name: string | null
+  topic: string
+  is_ai_safety: boolean
+  published_at: string
+  fetch_date: string
+}
+
 export default function DashboardClient({
   needsVote,
   needsDecision,
@@ -71,6 +82,7 @@ export default function DashboardClient({
   portfolioStats,
   notifications: initialNotifications,
   userId,
+  newsArticles: initialNewsArticles = [],
 }: {
   needsVote: NeedsVoteApp[]
   needsDecision: NeedsDecisionApp[]
@@ -80,6 +92,7 @@ export default function DashboardClient({
   portfolioStats: PortfolioStats
   notifications: Notification[]
   userId: string
+  newsArticles: AINewsArticle[]
 }) {
   const router = useRouter()
   const supabase = createClient()
@@ -90,6 +103,10 @@ export default function DashboardClient({
   const [resolveComment, setResolveComment] = useState('')
   const [isResolving, setIsResolving] = useState(false)
   const [activeTickets, setActiveTickets] = useState<ActiveTicket[]>(myActiveTickets)
+  const [showAllNews, setShowAllNews] = useState(false)
+  const [allNewsArticles, setAllNewsArticles] = useState<AINewsArticle[]>(initialNewsArticles)
+  const [loadingMoreNews, setLoadingMoreNews] = useState(false)
+  const [hasMoreNews, setHasMoreNews] = useState(true)
 
   // Sync tickets state with prop changes (e.g., after creating new ticket)
   useEffect(() => {
@@ -332,6 +349,35 @@ export default function DashboardClient({
     return `$${amount.toFixed(0)}`
   }
 
+  const loadMoreNews = async () => {
+    setLoadingMoreNews(true)
+    try {
+      const response = await fetch(`/api/news?limit=10&offset=${allNewsArticles.length}`)
+      const data = await response.json()
+      if (data.articles) {
+        setAllNewsArticles(prev => [...prev, ...data.articles])
+        setHasMoreNews(data.hasMore)
+      }
+    } catch (error) {
+      console.error('Failed to load more news:', error)
+    }
+    setLoadingMoreNews(false)
+  }
+
+  const getTopicLabel = (topic: string): string => {
+    const labels: Record<string, string> = {
+      llm: 'LLM',
+      robotics: 'Robotics',
+      regulation: 'Policy',
+      business: 'Business',
+      research: 'Research',
+      healthcare: 'Healthcare',
+      ai_safety: 'Safety',
+      general: 'General',
+    }
+    return labels[topic] || topic
+  }
+
   return (
     <div className="mx-auto px-4 py-4">
       {/* Header */}
@@ -564,6 +610,73 @@ export default function DashboardClient({
           )}
         </section>
       </div>
+
+      {/* AI News Section */}
+      {initialNewsArticles.length > 0 && (
+        <section className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
+          <div className="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-blue-600 text-sm">📰</span>
+              <h2 className="text-sm font-semibold text-gray-900">AI News</h2>
+            </div>
+            <span className="text-xs text-gray-400">Yesterday</span>
+          </div>
+
+          <div className="divide-y divide-gray-100">
+            {(showAllNews ? allNewsArticles : initialNewsArticles).map((article) => (
+              <a
+                key={article.id}
+                href={article.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block px-3 py-2 hover:bg-gray-50 transition-colors"
+              >
+                <div className="flex items-start gap-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 line-clamp-2">
+                      {article.title}
+                    </p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-xs text-gray-500">{article.source_name}</span>
+                      <span className={`text-xs px-1.5 py-0.5 rounded ${
+                        article.is_ai_safety
+                          ? 'bg-red-100 text-red-700'
+                          : 'bg-gray-100 text-gray-600'
+                      }`}>
+                        {article.is_ai_safety ? '🛡️ Safety' : getTopicLabel(article.topic)}
+                      </span>
+                    </div>
+                  </div>
+                  <svg className="w-4 h-4 text-gray-400 flex-shrink-0 mt-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                </div>
+              </a>
+            ))}
+          </div>
+
+          <div className="px-3 py-2 bg-gray-50 border-t border-gray-100">
+            {!showAllNews ? (
+              <button
+                onClick={() => setShowAllNews(true)}
+                className="text-xs text-gray-500 hover:text-gray-900"
+              >
+                Show more articles →
+              </button>
+            ) : hasMoreNews ? (
+              <button
+                onClick={loadMoreNews}
+                disabled={loadingMoreNews}
+                className="text-xs text-gray-500 hover:text-gray-900 disabled:opacity-50"
+              >
+                {loadingMoreNews ? 'Loading...' : 'Load more →'}
+              </button>
+            ) : (
+              <span className="text-xs text-gray-400">No more articles</span>
+            )}
+          </div>
+        </section>
+      )}
 
       {/* Resolve Ticket Modal */}
       {resolvingTicket && (

@@ -606,6 +606,60 @@ export type Database = {
         }
         Relationships: []
       }
+      saifcrm_ai_news_articles: {
+        Row: {
+          id: string
+          title: string
+          description: string | null
+          url: string
+          source_name: string | null
+          source_id: string | null
+          author: string | null
+          image_url: string | null
+          published_at: string
+          topic: 'llm' | 'robotics' | 'regulation' | 'business' | 'research' | 'healthcare' | 'ai_safety' | 'general'
+          is_ai_safety: boolean
+          classification_confidence: number | null
+          fetched_at: string
+          fetch_date: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          title: string
+          description?: string | null
+          url: string
+          source_name?: string | null
+          source_id?: string | null
+          author?: string | null
+          image_url?: string | null
+          published_at: string
+          topic: 'llm' | 'robotics' | 'regulation' | 'business' | 'research' | 'healthcare' | 'ai_safety' | 'general'
+          is_ai_safety?: boolean
+          classification_confidence?: number | null
+          fetched_at?: string
+          fetch_date?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          title?: string
+          description?: string | null
+          url?: string
+          source_name?: string | null
+          source_id?: string | null
+          author?: string | null
+          image_url?: string | null
+          published_at?: string
+          topic?: 'llm' | 'robotics' | 'regulation' | 'business' | 'research' | 'healthcare' | 'ai_safety' | 'general'
+          is_ai_safety?: boolean
+          classification_confidence?: number | null
+          fetched_at?: string
+          fetch_date?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
       saifcrm_applications: {
         Row: {
           all_votes_in: boolean | null
@@ -1732,3 +1786,7 @@ export type Notification = Database['public']['Tables']['saifcrm_notifications']
 export type NotificationWithActor = Notification & {
   actor?: Database['public']['Tables']['saif_people']['Row'] | null
 }
+
+// AI News Article types
+export type AINewsArticle = Database['public']['Tables']['saifcrm_ai_news_articles']['Row']
+export type AINewsTopic = AINewsArticle['topic']

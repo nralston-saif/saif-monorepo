@@ -118,7 +118,8 @@ export default async function DashboardPage() {
     { data: myActiveTickets },
     { count: overdueTicketsCount },
     { data: notificationsData },
-    { data: portfolioData }
+    { data: portfolioData },
+    { data: newsArticles }
   ] = await Promise.all([
     // Pipeline applications
     supabase
@@ -199,7 +200,15 @@ export default async function DashboardPage() {
       .limit(20),
 
     // Portfolio stats
-    supabase.rpc('get_portfolio_stats')
+    supabase.rpc('get_portfolio_stats'),
+
+    // AI News articles
+    supabase
+      .from('saifcrm_ai_news_articles')
+      .select('id, title, url, source_name, topic, is_ai_safety, published_at, fetch_date')
+      .order('fetch_date', { ascending: false })
+      .order('published_at', { ascending: false })
+      .limit(5)
   ])
 
   // Filter pipeline apps that need user's vote
@@ -271,6 +280,7 @@ export default async function DashboardPage() {
         portfolioStats={portfolioStats}
         notifications={notifications}
         userId={profile?.id || ''}
+        newsArticles={newsArticles || []}
       />
     </div>
   )
