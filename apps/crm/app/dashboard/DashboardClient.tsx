@@ -41,6 +41,8 @@ type Notification = {
   read_at: string | null
   created_at: string
   actor_name: string | null
+  ticket_title: string | null
+  ticket_tags: string[] | null
 }
 
 type ActiveTicket = {
@@ -131,7 +133,8 @@ export default function DashboardClient({
         ticket_id,
         read_at,
         created_at,
-        actor:actor_id(name, first_name, last_name)
+        actor:actor_id(name, first_name, last_name),
+        ticket:saif_tickets!saifcrm_notifications_ticket_id_fkey(title, tags)
       `)
       .is('dismissed_at', null)
       .gt('expires_at', new Date().toISOString())
@@ -153,6 +156,8 @@ export default function DashboardClient({
           actor_name: n.actor?.first_name && n.actor?.last_name
             ? `${n.actor.first_name} ${n.actor.last_name}`
             : n.actor?.name || null,
+          ticket_title: n.ticket?.title || null,
+          ticket_tags: n.ticket?.tags || null,
         }))
       )
     }
@@ -242,6 +247,19 @@ export default function DashboardClient({
       default:
         return '🔔'
     }
+  }
+
+  // Get display title for notification - use ticket title for email tickets
+  const getNotificationDisplayTitle = (notif: Notification): string => {
+    // For ticket notifications, use the actual ticket title if it's an email ticket
+    if (notif.ticket_id && notif.ticket_title) {
+      const isEmailTicket = notif.ticket_tags?.includes('email-follow-up') ||
+        notif.ticket_title.toLowerCase().includes('email')
+      if (isEmailTicket) {
+        return notif.ticket_title
+      }
+    }
+    return notif.title
   }
 
   const formatDate = (dateString: string | null) => {
@@ -468,7 +486,7 @@ export default function DashboardClient({
                     <div className="flex items-center gap-2">
                       <span className="text-sm flex-shrink-0">{getNotificationIcon(notif.type)}</span>
                       <span className={`text-sm truncate ${!notif.read_at ? 'font-medium text-gray-900' : 'text-gray-600'}`}>
-                        {notif.title}
+                        {getNotificationDisplayTitle(notif)}
                       </span>
                       {!notif.read_at && (
                         <div className="w-1.5 h-1.5 bg-blue-500 rounded-full flex-shrink-0" />

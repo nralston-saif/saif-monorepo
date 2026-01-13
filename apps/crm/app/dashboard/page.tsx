@@ -255,6 +255,8 @@ export default async function DashboardPage() {
     actor_name: n.actor?.first_name && n.actor?.last_name
       ? `${n.actor.first_name} ${n.actor.last_name}`
       : n.actor?.name || null,
+    ticket_title: n.ticket?.title || null,
+    ticket_tags: n.ticket?.tags || null,
   }))
 
   return (
