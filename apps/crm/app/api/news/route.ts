@@ -1,5 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
+import type { AINewsTopic } from '@/lib/types/database'
+
+const VALID_TOPICS: AINewsTopic[] = ['llm', 'robotics', 'regulation', 'business', 'research', 'healthcare', 'ai_safety', 'general']
 
 export async function GET(request: NextRequest) {
   try {
@@ -18,7 +21,7 @@ export async function GET(request: NextRequest) {
     const url = new URL(request.url)
     const limit = parseInt(url.searchParams.get('limit') || '5', 10)
     const offset = parseInt(url.searchParams.get('offset') || '0', 10)
-    const topic = url.searchParams.get('topic')
+    const topicParam = url.searchParams.get('topic')
 
     // Build query
     let query = supabase
@@ -27,9 +30,9 @@ export async function GET(request: NextRequest) {
       .order('fetch_date', { ascending: false })
       .order('published_at', { ascending: false })
 
-    // Apply topic filter if provided
-    if (topic && topic !== 'all') {
-      query = query.eq('topic', topic)
+    // Apply topic filter if provided and valid
+    if (topicParam && topicParam !== 'all' && VALID_TOPICS.includes(topicParam as AINewsTopic)) {
+      query = query.eq('topic', topicParam as AINewsTopic)
     }
 
     // Apply pagination
