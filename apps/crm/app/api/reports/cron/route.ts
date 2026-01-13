@@ -33,7 +33,8 @@ Output format (JSON):
     }
   ],
   "highlights": ["Notable accomplishment 1", "Notable accomplishment 2"],
-  "carryOver": ["In-progress item that may need attention"]
+  "carryOver": ["In-progress item that may need attention"],
+  "unassignedTickets": ["Unassigned ticket title 1", "Unassigned ticket title 2"]
 }
 
 Guidelines:
@@ -43,6 +44,7 @@ Guidelines:
 - Highlight any high-priority items that were completed
 - Note patterns (e.g., "3 portfolio company follow-ups completed")
 - For carryOver, mention high-priority open tickets that are overdue or due soon
+- For unassignedTickets, list all tickets that have no assignee - these need attention
 - Be concise - this is a quick status update, not a detailed report`
 
 // Verify cron secret for scheduled jobs
@@ -258,6 +260,22 @@ async function generateReport(
       .order('priority', { ascending: true })
       .limit(10)
 
+    // Fetch unassigned tickets
+    const { data: unassignedTickets } = await supabase
+      .from('saif_tickets')
+      .select(`
+        id,
+        title,
+        priority,
+        due_date,
+        status,
+        created_at
+      `)
+      .neq('status', 'archived')
+      .is('assigned_to', null)
+      .order('priority', { ascending: true })
+      .order('created_at', { ascending: true })
+
     // Format data for Claude
     const completedData = completedTickets?.map(t => {
       const comments = (t.comments as any[]) || []
@@ -292,6 +310,14 @@ async function generateReport(
       isOverdue: t.due_date && new Date(t.due_date) < endDate,
     })) || []
 
+    const unassignedData = unassignedTickets?.map(t => ({
+      title: t.title,
+      priority: t.priority,
+      dueDate: t.due_date,
+      status: t.status,
+      createdAt: t.created_at,
+    })) || []
+
     let reportData
     if (ticketCount === 0) {
       // Empty weekly report
@@ -301,6 +327,9 @@ async function generateReport(
         highlights: [],
         carryOver: openData.slice(0, 5).map(t =>
           `${t.title} (${t.priority} priority${t.isOverdue ? ', OVERDUE' : ''}) - ${t.assignee}`
+        ),
+        unassignedTickets: unassignedData.map(t =>
+          `${t.title} (${t.priority} priority)`
         ),
       }
     } else {
@@ -313,7 +342,10 @@ ${JSON.stringify(completedData, null, 2)}
 Open High-Priority/Overdue Tickets:
 ${JSON.stringify(openData, null, 2)}
 
-Generate a JSON report summarizing the completed work. Include ticket titles and resolution summaries based on the final comments.`
+Unassigned Tickets (${unassignedData.length} total):
+${JSON.stringify(unassignedData, null, 2)}
+
+Generate a JSON report summarizing the completed work. Include ticket titles and resolution summaries based on the final comments. List all unassigned tickets in the unassignedTickets array.`
 
       const message = await anthropic.messages.create({
         model: 'claude-3-5-haiku-20241022',
@@ -360,6 +392,7 @@ Generate a JSON report summarizing the completed work. Include ticket titles and
           ticketsByPerson: reportData.ticketsByPerson || [],
           highlights: reportData.highlights || [],
           carryOver: reportData.carryOver || [],
+          unassignedTickets: reportData.unassignedTickets || [],
         },
       })
 

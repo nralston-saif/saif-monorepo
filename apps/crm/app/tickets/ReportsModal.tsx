@@ -26,11 +26,13 @@ type ReportData = {
   totalCompleted: number
   highlights: string[]
   carryOver: string[]
+  unassignedTickets: string[]
   report_type?: ReportType
   report_data?: {
     ticketsByPerson?: PersonReport[]
     highlights?: string[]
     carryOver?: string[]
+    unassignedTickets?: string[]
   }
 }
 
@@ -45,6 +47,7 @@ type SavedReport = {
     ticketsByPerson?: PersonReport[]
     highlights?: string[]
     carryOver?: string[]
+    unassignedTickets?: string[]
   }
   generated_at: string
   created_at: string
@@ -134,6 +137,10 @@ export default function ReportsModal({
       ? data.report_data.carryOver
       : (data as ReportData).carryOver || []
 
+    const unassignedTickets = 'report_data' in data && data.report_data?.unassignedTickets
+      ? data.report_data.unassignedTickets
+      : (data as ReportData).unassignedTickets || []
+
     const summary = 'summary' in data ? data.summary : null
     const totalCompleted = 'total_completed' in data ? data.total_completed : (data as ReportData).totalCompleted
 
@@ -190,6 +197,21 @@ export default function ReportsModal({
               {carryOver.map((item, idx) => (
                 <li key={idx} className="flex items-start gap-2 text-gray-700">
                   <span className="text-blue-500">→</span>
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* Unassigned Tickets */}
+        {unassignedTickets.length > 0 && (
+          <div>
+            <h4 className="font-medium text-gray-900 mb-2">Unassigned Tickets</h4>
+            <ul className="space-y-1">
+              {unassignedTickets.map((item, idx) => (
+                <li key={idx} className="flex items-start gap-2 text-gray-700">
+                  <span className="text-red-500">⚠</span>
                   <span>{item}</span>
                 </li>
               ))}
