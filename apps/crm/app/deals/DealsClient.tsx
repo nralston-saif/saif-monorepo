@@ -1099,17 +1099,22 @@ export default function DealsClient({
           </div>
         )}
 
-        {app.founder_linkedins && (
-          <div>
-            <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">
-              Founder LinkedIn Profiles
-            </h3>
-            <div className="flex flex-wrap gap-2">
-              {app.founder_linkedins
-                .split(/[\n,]+/)
-                .filter(Boolean)
-                .map((link, i) => {
-                  const url = link.trim()
+        {app.founder_linkedins && (() => {
+          const validLinkedInLinks = app.founder_linkedins
+            .split(/[\n,]+/)
+            .filter(Boolean)
+            .map(link => link.trim())
+            .filter(url => url.toLowerCase().includes('linkedin.com'))
+
+          if (validLinkedInLinks.length === 0) return null
+
+          return (
+            <div>
+              <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">
+                Founder LinkedIn Profiles
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                {validLinkedInLinks.map((url, i) => {
                   const fullUrl = ensureProtocol(url)
                   return (
                     <a
@@ -1124,9 +1129,10 @@ export default function DealsClient({
                     </a>
                   )
                 })}
+              </div>
             </div>
-          </div>
-        )}
+          )
+        })()}
 
         {app.primary_email && (
           <div>
