@@ -6,5 +6,9 @@
       "Bash(echo:*)",
       "Bash(pbcopy:*)"
     ]
-  }
+  },
+  "enabledMcpjsonServers": [
+    "supabase"
+  ],
+  "enableAllProjectMcpServers": true
 }

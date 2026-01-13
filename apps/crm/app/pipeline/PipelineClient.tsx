@@ -356,13 +356,16 @@ export default function PipelineClient({
       }
 
       // Create a ticket for the email follow-up task
-      const stageLabel = action === 'deliberation' ? 'interview' : 'rejection'
-      const ticketTitle = `Send follow-up email to ${app.company_name}`
+      const isInterview = action === 'deliberation'
+      const emailType = isInterview ? 'interview' : 'rejection'
+      const ticketTitle = isInterview
+        ? `Send interview follow-up: ${app.company_name}`
+        : `Send rejection email: ${app.company_name}`
       const { data: ticketData, error: ticketError } = await supabase
         .from('saif_tickets')
         .insert({
           title: ticketTitle,
-          description: `Send ${stageLabel} follow-up email to ${app.company_name}${app.primary_email ? ` (${app.primary_email})` : ''}${app.founder_names ? `\n\nFounders: ${app.founder_names}` : ''}`,
+          description: `Send ${emailType} email to ${app.company_name}${app.primary_email ? ` (${app.primary_email})` : ''}${app.founder_names ? `\n\nFounders: ${app.founder_names}` : ''}`,
           status: 'open',
           priority: 'medium',
           assigned_to: selectedEmailSender,

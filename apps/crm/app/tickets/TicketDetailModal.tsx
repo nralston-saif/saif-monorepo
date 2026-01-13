@@ -108,6 +108,15 @@ export default function TicketDetailModal({
   // Draft email editing state
   const [editingDraftEmail, setEditingDraftEmail] = useState<string>('')
   const [savingDraftEmail, setSavingDraftEmail] = useState(false)
+  const [generatingEmail, setGeneratingEmail] = useState(false)
+  const [currentDraftEmail, setCurrentDraftEmail] = useState<string | null>(
+    ticket.application?.draft_rejection_email || null
+  )
+
+  // Check if this is an email ticket
+  const isEmailTicket = ticket.tags?.includes('email-follow-up') || ticket.title?.toLowerCase().includes('email')
+  const isRejectionEmail = ticket.tags?.includes('rejected') || ticket.title?.toLowerCase().includes('rejection')
+  const isInterviewEmail = ticket.tags?.includes('deliberation') || ticket.title?.toLowerCase().includes('interview')
 
   const supabase = createClient()
   const { showToast } = useToast()
@@ -192,6 +201,53 @@ export default function TicketDetailModal({
     }
   }, [ticket.id])
 
+  // Subscribe to draft email updates for email tickets
+  useEffect(() => {
+    if (!isEmailTicket || !ticket.application_id) return
+
+    const applicationId = ticket.application_id
+
+    // Initial fetch of draft email
+    const fetchDraftEmail = async () => {
+      const { data } = await supabase
+        .from('saifcrm_applications')
+        .select('draft_rejection_email')
+        .eq('id', applicationId)
+        .single()
+
+      if (data?.draft_rejection_email) {
+        setCurrentDraftEmail(data.draft_rejection_email)
+      }
+    }
+
+    fetchDraftEmail()
+
+    // Subscribe to changes
+    const channel = supabase
+      .channel(`application_email:${applicationId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'saifcrm_applications',
+          filter: `id=eq.${applicationId}`,
+        },
+        (payload) => {
+          const newEmail = (payload.new as { draft_rejection_email?: string })?.draft_rejection_email
+          if (newEmail) {
+            setCurrentDraftEmail(newEmail)
+            setGeneratingEmail(false)
+          }
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [ticket.id, ticket.application_id, isEmailTicket])
+
   const fetchComments = async () => {
     const { data, error } = await supabase
       .from('saif_ticket_comments')
@@ -228,11 +284,39 @@ export default function TicketDetailModal({
       }
 
       showToast('Email saved!', 'success')
+      setCurrentDraftEmail(email)
       onUpdate()
     } catch {
       showToast('Failed to save email', 'error')
     } finally {
       setSavingDraftEmail(false)
+    }
+  }
+
+  const generateEmail = async () => {
+    if (!ticket.application_id) return
+
+    setGeneratingEmail(true)
+    try {
+      const response = await fetch('/api/generate-rejection-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ applicationId: ticket.application_id }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        showToast(`Failed to generate email: ${errorData.error}`, 'error')
+        setGeneratingEmail(false)
+        return
+      }
+
+      showToast('Email generated!', 'success')
+      // The real-time subscription will update the email
+    } catch {
+      showToast('Failed to generate email', 'error')
+      setGeneratingEmail(false)
     }
   }
 
@@ -991,69 +1075,107 @@ export default function TicketDetailModal({
               </div>
             </div>
 
-            {/* Draft Email Section */}
-            {ticket.application?.draft_rejection_email && (
+            {/* Draft Email Section - Show for all email tickets */}
+            {isEmailTicket && ticket.application_id && (
               <div className="pt-6 border-t border-gray-100">
                 <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                   </svg>
-                  AI-Generated Email Draft
+                  {isRejectionEmail ? 'AI-Generated Rejection Email' : 'Email Draft'}
                   {ticket.application?.primary_email && (
                     <span className="text-xs font-normal text-gray-500">
                       → {ticket.application?.primary_email}
                     </span>
                   )}
                 </h4>
-                <textarea
-                  value={editingDraftEmail || ticket.application?.draft_rejection_email || ''}
-                  onChange={(e) => setEditingDraftEmail(e.target.value)}
-                  onFocus={() =>
-                    !editingDraftEmail &&
-                    setEditingDraftEmail(ticket.application?.draft_rejection_email || '')
-                  }
-                  rows={10}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-gray-900 focus:border-gray-900 font-mono text-sm resize-y min-h-[200px]"
-                  placeholder="Draft rejection email..."
-                />
-                <div className="mt-3 flex gap-2">
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(editingDraftEmail || ticket.application?.draft_rejection_email || '')
-                      showToast('Email copied to clipboard', 'success')
-                    }}
-                    className="text-xs px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-1"
-                  >
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+
+                {/* Generating state */}
+                {generatingEmail && (
+                  <div className="flex items-center gap-2 py-8 justify-center text-gray-500">
+                    <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
-                    Copy Email
-                  </button>
-                  {editingDraftEmail && editingDraftEmail !== ticket.application?.draft_rejection_email && (
-                    <button
-                      onClick={() => saveDraftEmail(editingDraftEmail)}
-                      disabled={savingDraftEmail}
-                      className="text-xs px-3 py-1.5 bg-gray-900 text-white rounded-lg hover:bg-black transition-colors flex items-center gap-1 disabled:opacity-50"
-                    >
-                      {savingDraftEmail ? (
-                        <>
-                          <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                          </svg>
-                          Saving...
-                        </>
-                      ) : (
-                        <>
-                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                          </svg>
-                          Save Changes
-                        </>
+                    <span>Generating email with AI...</span>
+                  </div>
+                )}
+
+                {/* Email exists - show textarea */}
+                {!generatingEmail && currentDraftEmail && (
+                  <>
+                    <textarea
+                      value={editingDraftEmail || currentDraftEmail}
+                      onChange={(e) => setEditingDraftEmail(e.target.value)}
+                      onFocus={() =>
+                        !editingDraftEmail &&
+                        setEditingDraftEmail(currentDraftEmail)
+                      }
+                      rows={10}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-gray-900 focus:border-gray-900 font-mono text-sm resize-y min-h-[200px]"
+                      placeholder="Email draft..."
+                    />
+                    <div className="mt-3 flex gap-2">
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(editingDraftEmail || currentDraftEmail)
+                          showToast('Email copied to clipboard', 'success')
+                        }}
+                        className="text-xs px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-1"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        </svg>
+                        Copy Email
+                      </button>
+                      {editingDraftEmail && editingDraftEmail !== currentDraftEmail && (
+                        <button
+                          onClick={() => saveDraftEmail(editingDraftEmail)}
+                          disabled={savingDraftEmail}
+                          className="text-xs px-3 py-1.5 bg-gray-900 text-white rounded-lg hover:bg-black transition-colors flex items-center gap-1 disabled:opacity-50"
+                        >
+                          {savingDraftEmail ? (
+                            <>
+                              <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                              Saving...
+                            </>
+                          ) : (
+                            <>
+                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                              </svg>
+                              Save Changes
+                            </>
+                          )}
+                        </button>
                       )}
+                    </div>
+                  </>
+                )}
+
+                {/* No email yet - show generate button for rejection emails */}
+                {!generatingEmail && !currentDraftEmail && isRejectionEmail && (
+                  <div className="text-center py-6">
+                    <p className="text-gray-500 mb-3">No rejection email has been generated yet.</p>
+                    <button
+                      onClick={generateEmail}
+                      className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-black transition-colors"
+                    >
+                      Generate Rejection Email
                     </button>
-                  )}
-                </div>
+                  </div>
+                )}
+
+                {/* Interview emails - no auto-generation available */}
+                {!generatingEmail && !currentDraftEmail && isInterviewEmail && (
+                  <div className="text-center py-6 text-gray-500">
+                    <p>Interview follow-up emails are not auto-generated.</p>
+                    <p className="text-sm mt-1">Please compose your follow-up email manually.</p>
+                  </div>
+                )}
               </div>
             )}
 

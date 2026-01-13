@@ -306,12 +306,19 @@ export async function notifyTicketAssigned(
   actorId: string,
   actorName: string
 ) {
+  // Use the ticket title directly for email tickets (more descriptive)
+  const isEmailTicket = ticketTitle.includes('email') || ticketTitle.includes('Email')
+  const title = isEmailTicket ? ticketTitle : `Ticket assigned to you`
+  const message = isEmailTicket
+    ? `${actorName} assigned this to you`
+    : `${actorName} assigned you: "${ticketTitle}"`
+
   return createNotification({
     recipientId: assigneeId,
     actorId,
     type: 'ticket_assigned',
-    title: `Ticket assigned to you`,
-    message: `${actorName} assigned you: "${ticketTitle}"`,
+    title,
+    message,
     link: `/tickets?id=${ticketId}`,
     ticketId,
   })

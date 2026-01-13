@@ -189,7 +189,8 @@ export default async function DashboardPage() {
         ticket_id,
         read_at,
         created_at,
-        actor:actor_id(name, first_name, last_name)
+        actor:actor_id(name, first_name, last_name),
+        ticket:saif_tickets!saifcrm_notifications_ticket_id_fkey(title, tags)
       `)
       .eq('recipient_id', profile?.id)
       .is('dismissed_at', null)

@@ -562,6 +562,50 @@ export type Database = {
           },
         ]
       }
+      saif_ticket_reports: {
+        Row: {
+          id: string
+          report_type: 'daily' | 'weekly'
+          period_start: string
+          period_end: string
+          total_completed: number
+          summary: string | null
+          report_data: {
+            ticketsByPerson?: {
+              name: string
+              completed: number
+              tickets: string[]
+            }[]
+            highlights?: string[]
+            carryOver?: string[]
+          }
+          generated_at: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          report_type: 'daily' | 'weekly'
+          period_start: string
+          period_end: string
+          total_completed?: number
+          summary?: string | null
+          report_data?: object
+          generated_at?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          report_type?: 'daily' | 'weekly'
+          period_start?: string
+          period_end?: string
+          total_completed?: number
+          summary?: string | null
+          report_data?: object
+          generated_at?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
       saifcrm_applications: {
         Row: {
           all_votes_in: boolean | null
