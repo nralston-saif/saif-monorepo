@@ -692,6 +692,7 @@ export interface Database {
           related_company: string | null
           related_person: string | null
           tags: string[] | null
+          was_unassigned_at_creation: boolean | null
         }
         Insert: {
           id?: string
@@ -708,6 +709,7 @@ export interface Database {
           related_company?: string | null
           related_person?: string | null
           tags?: string[] | null
+          was_unassigned_at_creation?: boolean | null
         }
         Update: {
           id?: string
@@ -724,6 +726,7 @@ export interface Database {
           related_company?: string | null
           related_person?: string | null
           tags?: string[] | null
+          was_unassigned_at_creation?: boolean | null
         }
         Relationships: [
           {
