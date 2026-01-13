@@ -1,9 +1,16 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import '@liveblocks/react-tiptap/styles.css'
 import './globals.css'
 import { Providers } from '@saif/ui'
 import NotificationToast from '@/components/NotificationToast'
 import TicketModalProvider from '@/components/TicketModalProvider'
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+}
 
 export const metadata: Metadata = {
   title: 'SAIF Internal',

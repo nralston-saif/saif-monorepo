@@ -392,7 +392,7 @@ export default function DashboardClient({
       </div>
 
       {/* Portfolio Stats */}
-      <div className="grid grid-cols-3 gap-3 mb-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 mb-3">
         <div className="bg-white rounded-lg shadow-sm border border-gray-100 px-3 py-2 flex items-center gap-2">
           <span className="text-lg">📊</span>
           <div>
@@ -428,7 +428,7 @@ export default function DashboardClient({
             <span className="text-xs text-gray-400">{needsVote.length}</span>
           </div>
 
-          <div className="divide-y divide-gray-100 max-h-40 overflow-y-auto">
+          <div className="divide-y divide-gray-100 max-h-32 sm:max-h-40 overflow-y-auto">
             {needsVote.length === 0 ? (
               <div className="p-3 text-center text-sm text-gray-500">All caught up!</div>
             ) : (
@@ -470,7 +470,7 @@ export default function DashboardClient({
             <span className="text-xs text-gray-400">{needsDecision.length}</span>
           </div>
 
-          <div className="divide-y divide-gray-100 max-h-40 overflow-y-auto">
+          <div className="divide-y divide-gray-100 max-h-32 sm:max-h-40 overflow-y-auto">
             {needsDecision.length === 0 ? (
               <div className="p-3 text-center text-sm text-gray-500">All decisions made!</div>
             ) : (
@@ -516,7 +516,7 @@ export default function DashboardClient({
             )}
           </div>
 
-          <div className="divide-y divide-gray-100 max-h-40 overflow-y-auto">
+          <div className="divide-y divide-gray-100 max-h-32 sm:max-h-40 overflow-y-auto">
             {notifications.length === 0 ? (
               <div className="p-3 text-center text-sm text-gray-500">No notifications</div>
             ) : (
@@ -568,7 +568,7 @@ export default function DashboardClient({
             )}
           </div>
 
-          <div className="divide-y divide-gray-100 max-h-40 overflow-y-auto">
+          <div className="divide-y divide-gray-100 max-h-32 sm:max-h-40 overflow-y-auto">
             {activeTickets.length === 0 ? (
               <div className="p-3 text-center text-sm text-gray-500">No tasks!</div>
             ) : (

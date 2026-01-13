@@ -1970,46 +1970,45 @@ export default function DealsClient({
                   <p className="text-gray-500">No applications match your search.</p>
                 </div>
               ) : (
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                   {filteredArchivedApplications.map((app) => (
                     <div
                       key={app.id}
                       className="bg-white rounded-lg shadow-sm border border-gray-100 p-3 cursor-pointer hover:shadow-md transition-shadow"
                       onClick={() => setDetailArchivedApp(app)}
                     >
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-medium text-gray-900 truncate">
+                      <div className="mb-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <h3 className="font-medium text-gray-900 truncate flex-1 min-w-0">
                             {app.company_name}
                           </h3>
-                          {app.founder_names && (
-                            <p className="text-sm text-gray-500 truncate">{formatFounderNames(app.founder_names)}</p>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2 ml-2 flex-shrink-0">
-                          {app.email_sent ? (
-                            <span className="text-xs text-blue-600 flex items-center gap-1">
-                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                              </svg>
-                              <svg className="w-3 h-3 -ml-1.5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                              </svg>
-                              {app.email_sent_at && <span className="text-gray-500">{formatDateShort(app.email_sent_at)}</span>}
-                            </span>
-                          ) : (
-                            app.email_sender_name && (
-                              <span className="badge text-xs bg-purple-100 text-purple-700">
-                                {app.email_sender_name.split(' ')[0]} sending
-                              </span>
-                            )
-                          )}
                           <span
-                            className={`badge capitalize ${getStageBadgeStyle(app.stage)}`}
+                            className={`badge capitalize flex-shrink-0 ${getStageBadgeStyle(app.stage)}`}
                           >
                             {app.stage || 'N/A'}
                           </span>
                         </div>
+                        {app.founder_names && (
+                          <p className="text-sm text-gray-500 truncate">{formatFounderNames(app.founder_names)}</p>
+                        )}
+                        {/* Email status on its own line */}
+                        {app.email_sent ? (
+                          <span className="text-xs text-blue-600 flex items-center gap-1 mt-1">
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                            </svg>
+                            <svg className="w-3 h-3 -ml-1.5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                            </svg>
+                            <span className="text-gray-500">Sent{app.email_sent_at && ` ${formatDateShort(app.email_sent_at)}`}</span>
+                          </span>
+                        ) : (
+                          app.email_sender_name && (
+                            <span className="badge text-xs bg-purple-100 text-purple-700 mt-1">
+                              {app.email_sender_name.split(' ')[0]} sending
+                            </span>
+                          )
+                        )}
                       </div>
                       {app.company_description && (
                         <p className="text-sm text-gray-600 line-clamp-2 mb-2">

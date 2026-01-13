@@ -1051,7 +1051,7 @@ export default function PipelineClient({
                   </span>
                 </h2>
               </div>
-              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              <div className="grid gap-3 sm:gap-4 md:gap-6 md:grid-cols-2 lg:grid-cols-3">
                 {needsYourVote.map((app) => renderApplicationCard(app))}
               </div>
             </section>
@@ -1071,7 +1071,7 @@ export default function PipelineClient({
                   </span>
                 </h2>
               </div>
-              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              <div className="grid gap-3 sm:gap-4 md:gap-6 md:grid-cols-2 lg:grid-cols-3">
                 {alreadyVoted.map((app) => renderApplicationCard(app, true))}
               </div>
             </section>
@@ -1134,7 +1134,7 @@ export default function PipelineClient({
               <p className="text-gray-500">No applications match your search.</p>
             </div>
           ) : (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <div className="grid gap-3 sm:gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {filteredOldApplications.map((app) => renderOldApplicationCard(app))}
             </div>
           )}

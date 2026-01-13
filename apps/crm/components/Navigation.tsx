@@ -9,7 +9,9 @@ import SearchModal from './SearchModal'
 export default function Navigation({ userName, personId }: { userName: string; personId?: string }) {
   const [showSearch, setShowSearch] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [userMenuOpen, setUserMenuOpen] = useState(false)
   const mobileMenuRef = useRef<HTMLDivElement>(null)
+  const userMenuRef = useRef<HTMLDivElement>(null)
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
@@ -20,16 +22,20 @@ export default function Navigation({ userName, personId }: { userName: string; p
       if (mobileMenuRef.current && !mobileMenuRef.current.contains(e.target as Node)) {
         setMobileMenuOpen(false)
       }
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setUserMenuOpen(false)
+      }
     }
-    if (mobileMenuOpen) {
+    if (mobileMenuOpen || userMenuOpen) {
       document.addEventListener('mousedown', handleClickOutside)
     }
     return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [mobileMenuOpen])
+  }, [mobileMenuOpen, userMenuOpen])
 
-  // Close mobile menu on route change
+  // Close menus on route change
   useEffect(() => {
     setMobileMenuOpen(false)
+    setUserMenuOpen(false)
   }, [pathname])
 
   // Cmd+K / Ctrl+K keyboard shortcut
@@ -144,15 +150,15 @@ export default function Navigation({ userName, personId }: { userName: string; p
             <div className="relative md:hidden" ref={mobileMenuRef}>
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="p-2 text-[#666666] hover:text-[#1a1a1a] hover:bg-[#f5f5f5] rounded-lg transition-colors"
+                className="min-w-[44px] min-h-[44px] flex items-center justify-center text-[#666666] hover:text-[#1a1a1a] hover:bg-[#f5f5f5] rounded-lg transition-colors"
                 aria-label="Toggle menu"
               >
                 {mobileMenuOpen ? (
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 ) : (
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
                   </svg>
                 )}
@@ -160,14 +166,14 @@ export default function Navigation({ userName, personId }: { userName: string; p
 
               {/* Mobile Dropdown Menu */}
               {mobileMenuOpen && (
-                <div className="absolute right-0 top-full mt-1 bg-white rounded-lg shadow-lg border border-gray-200 py-2 min-w-[180px] z-50">
+                <div className="absolute right-0 top-full mt-1 bg-white rounded-lg shadow-lg border border-gray-200 py-2 min-w-[200px] z-50">
                   {navItems.map((item) => {
                     const isActive = pathname === item.href
                     return (
                       <Link
                         key={item.href}
                         href={item.href}
-                        className={`block px-4 py-2 text-sm transition-colors ${
+                        className={`block px-4 py-3 text-base transition-colors ${
                           isActive
                             ? 'bg-[#f5f5f5] text-[#1a1a1a] font-medium'
                             : 'text-[#666666] hover:bg-[#f5f5f5] hover:text-[#1a1a1a]'
@@ -177,15 +183,15 @@ export default function Navigation({ userName, personId }: { userName: string; p
                       </Link>
                     )
                   })}
-                  <div className="h-px bg-gray-200 my-1" />
-                  <div className="px-4 py-1 text-xs font-medium text-gray-400 uppercase tracking-wider">CRM</div>
+                  <div className="h-px bg-gray-200 my-2" />
+                  <div className="px-4 py-2 text-xs font-medium text-gray-400 uppercase tracking-wider">CRM</div>
                   {crmItems.map((item) => {
                     const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
                     return (
                       <Link
                         key={item.href}
                         href={item.href}
-                        className={`block px-4 py-2 text-sm transition-colors ${
+                        className={`block px-4 py-3 text-base transition-colors ${
                           isActive
                             ? 'bg-[#f5f5f5] text-[#1a1a1a] font-medium'
                             : 'text-[#666666] hover:bg-[#f5f5f5] hover:text-[#1a1a1a]'
@@ -202,10 +208,10 @@ export default function Navigation({ userName, personId }: { userName: string; p
             {/* Search Button */}
             <button
               onClick={() => setShowSearch(true)}
-              className="flex items-center gap-2 px-3 py-2 text-sm text-[#666666] hover:text-[#1a1a1a] hover:bg-[#f5f5f5] rounded-lg transition-colors"
+              className="min-w-[44px] min-h-[44px] flex items-center justify-center gap-2 px-3 text-sm text-[#666666] hover:text-[#1a1a1a] hover:bg-[#f5f5f5] rounded-lg transition-colors"
             >
               <svg
-                className="w-4 h-4"
+                className="w-5 h-5"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -225,10 +231,13 @@ export default function Navigation({ userName, personId }: { userName: string; p
 
             <div className="w-px h-6 bg-gray-200 mx-1 hidden md:block" />
 
-            {/* User Menu Dropdown */}
-            <div className="relative group">
-              <button className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-                <div className="w-8 h-8 bg-[#1a1a1a] rounded-full flex items-center justify-center">
+            {/* User Menu Dropdown - click-based on mobile, hover on desktop */}
+            <div className="relative md:group" ref={userMenuRef}>
+              <button
+                onClick={() => setUserMenuOpen(!userMenuOpen)}
+                className="min-w-[44px] min-h-[44px] flex items-center justify-center gap-3 hover:opacity-80 transition-opacity"
+              >
+                <div className="w-9 h-9 bg-[#1a1a1a] rounded-full flex items-center justify-center">
                   <span className="text-white text-sm font-medium">
                     {userName.charAt(0).toUpperCase()}
                   </span>
@@ -240,26 +249,26 @@ export default function Navigation({ userName, personId }: { userName: string; p
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
-              <div className="absolute right-0 top-full pt-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all">
-                <div className="bg-white rounded-lg shadow-lg border border-gray-200 py-1 min-w-[160px]">
+              <div className={`absolute right-0 top-full pt-1 transition-all ${userMenuOpen ? 'opacity-100 visible' : 'opacity-0 invisible md:group-hover:opacity-100 md:group-hover:visible'}`}>
+                <div className="bg-white rounded-lg shadow-lg border border-gray-200 py-2 min-w-[180px]">
                   {personId && (
                     <Link
                       href={`/people/${personId}`}
-                      className="block px-4 py-2 text-sm text-[#666666] hover:bg-[#f5f5f5] hover:text-[#1a1a1a]"
+                      className="block px-4 py-3 text-base md:py-2 md:text-sm text-[#666666] hover:bg-[#f5f5f5] hover:text-[#1a1a1a]"
                     >
                       View Profile
                     </Link>
                   )}
                   <Link
                     href="/profile/settings"
-                    className="block px-4 py-2 text-sm text-[#666666] hover:bg-[#f5f5f5] hover:text-[#1a1a1a]"
+                    className="block px-4 py-3 text-base md:py-2 md:text-sm text-[#666666] hover:bg-[#f5f5f5] hover:text-[#1a1a1a]"
                   >
                     Settings
                   </Link>
-                  <div className="h-px bg-gray-200 my-1" />
+                  <div className="h-px bg-gray-200 my-2 md:my-1" />
                   <button
                     onClick={handleLogout}
-                    className="w-full text-left px-4 py-2 text-sm text-[#666666] hover:bg-[#f5f5f5] hover:text-[#1a1a1a]"
+                    className="w-full text-left px-4 py-3 text-base md:py-2 md:text-sm text-[#666666] hover:bg-[#f5f5f5] hover:text-[#1a1a1a]"
                   >
                     Sign out
                   </button>
