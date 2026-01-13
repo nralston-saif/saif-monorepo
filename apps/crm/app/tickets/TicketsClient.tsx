@@ -400,7 +400,7 @@ export default function TicketsClient({
         <div className="flex-1 min-w-0">
 
       {/* Filters & Search */}
-      <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6">
+      <div className="bg-white rounded-xl border border-gray-200 p-4 mb-0 rounded-b-none border-b-0">
         <div className="flex flex-col gap-4">
           {/* Search bar */}
           <input
@@ -468,56 +468,54 @@ export default function TicketsClient({
           </div>
 
           {/* Filters row */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <select
-              value={priorityFilter}
-              onChange={(e) => setPriorityFilter(e.target.value as TicketPriority | 'all')}
-              className="px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-gray-900 focus:border-gray-900"
-            >
-              <option value="all">All Priorities</option>
-              <option value="high">High Priority</option>
-              <option value="medium">Medium Priority</option>
-              <option value="low">Low Priority</option>
-            </select>
+          <div className="flex items-center gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 flex-1">
+              <select
+                value={priorityFilter}
+                onChange={(e) => setPriorityFilter(e.target.value as TicketPriority | 'all')}
+                className="px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-gray-900 focus:border-gray-900"
+              >
+                <option value="all">All Priorities</option>
+                <option value="high">High Priority</option>
+                <option value="medium">Medium Priority</option>
+                <option value="low">Low Priority</option>
+              </select>
 
-            <select
-              value={assignedFilter}
-              onChange={(e) => setAssignedFilter(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-gray-900 focus:border-gray-900"
-            >
-              <option value="all">All Assignees</option>
-              <option value="unassigned">Unassigned</option>
-              {partners.map(partner => (
-                <option key={partner.id} value={partner.id}>
-                  {getPartnerName(partner)}
-                </option>
-              ))}
-            </select>
+              <select
+                value={assignedFilter}
+                onChange={(e) => setAssignedFilter(e.target.value)}
+                className="px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-gray-900 focus:border-gray-900"
+              >
+                <option value="all">All Assignees</option>
+                <option value="unassigned">Unassigned</option>
+                {partners.map(partner => (
+                  <option key={partner.id} value={partner.id}>
+                    {getPartnerName(partner)}
+                  </option>
+                ))}
+              </select>
 
-            <select
-              value={sortOption}
-              onChange={(e) => setSortOption(e.target.value as SortOption)}
-              className="px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-gray-900 focus:border-gray-900"
-            >
-              <option value="date-newest">Newest First</option>
-              <option value="date-oldest">Oldest First</option>
-              <option value="priority">Priority (High to Low)</option>
-              <option value="due-date">Due Date</option>
-              <option value="title">Title (A-Z)</option>
-            </select>
+              <select
+                value={sortOption}
+                onChange={(e) => setSortOption(e.target.value as SortOption)}
+                className="px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-gray-900 focus:border-gray-900"
+              >
+                <option value="date-newest">Newest First</option>
+                <option value="date-oldest">Oldest First</option>
+                <option value="priority">Priority (High to Low)</option>
+                <option value="due-date">Due Date</option>
+                <option value="title">Title (A-Z)</option>
+              </select>
+            </div>
+            <p className="text-sm font-medium text-gray-700 whitespace-nowrap">
+              Showing {filteredTickets.length} {filteredTickets.length === 1 ? 'result' : 'results'}
+            </p>
           </div>
         </div>
       </div>
 
-      {/* Results count */}
-      <div className="mb-4">
-        <p className="text-sm text-gray-600">
-          {filteredTickets.length} {filteredTickets.length === 1 ? 'ticket' : 'tickets'}
-        </p>
-      </div>
-
       {/* Tickets List */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="bg-white rounded-xl rounded-t-none border border-gray-200 overflow-hidden">
         {filteredTickets.length === 0 ? (
           <div className="text-center py-12">
             <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
