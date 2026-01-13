@@ -496,6 +496,7 @@ export type Database = {
           tags: string[] | null
           title: string
           updated_at: string
+          was_unassigned_at_creation: boolean | null
         }
         Insert: {
           application_id?: string | null
@@ -513,6 +514,7 @@ export type Database = {
           tags?: string[] | null
           title: string
           updated_at?: string
+          was_unassigned_at_creation?: boolean | null
         }
         Update: {
           application_id?: string | null
@@ -530,6 +532,7 @@ export type Database = {
           tags?: string[] | null
           title?: string
           updated_at?: string
+          was_unassigned_at_creation?: boolean | null
         }
         Relationships: [
           {

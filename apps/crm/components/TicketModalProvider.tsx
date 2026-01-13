@@ -53,6 +53,7 @@ type Ticket = {
   related_person: string | null
   application_id: string | null
   tags: string[] | null
+  was_unassigned_at_creation: boolean | null
   assigned_partner?: Partner | null
   creator?: Partner | null
   company?: Company | null
