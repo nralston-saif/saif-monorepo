@@ -426,7 +426,8 @@ export default function DealsClient({
 
   // Tag management state
   const [tagMenuAppId, setTagMenuAppId] = useState<string | null>(null)
-  const [updatingTags, setUpdatingTags] = useState<string | null>(null)
+  const [localUndecidedDelibs, setLocalUndecidedDelibs] = useState(undecidedDeliberations)
+  const [localDecidedDelibs, setLocalDecidedDelibs] = useState(decidedDeliberations)
 
   const router = useRouter()
   const supabase = createClient()
@@ -435,6 +436,14 @@ export default function DealsClient({
   useEffect(() => {
     setClientVotingApps(votingApplications)
   }, [votingApplications])
+
+  useEffect(() => {
+    setLocalUndecidedDelibs(undecidedDeliberations)
+  }, [undecidedDeliberations])
+
+  useEffect(() => {
+    setLocalDecidedDelibs(decidedDeliberations)
+  }, [decidedDeliberations])
 
   const appIdsRef = useRef<string[]>([])
   useEffect(() => {
@@ -618,15 +627,17 @@ export default function DealsClient({
       }
 
       const isInterview = action === 'deliberation'
-      const emailType = isInterview ? 'interview' : 'rejection'
       const ticketTitle = isInterview
-        ? `Send interview follow-up: ${app.company_name}`
-        : `Send rejection email: ${app.company_name}`
+        ? `Schedule interview follow-up: ${app.company_name}${app.primary_email ? ` (${app.primary_email})` : ''}`
+        : `Send rejection email: ${app.company_name}${app.primary_email ? ` (${app.primary_email})` : ''}`
+      const ticketDescription = isInterview
+        ? `Schedule an interview follow-up email for ${app.company_name}.${app.founder_names ? `\n\nFounders: ${app.founder_names}` : ''}`
+        : `Send rejection email to ${app.company_name}.${app.founder_names ? `\n\nFounders: ${app.founder_names}` : ''}`
       const { data: ticketData } = await supabase
         .from('saif_tickets')
         .insert({
           title: ticketTitle,
-          description: `Send ${emailType} email to ${app.company_name}${app.primary_email ? ` (${app.primary_email})` : ''}${app.founder_names ? `\n\nFounders: ${app.founder_names}` : ''}`,
+          description: ticketDescription,
           status: 'open',
           priority: 'medium',
           assigned_to: selectedEmailSender,
@@ -734,9 +745,9 @@ export default function DealsClient({
   // ============================================
 
   const filteredDecidedDeliberations = useMemo(() => {
-    const filtered = filterBySearchQuery(decidedDeliberations, delibSearchQuery)
+    const filtered = filterBySearchQuery(localDecidedDelibs, delibSearchQuery)
     return sortByDateAndName(filtered, delibSortOption, (app) => app.deliberation?.decision)
-  }, [decidedDeliberations, delibSearchQuery, delibSortOption])
+  }, [localDecidedDelibs, delibSearchQuery, delibSortOption])
 
   function openDeliberationModal(app: DeliberationApplication): void {
     setSelectedDelibApp(app)
@@ -924,17 +935,34 @@ export default function DealsClient({
   // Tag Management
   // ============================================
 
-  async function toggleTag(app: DeliberationApplication, tagName: string): Promise<void> {
-    setUpdatingTags(app.id)
-
+  function toggleTag(app: DeliberationApplication, tagName: string): void {
     const currentTags = app.deliberation?.tags || []
     const hasTag = currentTags.includes(tagName)
     const newTags = hasTag
       ? currentTags.filter((t) => t !== tagName)
       : [...currentTags, tagName]
 
-    try {
-      const { error } = await supabase.from('saifcrm_deliberations').upsert(
+    // Helper to update app tags in a list
+    const updateAppTags = (apps: DeliberationApplication[]) =>
+      apps.map((a) =>
+        a.id === app.id
+          ? {
+              ...a,
+              deliberation: a.deliberation
+                ? { ...a.deliberation, tags: newTags }
+                : { id: '', meeting_date: null, idea_summary: null, thoughts: null, decision: 'pending', status: null, tags: newTags, created_at: null },
+            }
+          : a
+      )
+
+    // Optimistic update - instant UI feedback
+    setLocalUndecidedDelibs(updateAppTags)
+    setLocalDecidedDelibs(updateAppTags)
+
+    // Fire off DB update in background (non-blocking)
+    supabase
+      .from('saifcrm_deliberations')
+      .upsert(
         {
           application_id: app.id,
           tags: newTags,
@@ -942,17 +970,14 @@ export default function DealsClient({
         },
         { onConflict: 'application_id' }
       )
-
-      if (error) {
-        showToast('Error updating tags: ' + error.message, 'error')
-      } else {
-        router.refresh()
-      }
-    } catch {
-      showToast('An unexpected error occurred', 'error')
-    }
-
-    setUpdatingTags(null)
+      .then(({ error }) => {
+        if (error) {
+          // Revert on error
+          showToast('Error updating tags: ' + error.message, 'error')
+          setLocalUndecidedDelibs(undecidedDeliberations)
+          setLocalDecidedDelibs(decidedDeliberations)
+        }
+      })
   }
 
   function getTagColor(tagName: string): string {
@@ -1071,7 +1096,7 @@ export default function DealsClient({
   // ============================================
 
   const votingCount = clientVotingApps.length
-  const deliberationCount = undecidedDeliberations.length
+  const deliberationCount = localUndecidedDelibs.length
   const archiveCount = archivedApplications.length
 
   // ============================================
@@ -1582,7 +1607,7 @@ export default function DealsClient({
       {/* ============================================ */}
       {activeTab === 'deliberation' && (
         <div>
-          {undecidedDeliberations.length === 0 && decidedDeliberations.length === 0 ? (
+          {localUndecidedDelibs.length === 0 && localDecidedDelibs.length === 0 ? (
             <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-3 text-center">
               <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-2">
                 <span className="text-3xl">No deliberations</span>
@@ -1597,10 +1622,10 @@ export default function DealsClient({
           ) : (
             <div className="space-y-4">
               {/* Needs Decision Section */}
-              {undecidedDeliberations.length > 0 && (
+              {localUndecidedDelibs.length > 0 && (
                 <section>
                   <div className="grid gap-3 sm:grid-cols-2">
-                    {undecidedDeliberations.map((app) => (
+                    {localUndecidedDelibs.map((app) => (
                       <div
                         key={app.id}
                         className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden card-hover cursor-pointer"
@@ -1732,7 +1757,6 @@ export default function DealsClient({
                                     <button
                                       key={tag.name}
                                       onClick={() => toggleTag(app, tag.name)}
-                                      disabled={updatingTags === app.id}
                                       className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"
                                     >
                                       <span
@@ -1768,7 +1792,7 @@ export default function DealsClient({
               )}
 
               {/* Archive Section Separator */}
-              {decidedDeliberations.length > 0 && (
+              {localDecidedDelibs.length > 0 && (
                 <>
                   {/* Separator */}
                   <div className="relative py-4">
@@ -1789,7 +1813,7 @@ export default function DealsClient({
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                         </svg>
                         {showDelibArchive ? 'Hide Archive' : 'Show Archive'}
-                        <span className="text-gray-400">({decidedDeliberations.length})</span>
+                        <span className="text-gray-400">({localDecidedDelibs.length})</span>
                       </button>
                     </div>
                   </div>
@@ -1847,7 +1871,18 @@ export default function DealsClient({
                                       <p className="text-xs text-gray-500 truncate">{formatFounderNames(app.founder_names)}</p>
                                     )}
                                   </div>
-                                  <div className="flex items-center gap-1 ml-2">
+                                  <div className="flex items-center gap-1 ml-2 flex-shrink-0">
+                                    {app.email_sent && (
+                                      <span className="text-xs text-blue-600 flex items-center gap-1">
+                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                        </svg>
+                                        <svg className="w-3 h-3 -ml-1.5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                        </svg>
+                                        {app.email_sent_at && <span className="text-gray-500">{formatDateShort(app.email_sent_at)}</span>}
+                                      </span>
+                                    )}
                                     {app.deliberation?.decision && (
                                       <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${getDecisionBadgeStyle(app.deliberation.decision)}`}>
                                         {app.deliberation.decision.toUpperCase()}
