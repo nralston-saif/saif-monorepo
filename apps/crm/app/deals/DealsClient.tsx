@@ -450,40 +450,30 @@ export default function DealsClient({
     appIdsRef.current = clientVotingApps.map((app) => app.id)
   }, [clientVotingApps])
 
-  const fetchVotesAndUpdateApplications = useCallback(async () => {
-    const appIds = appIdsRef.current
-    if (appIds.length === 0) return
-
+  // Fetch votes for a SINGLE application only
+  const fetchVotesForApp = useCallback(async (appId: string) => {
     const { data: votes, error } = await supabase
       .from('saifcrm_votes')
-      .select('id, application_id, vote, user_id, notes, vote_type, saif_people(name)')
-      .in('application_id', appIds)
+      .select('id, vote, user_id, notes, vote_type, saif_people(name)')
+      .eq('application_id', appId)
       .eq('vote_type', 'initial')
 
     if (error) {
-      console.error('Error fetching votes:', error)
+      console.error('Error fetching votes for app:', appId, error)
       return
     }
 
-    const votesByApp: Record<string, typeof votes> = {}
-    votes?.forEach((voteRecord) => {
-      if (!votesByApp[voteRecord.application_id]) {
-        votesByApp[voteRecord.application_id] = []
-      }
-      votesByApp[voteRecord.application_id].push(voteRecord)
-    })
-
     setClientVotingApps((prevApps) =>
       prevApps.map((app) => {
-        const appVotes = votesByApp[app.id] || []
-        const userVoteRecord = appVotes.find((v) => v.user_id === userId)
+        if (app.id !== appId) return app // Skip unaffected apps
 
+        const userVoteRecord = votes?.find((v) => v.user_id === userId)
         return {
           ...app,
-          voteCount: appVotes.length,
+          voteCount: votes?.length || 0,
           userVote: userVoteRecord?.vote || null,
           userNotes: userVoteRecord?.notes || null,
-          allVotes: appVotes.map((v) => ({
+          allVotes: (votes || []).map((v) => ({
             oduserId: v.user_id,
             userName: (v.saif_people as { name: string } | null)?.name || 'Unknown',
             vote: v.vote || '',
@@ -509,7 +499,8 @@ export default function DealsClient({
           const oldRecord = payload.old as { application_id?: string } | null
           const affectedAppId = newRecord?.application_id || oldRecord?.application_id
           if (affectedAppId && appIdsRef.current.includes(affectedAppId)) {
-            fetchVotesAndUpdateApplications()
+            // Only fetch and update the affected application
+            fetchVotesForApp(affectedAppId)
           }
         }
       )
@@ -518,7 +509,7 @@ export default function DealsClient({
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [supabase, fetchVotesAndUpdateApplications])
+  }, [supabase, fetchVotesForApp])
 
   // Close tag menu when clicking outside
   useEffect(() => {

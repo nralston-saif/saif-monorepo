@@ -56,39 +56,53 @@ export default async function DealsPage(): Promise<React.ReactElement> {
     redirect('/access-denied')
   }
 
-  const { data: partners } = await supabase
-    .from('saif_people')
-    .select('id, name')
-    .eq('role', 'partner')
-    .eq('status', 'active')
-    .order('name')
+  // Parallel fetch: all applications + supporting data
+  const [
+    { data: allApplications },
+    { data: partners },
+    { data: people },
+    { data: interviewTags }
+  ] = await Promise.all([
+    // Single query for ALL applications with all related data
+    supabase
+      .from('saifcrm_applications')
+      .select(`
+        *,
+        saifcrm_votes(id, vote, user_id, notes, vote_type, saif_people(name)),
+        saifcrm_deliberations(*),
+        email_sender:saif_people!applications_email_sender_id_fkey(name)
+      `)
+      .in('stage', ['new', 'voting', 'deliberation', 'invested', 'rejected'])
+      .order('submitted_at', { ascending: false }),
 
-  const { data: people } = await supabase.from('saif_people').select('id, name')
+    // Partners for assignment
+    supabase
+      .from('saif_people')
+      .select('id, name')
+      .eq('role', 'partner')
+      .eq('status', 'active')
+      .order('name'),
 
-  // Fetch interview tags
-  const { data: interviewTags } = await supabase
-    .from('saif_tags')
-    .select('name, color')
-    .eq('category', 'interview')
-    .order('name')
+    // People for vote name lookup
+    supabase
+      .from('saif_people')
+      .select('id, name'),
+
+    // Interview tags
+    supabase
+      .from('saif_tags')
+      .select('name, color')
+      .eq('category', 'interview')
+      .order('name')
+  ])
 
   const peopleMap = new Map(people?.map((p) => [p.id, p.name]) || [])
 
-  // Voting applications
-  const { data: votingApplications } = await supabase
-    .from('saifcrm_applications')
-    .select(
-      `
-      *,
-      saifcrm_votes(id, vote, user_id, notes, vote_type, saif_people(name))
-    `
-    )
-    .in('stage', ['new', 'voting'])
-    .order('submitted_at', { ascending: false })
-
-  const votingAppsWithVotes =
-    votingApplications?.map((app) => {
-      const allVotes = transformVotes(app.saifcrm_votes as RawVote[])
+  // Transform and filter applications by stage
+  const votingAppsWithVotes = (allApplications || [])
+    .filter(app => app.stage === 'new' || app.stage === 'voting')
+    .map((app) => {
+      const allVotes = transformVotes(app.saifcrm_votes as RawVote[], peopleMap)
       const userVote = allVotes.find((v) => v.oduserId === profile?.id)
 
       return {
@@ -109,24 +123,11 @@ export default async function DealsPage(): Promise<React.ReactElement> {
         userNotes: userVote?.notes,
         allVotes,
       }
-    }) || []
+    })
 
-  // Deliberation applications
-  const { data: deliberationApplications } = await supabase
-    .from('saifcrm_applications')
-    .select(
-      `
-      *,
-      saifcrm_votes(id, vote, user_id, notes, vote_type, saif_people(name)),
-      saifcrm_deliberations(*),
-      email_sender:saif_people!applications_email_sender_id_fkey(name)
-    `
-    )
-    .eq('stage', 'deliberation')
-    .eq('votes_revealed', true)
-
-  const deliberationAppsWithVotes =
-    deliberationApplications?.map((app) => {
+  const deliberationAppsWithVotes = (allApplications || [])
+    .filter(app => app.stage === 'deliberation' && app.votes_revealed === true)
+    .map((app) => {
       const votes = transformVotes(app.saifcrm_votes as RawVote[], peopleMap)
       const deliberation = Array.isArray(app.saifcrm_deliberations)
         ? app.saifcrm_deliberations[0]
@@ -156,7 +157,7 @@ export default async function DealsPage(): Promise<React.ReactElement> {
         email_sent_at: app.email_sent_at,
         email_sender_name: (app.email_sender as { name: string } | null)?.name || null,
       }
-    }) || []
+    })
 
   const undecidedDeliberations = deliberationAppsWithVotes
     .filter(
@@ -180,38 +181,27 @@ export default async function DealsPage(): Promise<React.ReactElement> {
         new Date(b.submitted_at || 0).getTime() - new Date(a.submitted_at || 0).getTime()
     )
 
-  // Archived applications
-  const { data: archivedApplications } = await supabase
-    .from('saifcrm_applications')
-    .select(
-      `
-      *,
-      email_sender:saif_people!applications_email_sender_id_fkey(name),
-      saifcrm_votes(id, vote, user_id, notes, vote_type, saif_people(name))
-    `
-    )
-    .in('stage', ['invested', 'rejected'])
-    .order('submitted_at', { ascending: false })
-
-  const archivedAppsTransformed = (archivedApplications || []).map((app) => ({
-    id: app.id,
-    company_name: app.company_name,
-    founder_names: app.founder_names,
-    founder_linkedins: app.founder_linkedins,
-    founder_bios: app.founder_bios,
-    primary_email: app.primary_email,
-    company_description: app.company_description,
-    website: app.website,
-    previous_funding: app.previous_funding,
-    deck_link: app.deck_link,
-    stage: app.stage,
-    submitted_at: app.submitted_at,
-    email_sent: app.email_sent,
-    email_sent_at: app.email_sent_at,
-    email_sender_name: (app.email_sender as { name: string } | null)?.name || null,
-    allVotes: transformVotes(app.saifcrm_votes as RawVote[]),
-    draft_rejection_email: (app as { draft_rejection_email?: string }).draft_rejection_email || null,
-  }))
+  const archivedAppsTransformed = (allApplications || [])
+    .filter(app => app.stage === 'invested' || app.stage === 'rejected')
+    .map((app) => ({
+      id: app.id,
+      company_name: app.company_name,
+      founder_names: app.founder_names,
+      founder_linkedins: app.founder_linkedins,
+      founder_bios: app.founder_bios,
+      primary_email: app.primary_email,
+      company_description: app.company_description,
+      website: app.website,
+      previous_funding: app.previous_funding,
+      deck_link: app.deck_link,
+      stage: app.stage,
+      submitted_at: app.submitted_at,
+      email_sent: app.email_sent,
+      email_sent_at: app.email_sent_at,
+      email_sender_name: (app.email_sender as { name: string } | null)?.name || null,
+      allVotes: transformVotes(app.saifcrm_votes as RawVote[], peopleMap),
+      draft_rejection_email: (app as { draft_rejection_email?: string }).draft_rejection_email || null,
+    }))
 
   return (
     <div className="min-h-screen bg-gray-50">
