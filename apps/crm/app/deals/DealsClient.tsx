@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { useToast } from '@saif/ui'
 import CreateTicketButton from '@/components/CreateTicketButton'
 import ApplicationDetailModal from '@/components/ApplicationDetailModal'
+import { ensureProtocol } from '@/lib/utils'
 
 // ============================================
 // Types
@@ -1101,7 +1102,7 @@ export default function DealsClient({
                 .filter(Boolean)
                 .map((link, i) => {
                   const url = link.trim()
-                  const fullUrl = url.startsWith('http') ? url : `https://${url}`
+                  const fullUrl = ensureProtocol(url)
                   return (
                     <a
                       key={i}
@@ -1139,7 +1140,7 @@ export default function DealsClient({
               Website
             </h3>
             <a
-              href={app.website.startsWith('http') ? app.website : `https://${app.website}`}
+              href={ensureProtocol(app.website)}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 text-[#1a1a1a] hover:text-black underline"
@@ -1365,7 +1366,7 @@ export default function DealsClient({
                           <div className="flex flex-wrap gap-1.5 mb-2">
                             {app.website && (
                               <a
-                                href={app.website.startsWith('http') ? app.website : `https://${app.website}`}
+                                href={ensureProtocol(app.website)}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="text-xs text-gray-600 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded transition-colors"
@@ -1446,7 +1447,7 @@ export default function DealsClient({
                             <div className="flex flex-wrap gap-2 mb-2">
                               {app.website && (
                                 <a
-                                  href={app.website.startsWith('http') ? app.website : `https://${app.website}`}
+                                  href={ensureProtocol(app.website)}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="inline-flex items-center gap-1 text-sm text-[#1a1a1a] hover:text-black bg-[#f5f5f5] hover:bg-[#e5e5e5] px-3 py-1.5 rounded-lg transition-colors"
@@ -1661,7 +1662,7 @@ export default function DealsClient({
                           <div className="flex flex-wrap gap-1.5 mt-2">
                             {app.website && (
                               <a
-                                href={app.website.startsWith('http') ? app.website : `https://${app.website}`}
+                                href={ensureProtocol(app.website)}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="text-xs text-gray-600 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded transition-colors"

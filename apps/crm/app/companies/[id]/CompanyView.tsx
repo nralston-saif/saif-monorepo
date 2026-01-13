@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import type { Database } from '@/lib/types/database'
 import CreateTicketButton from '@/components/CreateTicketButton'
 import PersonModal from '@/components/PersonModal'
+import { ensureProtocol } from '@/lib/utils'
 
 type Company = Database['public']['Tables']['saif_companies']['Row']
 type Person = Database['public']['Tables']['saif_people']['Row']
@@ -861,7 +862,7 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
                   <dt className="text-sm font-medium text-gray-500">Website</dt>
                   <dd className="mt-1 text-sm text-gray-900">
                     <a
-                      href={company.website.startsWith('http') ? company.website : `https://${company.website}`}
+                      href={ensureProtocol(company.website)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-gray-900 hover:text-gray-700 underline"

@@ -1,5 +1,7 @@
 'use client'
 
+import { ensureProtocol } from '@/lib/utils'
+
 type ApplicationData = {
   id: string
   company_name: string
@@ -179,7 +181,7 @@ export default function ApplicationDetailModal({ application, investment, onClos
               <div className="flex flex-wrap gap-2">
                 {application.founder_linkedins.split(/[\n,]+/).filter(Boolean).map((link, i) => {
                   const url = link.trim()
-                  const fullUrl = url.startsWith('http') ? url : `https://${url}`
+                  const fullUrl = ensureProtocol(url)
                   return (
                     <a
                       key={i}
@@ -241,7 +243,7 @@ export default function ApplicationDetailModal({ application, investment, onClos
                 Website
               </h3>
               <a
-                href={application.website.startsWith('http') ? application.website : `https://${application.website}`}
+                href={ensureProtocol(application.website)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 text-[#1a1a1a] hover:text-black underline"

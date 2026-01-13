@@ -5,15 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { Database, CompanyStage } from '@/lib/types/database'
 import PersonModal from '@/components/PersonModal'
-
-// Helper to ensure URL has a protocol
-function ensureProtocol(url: string): string {
-  if (!url) return url
-  if (url.startsWith('http://') || url.startsWith('https://')) {
-    return url
-  }
-  return `https://${url}`
-}
+import { ensureProtocol } from '@/lib/utils'
 
 type Company = Database['public']['Tables']['saif_companies']['Row'] & {
   people?: Array<{

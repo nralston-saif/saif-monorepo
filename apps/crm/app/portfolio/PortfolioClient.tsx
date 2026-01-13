@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import ApplicationDetailModal from '@/components/ApplicationDetailModal'
 import InvestmentMeetingNotes from '@/components/InvestmentMeetingNotes'
 import CreateTicketButton from '@/components/CreateTicketButton'
+import { ensureProtocol } from '@/lib/utils'
 
 type MeetingNote = {
   id: string
@@ -459,7 +460,7 @@ export default function PortfolioClient({
                 <div className="flex items-center gap-3 mt-4">
                   {investment.website && (
                     <a
-                      href={investment.website.startsWith('http') ? investment.website : `https://${investment.website}`}
+                      href={ensureProtocol(investment.website)}
                       target="_blank"
                       rel="noopener noreferrer"
                       onClick={(e) => e.stopPropagation()}

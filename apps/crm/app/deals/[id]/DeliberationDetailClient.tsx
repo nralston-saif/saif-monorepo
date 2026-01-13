@@ -7,6 +7,7 @@ import Link from 'next/link'
 import MeetingNotes from '@/components/MeetingNotes'
 import { useToast } from '@saif/ui'
 import CreateTicketButton from '@/components/CreateTicketButton'
+import { ensureProtocol } from '@/lib/utils'
 
 type Vote = {
   oduserId: string
@@ -344,7 +345,7 @@ export default function DeliberationDetailClient({
         <div className="flex flex-wrap gap-3 mt-4">
           {application.website && (
             <a
-              href={application.website.startsWith('http') ? application.website : `https://${application.website}`}
+              href={ensureProtocol(application.website)}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1 text-sm text-gray-700 hover:text-black bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-lg transition-colors"
