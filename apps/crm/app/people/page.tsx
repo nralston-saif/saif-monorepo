@@ -87,7 +87,7 @@ export default async function PeoplePage({
       // Get all people (only fields we need)
       supabase
         .from('saif_people')
-        .select('id, first_name, last_name, name, email, alternative_emails, role, status, title, bio, avatar_url, linkedin_url, twitter_url, mobile_phone, location, tags, first_met_date, introduced_by, introduction_context, relationship_notes, created_at')
+        .select('*')
         .order('first_name', { ascending: true })
         .limit(500),
       // Get portfolio companies (investments)
