@@ -241,3 +241,21 @@ Before running a migration:
 3. Use exact IDs from queries, not name matching
 4. Check RLS policies if data access is involved
 
+## Future Performance Optimizations
+
+If the CRM becomes slow with larger datasets, consider these optimizations:
+
+1. **Database Indexes** - Add indexes on frequently filtered/sorted columns:
+   - `saif_people`: `first_name`, `role`, `status`, `created_at`
+   - `saif_companies`: `name`, `stage`, `is_active`
+   - `saif_company_people`: `user_id`, `company_id`
+
+2. **Pagination** - Implement cursor-based pagination for lists with 500+ records instead of loading all at once
+
+3. **Caching** - Add caching layer for data that doesn't change frequently:
+   - Company location map (portfolio/pipeline/deliberation)
+   - Note counts per person
+   - Investment totals
+
+4. **Database Views** - Create PostgreSQL views for complex joins to reduce query complexity
+

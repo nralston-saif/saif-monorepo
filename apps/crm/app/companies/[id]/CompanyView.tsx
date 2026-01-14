@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { Database } from '@/lib/types/database'
@@ -60,6 +61,10 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
 
   // Person modal state
   const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null)
+
+  // Delete confirmation state
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   // Founder management state
   const [showAddFounder, setShowAddFounder] = useState(false)
@@ -300,6 +305,42 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
     }
   }
 
+  const handleDelete = async () => {
+    setDeleting(true)
+    setError(null)
+
+    try {
+      // Delete company-people associations first
+      await supabase
+        .from('saif_company_people')
+        .delete()
+        .eq('company_id', company.id)
+
+      // Delete investments
+      await supabase
+        .from('saif_investments')
+        .delete()
+        .eq('company_id', company.id)
+
+      // Delete the company
+      const { error: deleteError } = await supabase
+        .from('saif_companies')
+        .delete()
+        .eq('id', company.id)
+
+      if (deleteError) throw deleteError
+
+      // Redirect to companies list
+      router.push('/companies')
+    } catch (err: any) {
+      console.error('Error deleting company:', err)
+      setError(`Failed to delete: ${err?.message || 'Unknown error'}`)
+      setShowDeleteConfirm(false)
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   const handleAddFounder = async (e: React.FormEvent) => {
     e.preventDefault()
     setAddingFounder(true)
@@ -449,6 +490,17 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
 
   return (
     <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* Back link */}
+      <Link
+        href="/companies"
+        className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 mb-6"
+      >
+        <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+        </svg>
+        Back to Companies
+      </Link>
+
       {/* Header with Logo and Edit Button */}
       <div className="mb-8 flex items-start justify-between">
         <div className="flex items-start space-x-6">
@@ -858,6 +910,19 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
               {saving ? 'Saving...' : 'Save Changes'}
             </button>
           </div>
+
+          {/* Delete Button (Partners Only) */}
+          {isPartner && (
+            <div className="mt-8 pt-6 border-t border-gray-200">
+              <button
+                type="button"
+                onClick={() => setShowDeleteConfirm(true)}
+                className="text-sm text-red-600 hover:text-red-800"
+              >
+                Delete this company
+              </button>
+            </div>
+          )}
         </form>
       ) : (
         /* View Mode */
@@ -1275,6 +1340,34 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
           personId={selectedPersonId}
           onClose={() => setSelectedPersonId(null)}
         />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Delete Company</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Are you sure you want to delete <strong>{company.name}</strong>? This will also delete all associated investments and team member links. This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={deleting}
+                className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700 disabled:opacity-50"
+              >
+                {deleting ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </main>
   )

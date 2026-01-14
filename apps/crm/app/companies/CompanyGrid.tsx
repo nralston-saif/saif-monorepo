@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { Database, CompanyStage } from '@/lib/types/database'
@@ -40,9 +40,23 @@ export default function CompanyGrid({ companies, isPartner = false }: CompanyGri
   const router = useRouter()
   const supabase = createClient()
   const [searchQuery, setSearchQuery] = useState('')
-  const [stageFilter, setStageFilter] = useState<string>('all')
+  const [stageFilter, setStageFilter] = useState<string>(() => {
+    // Initialize from localStorage if available (client-side only)
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('companies-stage-filter')
+      if (saved && (saved === 'all' || STAGE_OPTIONS.includes(saved as any) || saved === 'saif')) {
+        return saved
+      }
+    }
+    return 'all'
+  })
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
   const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null)
+
+  // Persist stage filter to localStorage
+  useEffect(() => {
+    localStorage.setItem('companies-stage-filter', stageFilter)
+  }, [stageFilter])
 
   // Add Company Modal State
   const [showAddModal, setShowAddModal] = useState(false)
@@ -253,7 +267,7 @@ export default function CompanyGrid({ companies, isPartner = false }: CompanyGri
           <p className="text-gray-500">No companies match your search</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredCompanies.map((company) => {
             // Get current founders for this company (exclude former founders)
             const founders = company.people?.filter(
@@ -264,159 +278,113 @@ export default function CompanyGrid({ companies, isPartner = false }: CompanyGri
               <div
                 key={company.id}
                 onClick={() => router.push(`/companies/${company.id}`)}
-                className="border border-gray-200 rounded-lg p-6 hover:border-gray-300 transition hover:shadow-md cursor-pointer"
+                className="border border-gray-200 rounded-lg p-4 hover:border-gray-300 transition hover:shadow-md cursor-pointer relative"
               >
-                {/* Company Logo */}
-                {company.logo_url ? (
-                  <img
-                    src={company.logo_url}
-                    alt={company.name}
-                    className="h-16 w-16 object-contain mb-4"
-                  />
-                ) : (
-                  <div className="h-16 w-16 bg-gray-100 rounded-lg flex items-center justify-center mb-4">
-                    <span className="text-2xl font-bold text-gray-400">
-                      {company.name[0]}
-                    </span>
+                {/* Stage Badge - top right */}
+                {isPartner && company.stage && (
+                  <span className={`absolute top-2 right-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${
+                    company.stage === 'portfolio' ? 'bg-green-100 text-green-800' :
+                    company.stage === 'saif' ? 'bg-purple-100 text-purple-800' :
+                    company.stage === 'prospect' ? 'bg-blue-100 text-blue-800' :
+                    company.stage === 'passed' ? 'bg-gray-100 text-gray-600' :
+                    company.stage === 'dead' ? 'bg-red-100 text-red-800' :
+                    'bg-gray-100 text-gray-800'
+                  }`}>
+                    {company.stage}
+                  </span>
+                )}
+
+                {/* Logo and Company Info */}
+                <div className="flex items-start space-x-3">
+                  {/* Company Logo */}
+                  {company.logo_url ? (
+                    <img
+                      src={company.logo_url}
+                      alt={company.name}
+                      className="h-12 w-12 object-contain flex-shrink-0"
+                    />
+                  ) : (
+                    <div className="h-12 w-12 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <span className="text-lg font-bold text-gray-400">
+                        {company.name[0]}
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="flex-1 min-w-0 pr-12">
+                    {/* Company Name - links to website if available */}
+                    {company.website ? (
+                      <a
+                        href={ensureProtocol(company.website)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-base font-semibold text-gray-900 hover:underline truncate block"
+                      >
+                        {company.name}
+                      </a>
+                    ) : (
+                      <h3 className="text-base font-semibold text-gray-900 truncate">
+                        {company.name}
+                      </h3>
+                    )}
+
+                    {/* Description */}
+                    {company.short_description && (
+                      <p className="text-sm text-gray-600 line-clamp-2">
+                        {company.short_description}
+                      </p>
+                    )}
+
+                    {/* Compact Info Line */}
+                    <div className="mt-1 flex items-center gap-2 text-xs text-gray-500 flex-wrap">
+                      {company.industry && <span>{company.industry}</span>}
+                      {company.industry && (company.city || company.yc_batch) && <span>•</span>}
+                      {company.city && <span>{company.city}</span>}
+                      {company.city && company.yc_batch && <span>•</span>}
+                      {company.yc_batch && <span>YC {company.yc_batch}</span>}
+                      {company.is_aisafety_company && (
+                        <span className="text-blue-600 font-medium">AI Safety</span>
+                      )}
+                    </div>
                   </div>
-                )}
-
-                {/* Company Name and Stage */}
-                <div className="flex items-start justify-between mb-2">
-                  <h3 className="text-lg font-semibold text-gray-900">
-                    {company.name}
-                  </h3>
-                  {isPartner && company.stage && (
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ml-2 flex-shrink-0 ${
-                      company.stage === 'portfolio' ? 'bg-green-100 text-green-800' :
-                      company.stage === 'saif' ? 'bg-purple-100 text-purple-800' :
-                      company.stage === 'prospect' ? 'bg-blue-100 text-blue-800' :
-                      company.stage === 'passed' ? 'bg-gray-100 text-gray-600' :
-                      company.stage === 'dead' ? 'bg-red-100 text-red-800' :
-                      'bg-gray-100 text-gray-800'
-                    }`}>
-                      {company.stage}
-                    </span>
-                  )}
                 </div>
 
-                {/* Description */}
-                {company.short_description && (
-                  <p className="text-sm text-gray-600 mb-4 line-clamp-3">
-                    {company.short_description}
-                  </p>
-                )}
-
-                {/* Company Info */}
-                <div className="space-y-1 mb-4">
-                  {company.industry && (
-                    <p className="text-xs text-gray-500">
-                      Industry: {company.industry}
-                    </p>
-                  )}
-                  {company.city && company.country && (
-                    <p className="text-xs text-gray-500">
-                      Location: {company.city}, {company.country}
-                    </p>
-                  )}
-                  {company.founded_year && (
-                    <p className="text-xs text-gray-500">
-                      Founded: {company.founded_year}
-                    </p>
-                  )}
-                  {company.yc_batch && (
-                    <p className="text-xs text-gray-500">
-                      YC: {company.yc_batch}
-                    </p>
-                  )}
-                  {company.is_aisafety_company && (
-                    <p className="text-xs text-blue-600 font-medium">
-                      AI Safety Company
-                    </p>
-                  )}
-                </div>
-
-                {/* Founders */}
+                {/* Founders - comma separated names */}
                 {founders.length > 0 && (
-                  <div className="border-t border-gray-200 pt-4">
-                    <p className="text-xs font-medium text-gray-500 mb-2">
-                      {founders.length === 1 ? 'Founder' : 'Founders'}
-                    </p>
-                    <div className="space-y-2">
-                      {founders.slice(0, 3).map((founder) => {
-                        const person = founder.person
-                        if (!person) return null
-
-                        return (
+                  <div className="mt-2 text-xs text-gray-500">
+                    <span>{founders.length === 1 ? 'Founder: ' : 'Founders: '}</span>
+                    {founders.map((founder, idx) => {
+                      const person = founder.person
+                      if (!person) return null
+                      return (
+                        <span key={person.id}>
                           <button
-                            key={person.id}
                             onClick={(e) => {
                               e.stopPropagation()
                               setSelectedPersonId(person.id)
                             }}
-                            className="flex items-center space-x-2 w-full text-left hover:bg-gray-50 rounded-md p-1 -m-1 transition-colors"
+                            className="text-gray-700 hover:underline"
                           >
-                            {person.avatar_url ? (
-                              <img
-                                src={person.avatar_url}
-                                alt={`${person.first_name} ${person.last_name}`}
-                                className="h-8 w-8 rounded-full object-cover"
-                              />
-                            ) : (
-                              <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center">
-                                <span className="text-xs text-gray-600">
-                                  {person.first_name?.[0] || '?'}
-                                </span>
-                              </div>
-                            )}
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-gray-900 truncate hover:underline">
-                                {person.first_name} {person.last_name}
-                              </p>
-                              {person.title && (
-                                <p className="text-xs text-gray-500 truncate">
-                                  {person.title}
-                                </p>
-                              )}
-                            </div>
+                            {person.first_name} {person.last_name}
                           </button>
-                        )
-                      })}
-                      {founders.length > 3 && (
-                        <p className="text-xs text-gray-500">
-                          +{founders.length - 3} more
-                        </p>
-                      )}
-                    </div>
+                          {idx < founders.length - 1 && ', '}
+                        </span>
+                      )
+                    })}
                   </div>
                 )}
 
-                {/* Investment Summary (Partners Only) */}
+                {/* Investment Summary (Partners Only) - compact */}
                 {isPartner && company.investments && company.investments.length > 0 && (
-                  <div className="border-t border-gray-200 pt-4 mt-4">
-                    <p className="text-xs font-medium text-gray-500 mb-1">Investment</p>
-                    <p className="text-sm font-semibold text-gray-900">
+                  <div className="mt-2 pt-2 border-t border-gray-100 flex items-center gap-2 text-xs">
+                    <span className="text-gray-500">Investment:</span>
+                    <span className="font-semibold text-gray-900">
                       ${company.investments.reduce((sum, inv) => sum + (inv.amount || 0), 0).toLocaleString()}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {company.investments.length} {company.investments.length === 1 ? 'round' : 'rounds'}
-                      {company.investments[0]?.round && ` • Latest: ${company.investments[0].round}`}
-                    </p>
-                  </div>
-                )}
-
-                {/* Website Link */}
-                {company.website && (
-                  <div className="mt-4">
-                    <a
-                      href={ensureProtocol(company.website)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={(e) => e.stopPropagation()}
-                      className="text-sm text-gray-900 hover:text-gray-700 underline"
-                    >
-                      Visit Website →
-                    </a>
+                    </span>
+                    {company.investments[0]?.round && (
+                      <span className="text-gray-500">• {company.investments[0].round}</span>
+                    )}
                   </div>
                 )}
               </div>

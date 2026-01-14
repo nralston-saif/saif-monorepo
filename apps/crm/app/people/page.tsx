@@ -25,6 +25,7 @@ type PersonWithNotes = {
   status: UserStatus
   title: string | null
   bio: string | null
+  avatar_url: string | null
   linkedin_url: string | null
   twitter_url: string | null
   mobile_phone: string | null
@@ -77,22 +78,51 @@ export default async function PeoplePage({
 
   // For partners, show the full CRM people view with notes
   if (isPartner) {
-    // Get all people
-    const { data: people } = await supabase
-      .from('saif_people')
-      .select('*')
-      .order('first_name', { ascending: true })
-      .limit(500)
+    // Run independent queries in parallel for better performance
+    const [
+      { data: people },
+      { data: investments },
+      { data: applications },
+    ] = await Promise.all([
+      // Get all people (only fields we need)
+      supabase
+        .from('saif_people')
+        .select('id, first_name, last_name, name, email, alternative_emails, role, status, title, bio, avatar_url, linkedin_url, twitter_url, mobile_phone, location, tags, first_met_date, introduced_by, introduction_context, relationship_notes, created_at')
+        .order('first_name', { ascending: true })
+        .limit(500),
+      // Get portfolio companies (investments)
+      supabase
+        .from('saifcrm_investments')
+        .select('id, company_name')
+        .limit(500),
+      // Get applications (pipeline and deliberation)
+      supabase
+        .from('saifcrm_applications')
+        .select('id, company_name, stage')
+        .limit(1000),
+    ])
 
-    // Get company associations separately
     const personIds = people?.map(p => p.id) || []
-    const { data: associations } = await supabase
-      .from('saif_company_people')
-      .select('user_id, relationship_type, title, company_id')
-      .in('user_id', personIds)
-      .limit(2000)
 
-    // Get companies for these associations
+    // Run person-dependent queries in parallel
+    const [
+      { data: associations },
+      { data: notes },
+    ] = await Promise.all([
+      // Get company associations
+      supabase
+        .from('saif_company_people')
+        .select('user_id, relationship_type, title, company_id')
+        .in('user_id', personIds)
+        .limit(2000),
+      // Get note counts
+      supabase
+        .from('saifcrm_people_notes')
+        .select('person_id')
+        .in('person_id', personIds),
+    ])
+
+    // Get companies for associations
     const companyIds = [...new Set(associations?.map(a => a.company_id) ?? [])]
     const { data: companies } = await supabase
       .from('saif_companies')
@@ -123,29 +153,11 @@ export default async function PeoplePage({
       })
     })
 
-    // Get note counts for each person
-    const { data: notes } = await supabase
-      .from('saifcrm_people_notes')
-      .select('person_id')
-      .in('person_id', personIds)
-
     // Create a map of person_id -> note count
     const noteCountMap: Record<string, number> = {}
     notes?.forEach(note => {
       noteCountMap[note.person_id] = (noteCountMap[note.person_id] || 0) + 1
     })
-
-    // Get portfolio companies (investments)
-    const { data: investments } = await supabase
-      .from('saifcrm_investments')
-      .select('id, company_name')
-      .limit(500)
-
-    // Get applications (pipeline and deliberation)
-    const { data: applications } = await supabase
-      .from('saifcrm_applications')
-      .select('id, company_name, stage')
-      .limit(1000)
 
     // Build company location map: company_name (lowercase) -> { page, id }
     const companyLocationMap: Record<string, { page: string; id: string }> = {}
@@ -183,6 +195,7 @@ export default async function PeoplePage({
         status: p.status as UserStatus,
         title: p.title,
         bio: p.bio,
+        avatar_url: p.avatar_url,
         linkedin_url: p.linkedin_url,
         twitter_url: p.twitter_url,
         mobile_phone: p.mobile_phone,

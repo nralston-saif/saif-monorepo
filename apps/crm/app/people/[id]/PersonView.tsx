@@ -95,6 +95,8 @@ export default function PersonView({ person, introducerName, activeCompanies, ca
 
   const [copiedEmail, setCopiedEmail] = useState(false)
   const [copiedAltEmail, setCopiedAltEmail] = useState<number | null>(null)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   const copyEmailToClipboard = async () => {
     if (person.email) {
@@ -413,6 +415,36 @@ export default function PersonView({ person, introducerName, activeCompanies, ca
       setError(`Failed to update: ${err?.message || 'Unknown error'}`)
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    setDeleting(true)
+    setError(null)
+
+    try {
+      // Delete company associations first
+      await supabase
+        .from('saif_company_people')
+        .delete()
+        .eq('user_id', person.id)
+
+      // Delete the person
+      const { error: deleteError } = await supabase
+        .from('saif_people')
+        .delete()
+        .eq('id', person.id)
+
+      if (deleteError) throw deleteError
+
+      // Redirect to people list
+      router.push('/people')
+    } catch (err: any) {
+      console.error('Error deleting person:', err)
+      setError(`Failed to delete: ${err?.message || 'Unknown error'}`)
+      setShowDeleteConfirm(false)
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -923,6 +955,19 @@ export default function PersonView({ person, introducerName, activeCompanies, ca
               {saving ? 'Saving...' : 'Save Changes'}
             </button>
           </div>
+
+          {/* Delete Button (Partners Only) */}
+          {isPartner && (
+            <div className="mt-8 pt-6 border-t border-gray-200">
+              <button
+                type="button"
+                onClick={() => setShowDeleteConfirm(true)}
+                className="text-sm text-red-600 hover:text-red-800"
+              >
+                Delete this person
+              </button>
+            </div>
+          )}
         </form>
       ) : (
         /* View Mode */
@@ -1188,6 +1233,34 @@ export default function PersonView({ person, introducerName, activeCompanies, ca
             </div>
           </div>
         </>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Delete Person</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Are you sure you want to delete <strong>{fullName}</strong>? This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={deleting}
+                className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700 disabled:opacity-50"
+              >
+                {deleting ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   )

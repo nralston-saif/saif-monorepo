@@ -41,7 +41,19 @@ export default async function CompaniesPage() {
     const result = await supabase
       .from('saif_companies')
       .select(`
-        *,
+        id,
+        name,
+        short_description,
+        website,
+        logo_url,
+        industry,
+        city,
+        country,
+        founded_year,
+        yc_batch,
+        stage,
+        is_aisafety_company,
+        tags,
         people:saif_company_people(
           user_id,
           relationship_type,
@@ -71,7 +83,15 @@ export default async function CompaniesPage() {
     const result = await supabase
       .from('saif_companies')
       .select(`
-        *,
+        id,
+        name,
+        short_description,
+        website,
+        logo_url,
+        industry,
+        city,
+        country,
+        stage,
         people:saif_company_people(
           user_id,
           relationship_type,

@@ -133,7 +133,7 @@ export default function PeopleGrid({ people, isPartner }: PeopleGridProps) {
           <p className="text-gray-500">No people match your search</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {sortedPeople.map((person) => {
             // Get active companies (any company the person is currently associated with)
             const activeCompanies = person.companies?.filter(
@@ -147,77 +147,65 @@ export default function PeopleGrid({ people, isPartner }: PeopleGridProps) {
               <div
                 key={person.id}
                 onClick={() => router.push(`/people/${person.id}`)}
-                className="border border-gray-200 rounded-lg p-6 hover:border-gray-300 transition hover:shadow-md cursor-pointer"
+                className="border border-gray-200 rounded-lg p-4 hover:border-gray-300 transition hover:shadow-md cursor-pointer relative"
               >
+                {/* LinkedIn button - top right */}
+                {person.linkedin_url && (
+                  <a
+                    href={person.linkedin_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="absolute top-2 right-2 p-1.5 text-gray-400 hover:text-blue-600 rounded hover:bg-blue-50 transition-colors"
+                    title="LinkedIn"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/>
+                    </svg>
+                  </a>
+                )}
+
                 {/* Avatar and Basic Info */}
-                <div className="flex items-start space-x-4 mb-4">
+                <div className="flex items-start space-x-3">
                   {person.avatar_url ? (
                     <img
                       src={person.avatar_url}
                       alt={`${person.first_name} ${person.last_name}`}
-                      className="h-16 w-16 rounded-full object-cover flex-shrink-0"
+                      className="h-12 w-12 rounded-full object-cover flex-shrink-0"
                     />
                   ) : (
-                    <div className="h-16 w-16 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
-                      <span className="text-xl font-semibold text-gray-500">
+                    <div className="h-12 w-12 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
+                      <span className="text-lg font-semibold text-gray-500">
                         {person.first_name?.[0] || '?'}
                       </span>
                     </div>
                   )}
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-lg font-semibold text-gray-900 truncate">
+                  <div className="flex-1 min-w-0 pr-8">
+                    <h3 className="text-base font-semibold text-gray-900 truncate">
                       {person.first_name} {person.last_name}
                     </h3>
                     {person.title && (
                       <p className="text-sm text-gray-600 truncate">{person.title}</p>
                     )}
-                    <div className="mt-1 flex gap-2 flex-wrap">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
+                    {primaryCompany && (
+                      <p className="text-sm text-gray-500 truncate">{primaryCompany.name}</p>
+                    )}
+                    <div className="mt-1 flex items-center gap-2">
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
                         {person.role === 'board_member' ? 'Board Member' :
                          person.role.charAt(0).toUpperCase() + person.role.slice(1)}
                       </span>
                       {isPartner && person.status === 'pending' && (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
                           Pending
                         </span>
+                      )}
+                      {person.location && (
+                        <span className="text-xs text-gray-400 truncate">{person.location}</span>
                       )}
                     </div>
                   </div>
                 </div>
-
-                {/* Company */}
-                {primaryCompany && (
-                  <div className="mb-4 flex items-center space-x-2">
-                    {primaryCompany.logo_url ? (
-                      <img
-                        src={primaryCompany.logo_url}
-                        alt={primaryCompany.name}
-                        className="h-6 w-6 object-contain"
-                      />
-                    ) : (
-                      <div className="h-6 w-6 bg-gray-100 rounded flex items-center justify-center">
-                        <span className="text-xs font-bold text-gray-400">
-                          {primaryCompany.name[0]}
-                        </span>
-                      </div>
-                    )}
-                    <span className="text-sm text-gray-900 truncate">
-                      {primaryCompany.name}
-                    </span>
-                  </div>
-                )}
-
-                {/* Multiple Companies */}
-                {activeCompanies.length > 1 && (
-                  <p className="text-xs text-gray-500 mb-4">
-                    +{activeCompanies.length - 1} more {activeCompanies.length - 1 === 1 ? 'company' : 'companies'}
-                  </p>
-                )}
-
-                {/* Location */}
-                {person.location && (
-                  <p className="text-xs text-gray-500">{person.location}</p>
-                )}
               </div>
             )
           })}

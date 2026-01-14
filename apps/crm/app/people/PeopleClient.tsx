@@ -29,6 +29,7 @@ type Person = {
   status: UserStatus
   title: string | null
   bio: string | null
+  avatar_url: string | null
   linkedin_url: string | null
   twitter_url: string | null
   mobile_phone: string | null
@@ -43,7 +44,7 @@ type Person = {
   noteCount: number
 }
 
-type RoleFilter = 'all' | UserRole
+type RoleFilter = 'all' | 'portfolio' | UserRole
 type SortOption = 'name-az' | 'name-za' | 'role' | 'date-newest' | 'date-oldest'
 
 const ROLE_LABELS: Record<string, string> = {
@@ -55,6 +56,9 @@ const ROLE_LABELS: Record<string, string> = {
   investor: 'Investor',
   contact: 'Contact',
 }
+
+// Roles to show in tabs (excludes employee, adds portfolio)
+const TAB_ROLES: (UserRole | 'portfolio')[] = ['founder', 'partner', 'advisor', 'board_member', 'investor', 'contact']
 
 const STATUS_LABELS: Record<string, string> = {
   active: 'Active',
@@ -96,7 +100,16 @@ export default function PeopleClient({
   const urlSearch = searchParams.get('search') || ''
 
   const [searchQuery, setSearchQuery] = useState(initialSearch || urlSearch)
-  const [roleFilter, setRoleFilter] = useState<RoleFilter>('all')
+  const [roleFilter, setRoleFilter] = useState<RoleFilter>(() => {
+    // Initialize from localStorage if available (client-side only)
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('people-role-filter')
+      if (saved && (saved === 'all' || saved === 'portfolio' || TAB_ROLES.includes(saved as UserRole))) {
+        return saved as RoleFilter
+      }
+    }
+    return 'all'
+  })
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [sortOption, setSortOption] = useState<SortOption>('name-az')
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null)
@@ -137,6 +150,11 @@ export default function PeopleClient({
     }
   }, [urlSearch, initialSearch])
 
+  // Persist role filter to localStorage
+  useEffect(() => {
+    localStorage.setItem('people-role-filter', roleFilter)
+  }, [roleFilter])
+
   // Filter and search people
   const filteredPeople = useMemo(() => {
     let filtered = people
@@ -165,7 +183,15 @@ export default function PeopleClient({
     }
 
     // Apply role filter
-    if (roleFilter !== 'all') {
+    if (roleFilter === 'portfolio') {
+      // Filter to people associated with portfolio companies
+      filtered = filtered.filter(person =>
+        person.company_associations.some(ca => {
+          const companyName = ca.company?.name?.toLowerCase()
+          return companyName && companyLocationMap[companyName]?.page === 'portfolio'
+        })
+      )
+    } else if (roleFilter !== 'all') {
       filtered = filtered.filter(person => person.role === roleFilter)
     }
 
@@ -195,14 +221,22 @@ export default function PeopleClient({
     return filtered
   }, [people, searchQuery, roleFilter, statusFilter, sortOption])
 
-  // Calculate role counts
+  // Calculate role counts including portfolio
   const roleCounts = useMemo(() => {
     const counts: Record<string, number> = { all: people.length }
     people.forEach(person => {
       counts[person.role] = (counts[person.role] || 0) + 1
+      // Count portfolio people (those with portfolio company associations)
+      const isPortfolio = person.company_associations.some(ca => {
+        const companyName = ca.company?.name?.toLowerCase()
+        return companyName && companyLocationMap[companyName]?.page === 'portfolio'
+      })
+      if (isPortfolio) {
+        counts.portfolio = (counts.portfolio || 0) + 1
+      }
     })
     return counts
-  }, [people])
+  }, [people, companyLocationMap])
 
   const openAddModal = () => {
     setFormData({
@@ -409,150 +443,123 @@ export default function PeopleClient({
     return `/${location.page}#${hashPrefix}-${location.id}`
   }
 
+  // Role filter colors (inline styles for active state to avoid Tailwind purging)
+  const roleConfig: Record<string, { label: string; bgColor: string; textColor: string; activeBg: string }> = {
+    portfolio: { label: 'Portfolio', bgColor: '#dcfce7', textColor: '#166534', activeBg: '#16a34a' },
+    founder: { label: 'Founder', bgColor: '#f3e8ff', textColor: '#7e22ce', activeBg: '#9333ea' },
+    partner: { label: 'Partner', bgColor: '#dbeafe', textColor: '#1e40af', activeBg: '#2563eb' },
+    advisor: { label: 'Advisor', bgColor: '#fef3c7', textColor: '#92400e', activeBg: '#d97706' },
+    board_member: { label: 'Board Member', bgColor: '#d1fae5', textColor: '#065f46', activeBg: '#059669' },
+    investor: { label: 'Investor', bgColor: '#e0e7ff', textColor: '#3730a3', activeBg: '#4f46e5' },
+    contact: { label: 'Contact', bgColor: '#f3f4f6', textColor: '#4b5563', activeBg: '#4b5563' },
+  }
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Header */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">People</h1>
-            <p className="mt-1 text-gray-500">
-              Track contacts, founders, and network connections
-            </p>
-          </div>
-          <div className="flex gap-3">
-            <CreateTicketButton currentUserId={userId} />
-            <button onClick={openAddModal} className="btn btn-primary">
-              <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              Add Person
-            </button>
-          </div>
-        </div>
+      {/* Header with count */}
+      <div className="mb-6 flex items-center gap-4">
+        <h1 className="text-3xl font-bold text-gray-900">All People</h1>
+        <span className="text-lg text-gray-400 font-medium">
+          {filteredPeople.length === people.length
+            ? people.length
+            : `${filteredPeople.length}/${people.length}`}
+        </span>
       </div>
 
-      {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-4 mb-8">
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-[#f5f5f5] rounded-xl flex items-center justify-center">
-              <span className="text-2xl">👥</span>
-            </div>
-            <div>
-              <p className="text-sm text-gray-500">Total People</p>
-              <p className="text-2xl font-bold text-gray-900">{people.length}</p>
-            </div>
-          </div>
-        </div>
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
-              <span className="text-2xl">🚀</span>
-            </div>
-            <div>
-              <p className="text-sm text-gray-500">Founders</p>
-              <p className="text-2xl font-bold text-gray-900">{roleCounts.founder || 0}</p>
-            </div>
-          </div>
-        </div>
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-              <span className="text-2xl">🤝</span>
-            </div>
-            <div>
-              <p className="text-sm text-gray-500">Partners</p>
-              <p className="text-2xl font-bold text-gray-900">{roleCounts.partner || 0}</p>
-            </div>
-          </div>
-        </div>
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center">
-              <span className="text-2xl">📇</span>
-            </div>
-            <div>
-              <p className="text-sm text-gray-500">Contacts</p>
-              <p className="text-2xl font-bold text-gray-900">{roleCounts.contact || 0}</p>
-            </div>
-          </div>
-        </div>
+      {/* Search Bar */}
+      <div className="mb-4">
+        <input
+          type="text"
+          placeholder="Search people by name, email, company, or title..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-gray-900 focus:border-gray-900"
+        />
       </div>
 
-      {/* Role Tabs */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-2 mb-6 overflow-x-auto">
-        <div className="flex gap-1 min-w-max">
-          <button
-            onClick={() => setRoleFilter('all')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-              roleFilter === 'all'
-                ? 'bg-[#1a1a1a] text-white'
-                : 'text-gray-600 hover:bg-gray-100'
-            }`}
-          >
-            All ({roleCounts.all})
-          </button>
-          {(Object.keys(ROLE_LABELS) as UserRole[]).map(role => (
+      {/* Role Filters, Sort, and Actions */}
+      <div className="mb-6 flex flex-wrap items-center gap-2">
+        {/* All button */}
+        <button
+          onClick={() => setRoleFilter('all')}
+          className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+            roleFilter === 'all'
+              ? 'bg-gray-900 text-white'
+              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          }`}
+        >
+          All ({roleCounts.all})
+        </button>
+
+        {/* Portfolio filter */}
+        <button
+          onClick={() => setRoleFilter(roleFilter === 'portfolio' ? 'all' : 'portfolio')}
+          style={{
+            backgroundColor: roleFilter === 'portfolio' ? roleConfig.portfolio.activeBg : roleConfig.portfolio.bgColor,
+            color: roleFilter === 'portfolio' ? '#ffffff' : roleConfig.portfolio.textColor,
+          }}
+          className="px-3 py-1.5 rounded-full text-sm font-medium transition-colors"
+        >
+          Portfolio ({roleCounts.portfolio || 0})
+        </button>
+
+        {/* Role pills */}
+        {TAB_ROLES.filter(role => role !== 'portfolio').map((role) => {
+          const count = roleCounts[role] || 0
+          if (count === 0) return null
+          const config = roleConfig[role]
+          if (!config) return null
+          const isActive = roleFilter === role
+          return (
             <button
-              key={role}
-              onClick={() => setRoleFilter(role)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
-                roleFilter === role
-                  ? 'bg-[#1a1a1a] text-white'
-                  : 'text-gray-600 hover:bg-gray-100'
-              }`}
+              key={`role-pill-${role}`}
+              type="button"
+              onClick={() => setRoleFilter(isActive ? 'all' : role)}
+              style={{
+                backgroundColor: isActive ? config.activeBg : config.bgColor,
+                color: isActive ? '#ffffff' : config.textColor,
+              }}
+              className="px-3 py-1.5 rounded-full text-sm font-medium transition-colors"
             >
-              {ROLE_LABELS[role]} ({roleCounts[role] || 0})
+              {config.label} ({count})
             </button>
-          ))}
+          )
+        })}
+
+        {/* Sort, Status, and Actions - pushed to right */}
+        <div className="ml-auto flex items-center gap-3">
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="px-3 py-1.5 border border-gray-300 rounded-md shadow-sm text-sm focus:outline-none focus:ring-gray-900 focus:border-gray-900"
+          >
+            <option value="all">All Status</option>
+            {Object.keys(STATUS_LABELS).map(status => (
+              <option key={status} value={status}>{STATUS_LABELS[status]}</option>
+            ))}
+          </select>
+          <select
+            value={sortOption}
+            onChange={(e) => setSortOption(e.target.value as SortOption)}
+            className="px-3 py-1.5 border border-gray-300 rounded-md shadow-sm text-sm focus:outline-none focus:ring-gray-900 focus:border-gray-900"
+          >
+            <option value="name-az">A-Z</option>
+            <option value="name-za">Z-A</option>
+            <option value="role">Role</option>
+            <option value="date-newest">Newest</option>
+            <option value="date-oldest">Oldest</option>
+          </select>
+          <CreateTicketButton currentUserId={userId} />
+          <button
+            onClick={openAddModal}
+            className="px-4 py-1.5 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800"
+          >
+            + Add
+          </button>
         </div>
       </div>
 
-      {/* Search and Filters */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6">
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="flex-1 relative">
-            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-            <input
-              type="text"
-              placeholder="Search by name, email, company, or title..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="input !pl-11"
-            />
-          </div>
-          <div className="sm:w-40">
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="input"
-            >
-              <option value="all">All Status</option>
-              {Object.keys(STATUS_LABELS).map(status => (
-                <option key={status} value={status}>{STATUS_LABELS[status]}</option>
-              ))}
-            </select>
-          </div>
-          <div className="sm:w-44">
-            <select
-              value={sortOption}
-              onChange={(e) => setSortOption(e.target.value as SortOption)}
-              className="input"
-            >
-              <option value="name-az">Name (A-Z)</option>
-              <option value="name-za">Name (Z-A)</option>
-              <option value="role">Role</option>
-              <option value="date-newest">Newest First</option>
-              <option value="date-oldest">Oldest First</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      {/* People Table */}
+      {/* People Grid */}
       {filteredPeople.length === 0 ? (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-12 text-center">
           <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -573,119 +580,106 @@ export default function PeopleClient({
           )}
         </div>
       ) : (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full table-fixed">
-              <thead>
-                <tr className="border-b border-gray-100 bg-gray-50">
-                  <th className="text-left py-4 px-4 text-sm font-medium text-gray-500 w-48">Name</th>
-                  <th className="text-left py-4 px-4 text-sm font-medium text-gray-500">Role</th>
-                  <th className="text-left py-4 px-4 text-sm font-medium text-gray-500 hidden md:table-cell">Company</th>
-                  <th className="text-left py-4 px-4 text-sm font-medium text-gray-500 hidden lg:table-cell">Email</th>
-                  <th className="text-left py-4 px-4 text-sm font-medium text-gray-500 hidden lg:table-cell">Location</th>
-                  <th className="text-right py-4 px-4 text-sm font-medium text-gray-500">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredPeople.map((person) => (
-                  <tr
-                    key={person.id}
-                    className="border-b border-gray-50 hover:bg-gray-50 cursor-pointer transition-colors"
-                    onClick={() => setSelectedPerson(person)}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredPeople.map((person) => {
+            const primaryCompany = person.company_associations[0]?.company
+
+            return (
+              <div
+                key={person.id}
+                onClick={() => router.push(`/people/${person.id}`)}
+                className="bg-white border border-gray-200 rounded-lg p-4 hover:border-gray-300 transition hover:shadow-md cursor-pointer relative"
+              >
+                {/* Action buttons - top right */}
+                <div className="absolute top-2 right-2 flex items-center gap-1">
+                  {person.linkedin_url && (
+                    <a
+                      href={person.linkedin_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="p-1.5 text-gray-400 hover:text-blue-600 rounded hover:bg-blue-50 transition-colors"
+                      title="LinkedIn"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/>
+                      </svg>
+                    </a>
+                  )}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setNotesPersonId(person)
+                    }}
+                    className="p-1.5 text-gray-400 hover:text-[#1a1a1a] rounded hover:bg-gray-100 transition-colors relative"
+                    title="Meeting Notes"
                   >
-                    <td className="py-4 px-4 max-w-[200px]">
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 bg-gradient-to-br from-gray-200 to-gray-300 rounded-full flex items-center justify-center flex-shrink-0">
-                          <span className="text-gray-600 font-medium text-sm">
-                            {(person.displayName || '?').charAt(0).toUpperCase()}
-                          </span>
-                        </div>
-                        <div className="min-w-0">
-                          <p className="font-medium text-gray-900 truncate text-sm">{person.displayName || 'Unknown'}</p>
-                          {person.title && (
-                            <p className="text-xs text-gray-500 truncate">{person.title}</p>
-                          )}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="py-4 px-4">
-                      <span className={`badge ${ROLE_COLORS[person.role]}`}>
-                        {ROLE_LABELS[person.role]}
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    {person.noteCount > 0 && (
+                      <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-[#1a1a1a] text-white text-[9px] font-medium rounded-full flex items-center justify-center">
+                        {person.noteCount}
                       </span>
-                    </td>
-                    <td className="py-4 px-4 hidden md:table-cell">
-                      <span className="text-gray-600 truncate max-w-[180px] block text-sm">
-                        {getCompanyNames(person.company_associations) || '-'}
+                    )}
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      router.push(`/people/${person.id}?edit=true`)
+                    }}
+                    className="p-1.5 text-gray-400 hover:text-[#1a1a1a] rounded hover:bg-gray-100 transition-colors"
+                    title="Edit"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                  </button>
+                </div>
+
+                {/* Avatar and Basic Info */}
+                <div className="flex items-start space-x-3">
+                  {person.avatar_url ? (
+                    <img
+                      src={person.avatar_url}
+                      alt={person.displayName || 'Person'}
+                      className="w-12 h-12 rounded-full object-cover flex-shrink-0"
+                    />
+                  ) : (
+                    <div className="w-12 h-12 bg-gradient-to-br from-gray-200 to-gray-300 rounded-full flex items-center justify-center flex-shrink-0">
+                      <span className="text-lg font-semibold text-gray-500">
+                        {(person.displayName || '?').charAt(0).toUpperCase()}
                       </span>
-                    </td>
-                    <td className="py-4 px-4 hidden lg:table-cell">
-                      {person.email ? (
-                        <a
-                          href={`mailto:${person.email}`}
-                          onClick={(e) => e.stopPropagation()}
-                          className="text-gray-600 hover:text-[#1a1a1a] truncate max-w-[180px] block text-sm"
-                        >
-                          {person.email}
-                        </a>
-                      ) : (
-                        <span className="text-gray-400">-</span>
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0 pr-16">
+                    <h3 className="text-base font-semibold text-gray-900 truncate">
+                      {person.displayName || 'Unknown'}
+                    </h3>
+                    {person.title && (
+                      <p className="text-sm text-gray-600 truncate">{person.title}</p>
+                    )}
+                    {primaryCompany && (
+                      <p className="text-sm text-gray-500 truncate">{primaryCompany.name}</p>
+                    )}
+                    <div className="mt-1 flex items-center gap-2">
+                      <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${ROLE_COLORS[person.role] || 'bg-gray-100 text-gray-800'}`}>
+                        {ROLE_LABELS[person.role] || person.role}
+                      </span>
+                      {person.status === 'pending' && (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
+                          Pending
+                        </span>
                       )}
-                    </td>
-                    <td className="py-4 px-4 hidden lg:table-cell">
-                      <span className="text-gray-600 text-sm">{person.location || '-'}</span>
-                    </td>
-                    <td className="py-4 px-4">
-                      <div className="flex items-center justify-end gap-2">
-                        {person.linkedin_url && (
-                          <a
-                            href={person.linkedin_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            className="p-2 text-gray-400 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
-                            title="LinkedIn"
-                          >
-                            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                              <path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/>
-                            </svg>
-                          </a>
-                        )}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setNotesPersonId(person)
-                          }}
-                          className="p-2 text-gray-400 hover:text-[#1a1a1a] rounded-lg hover:bg-gray-100 transition-colors relative"
-                          title="Meeting Notes"
-                        >
-                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                          </svg>
-                          {person.noteCount > 0 && (
-                            <span className="absolute -top-1 -right-1 w-4 h-4 bg-[#1a1a1a] text-white text-[10px] font-medium rounded-full flex items-center justify-center">
-                              {person.noteCount}
-                            </span>
-                          )}
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            router.push(`/people/${person.id}?edit=true`)
-                          }}
-                          className="p-2 text-gray-400 hover:text-[#1a1a1a] rounded-lg hover:bg-gray-100 transition-colors"
-                          title="Edit"
-                        >
-                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                          </svg>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                      {person.location && (
+                        <span className="text-xs text-gray-400 truncate">{person.location}</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
         </div>
       )}
 
