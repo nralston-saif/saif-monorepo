@@ -72,6 +72,58 @@ export default function DeliberationDetailClient({
   const supabase = createClient()
   const { showToast } = useToast()
 
+  /**
+   * Syncs the company stage based on the application stage.
+   * Stage hierarchy (never downgrade): portfolio > passed > diligence > prospect
+   */
+  async function syncCompanyStage(
+    applicationId: string,
+    newAppStage: 'voting' | 'deliberation' | 'invested' | 'rejected'
+  ): Promise<void> {
+    const stageMap: Record<string, string> = {
+      voting: 'prospect',
+      deliberation: 'diligence',
+      invested: 'portfolio',
+      rejected: 'passed',
+    }
+
+    const newCompanyStage = stageMap[newAppStage]
+    if (!newCompanyStage) return
+
+    const { data: app } = await supabase
+      .from('saifcrm_applications')
+      .select('company_id')
+      .eq('id', applicationId)
+      .single()
+
+    if (!app?.company_id) return
+
+    const { data: company } = await supabase
+      .from('saif_companies')
+      .select('stage')
+      .eq('id', app.company_id)
+      .single()
+
+    if (!company) return
+
+    const stageRank: Record<string, number> = {
+      prospect: 1,
+      diligence: 2,
+      passed: 3,
+      portfolio: 4,
+    }
+
+    const currentRank = stageRank[company.stage] || 0
+    const newRank = stageRank[newCompanyStage] || 0
+
+    if (newRank > currentRank || newAppStage === 'voting') {
+      await supabase
+        .from('saif_companies')
+        .update({ stage: newCompanyStage })
+        .eq('id', app.company_id)
+    }
+  }
+
   const formatFounderNames = (names: string | null) => {
     if (!names) return ''
     // Handle both newline-separated and comma-separated names consistently
@@ -117,6 +169,9 @@ export default function DeliberationDetailClient({
           .update({ decision: 'pending', status: null })
           .eq('application_id', application.id)
       }
+
+      // Sync company stage back to prospect
+      await syncCompanyStage(application.id, 'voting')
 
       showToast('Application moved back to Applications', 'success')
       setShowMoveBackConfirm(false)
@@ -197,6 +252,9 @@ export default function DeliberationDetailClient({
           .update({ stage: 'invested' })
           .eq('id', application.id)
 
+        // Sync company stage to portfolio
+        await syncCompanyStage(application.id, 'invested')
+
         showToast('Investment recorded and added to portfolio', 'success')
       } else if (decision === 'no') {
         // Update application stage to rejected
@@ -204,6 +262,9 @@ export default function DeliberationDetailClient({
           .from('saifcrm_applications')
           .update({ stage: 'rejected' })
           .eq('id', application.id)
+
+        // Sync company stage to passed
+        await syncCompanyStage(application.id, 'rejected')
 
         showToast('Application marked as rejected', 'success')
       } else {

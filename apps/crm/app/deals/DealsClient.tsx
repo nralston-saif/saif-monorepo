@@ -523,6 +523,67 @@ export default function DealsClient({
   }, [tagMenuAppId])
 
   // ============================================
+  // Company Stage Sync Helper
+  // ============================================
+
+  /**
+   * Syncs the company stage based on the application stage.
+   * Stage hierarchy (never downgrade): portfolio > passed > diligence > prospect
+   */
+  async function syncCompanyStage(
+    applicationId: string,
+    newAppStage: 'voting' | 'deliberation' | 'invested' | 'rejected'
+  ): Promise<void> {
+    // Map application stage to company stage
+    const stageMap: Record<string, string> = {
+      voting: 'prospect',
+      deliberation: 'diligence',
+      invested: 'portfolio',
+      rejected: 'passed',
+    }
+
+    const newCompanyStage = stageMap[newAppStage]
+    if (!newCompanyStage) return
+
+    // Get the company_id for this application
+    const { data: app } = await supabase
+      .from('saifcrm_applications')
+      .select('company_id')
+      .eq('id', applicationId)
+      .single()
+
+    if (!app?.company_id) return
+
+    // Get current company stage to check hierarchy
+    const { data: company } = await supabase
+      .from('saif_companies')
+      .select('stage')
+      .eq('id', app.company_id)
+      .single()
+
+    if (!company) return
+
+    // Stage hierarchy - only upgrade, never downgrade
+    const stageRank: Record<string, number> = {
+      prospect: 1,
+      diligence: 2,
+      passed: 3,
+      portfolio: 4,
+    }
+
+    const currentRank = stageRank[company.stage] || 0
+    const newRank = stageRank[newCompanyStage] || 0
+
+    // Only update if new stage is higher in hierarchy (or moving back to prospect)
+    if (newRank > currentRank || newAppStage === 'voting') {
+      await supabase
+        .from('saif_companies')
+        .update({ stage: newCompanyStage })
+        .eq('id', app.company_id)
+    }
+  }
+
+  // ============================================
   // Voting Tab Handlers
   // ============================================
 
@@ -616,6 +677,9 @@ export default function DealsClient({
         setMovingToDelib(null)
         return
       }
+
+      // Sync company stage with application stage
+      await syncCompanyStage(app.id, newStage as 'deliberation' | 'rejected')
 
       const isInterview = action === 'deliberation'
       const ticketTitle = isInterview
@@ -778,6 +842,9 @@ export default function DealsClient({
           .eq('application_id', detailDelibApp.id)
       }
 
+      // Sync company stage back to prospect
+      await syncCompanyStage(detailDelibApp.id, 'voting')
+
       showToast('Application moved back to Applications', 'success')
       setShowMoveBackConfirm(false)
       setDetailDelibApp(null)
@@ -810,6 +877,9 @@ export default function DealsClient({
         .from('saifcrm_deliberations')
         .update({ decision: 'pending', status: null })
         .eq('application_id', detailArchivedApp.id)
+
+      // Sync company stage back to prospect
+      await syncCompanyStage(detailArchivedApp.id, 'voting')
 
       showToast('Application moved back to Applications', 'success')
       setShowArchivedMoveBackConfirm(false)
@@ -888,11 +958,17 @@ export default function DealsClient({
           .from('saifcrm_applications')
           .update({ stage: 'invested' })
           .eq('id', selectedDelibApp.id)
+
+        // Sync company stage to portfolio
+        await syncCompanyStage(selectedDelibApp.id, 'invested')
       } else if (decision === 'no') {
         await supabase
           .from('saifcrm_applications')
           .update({ stage: 'rejected' })
           .eq('id', selectedDelibApp.id)
+
+        // Sync company stage to passed
+        await syncCompanyStage(selectedDelibApp.id, 'rejected')
       }
 
       setSelectedDelibApp(null)
@@ -1652,7 +1728,7 @@ export default function DealsClient({
                             </div>
                           </div>
 
-                          {/* Interview Tags */}
+                          {/* Interview Status */}
                           {app.deliberation?.tags && app.deliberation.tags.length > 0 && (
                             <div className="flex flex-wrap gap-1 mb-2">
                               {[...app.deliberation.tags]
@@ -1735,7 +1811,7 @@ export default function DealsClient({
                               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
                               </svg>
-                              Tag
+                              Status
                             </button>
                             {tagMenuAppId === app.id && (
                               <div
