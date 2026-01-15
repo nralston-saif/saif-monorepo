@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { Database } from '@/lib/types/database'
+import { sanitizeUrl } from '@/lib/sanitize'
 
 type Company = Database['public']['Tables']['saif_companies']['Row'] & {
   people?: Array<{
@@ -209,10 +210,10 @@ export default function CompanyGrid({ companies, isPartner = false }: CompanyGri
                 )}
 
                 {/* Website Link */}
-                {company.website && (
+                {sanitizeUrl(company.website) && (
                   <div className="mt-4">
                     <a
-                      href={company.website}
+                      href={sanitizeUrl(company.website)!}
                       target="_blank"
                       rel="noopener noreferrer"
                       onClick={(e) => e.stopPropagation()}

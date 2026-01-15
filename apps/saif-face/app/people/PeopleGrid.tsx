@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import type { Database } from '@/lib/types/database'
+import { sanitizeUrl } from '@/lib/sanitize'
 
 type Person = Database['public']['Tables']['saif_people']['Row'] & {
   companies?: Array<{
@@ -218,9 +219,9 @@ export default function PeopleGrid({ people, isPartner }: PeopleGridProps) {
 
                 {/* Links */}
                 <div className="flex gap-3 pt-4 border-t border-gray-200" onClick={(e) => e.stopPropagation()}>
-                  {person.linkedin_url && (
+                  {sanitizeUrl(person.linkedin_url) && (
                     <a
-                      href={person.linkedin_url}
+                      href={sanitizeUrl(person.linkedin_url)!}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-xs text-gray-600 hover:text-gray-900 underline"
@@ -229,9 +230,9 @@ export default function PeopleGrid({ people, isPartner }: PeopleGridProps) {
                       LinkedIn
                     </a>
                   )}
-                  {person.twitter_url && (
+                  {sanitizeUrl(person.twitter_url) && (
                     <a
-                      href={person.twitter_url}
+                      href={sanitizeUrl(person.twitter_url)!}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-xs text-gray-600 hover:text-gray-900 underline"

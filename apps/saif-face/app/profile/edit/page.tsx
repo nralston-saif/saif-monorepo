@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import type { Database } from '@/lib/types/database'
 import Link from 'next/link'
 import { LOGIN_URL } from '@/lib/constants'
+import { sanitizeUrl } from '@/lib/sanitize'
 
 type Person = Database['public']['Tables']['saif_people']['Row']
 
@@ -176,6 +177,22 @@ export default function EditProfilePage() {
     setError(null)
     setSuccess(null)
 
+    // Validate URLs before saving
+    const linkedinUrl = formData.linkedin_url ? sanitizeUrl(formData.linkedin_url) : null
+    const twitterUrl = formData.twitter_url ? sanitizeUrl(formData.twitter_url) : null
+
+    // Check if URLs were rejected as unsafe
+    if (formData.linkedin_url && !linkedinUrl) {
+      setError('Invalid LinkedIn URL. Please use a valid https:// URL.')
+      setSaving(false)
+      return
+    }
+    if (formData.twitter_url && !twitterUrl) {
+      setError('Invalid Twitter URL. Please use a valid https:// URL.')
+      setSaving(false)
+      return
+    }
+
     try {
       const { error: updateError } = await supabase
         .from('saif_people')
@@ -186,8 +203,8 @@ export default function EditProfilePage() {
           bio: formData.bio || null,
           location: formData.location || null,
           mobile_phone: formData.mobile_phone || null,
-          linkedin_url: formData.linkedin_url || null,
-          twitter_url: formData.twitter_url || null,
+          linkedin_url: linkedinUrl,
+          twitter_url: twitterUrl,
           updated_at: new Date().toISOString(),
         })
         .eq('id', profile.id)

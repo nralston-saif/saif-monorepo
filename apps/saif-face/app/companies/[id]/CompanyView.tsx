@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { Database } from '@/lib/types/database'
+import { sanitizeUrl } from '@/lib/sanitize'
 
 type Company = Database['public']['Tables']['saif_companies']['Row']
 type Person = Database['public']['Tables']['saif_people']['Row']
@@ -582,12 +583,12 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
             )}
 
             <dl className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {company.website && (
+              {sanitizeUrl(company.website) && (
                 <div>
                   <dt className="text-sm font-medium text-gray-500">Website</dt>
                   <dd className="mt-1 text-sm text-gray-900">
                     <a
-                      href={company.website}
+                      href={sanitizeUrl(company.website)!}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-gray-900 hover:text-gray-700 underline"
@@ -748,9 +749,9 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
                           <p className="mt-1 text-xs text-gray-500">{person.location}</p>
                         )}
                         <div className="mt-2 flex gap-3">
-                          {person.linkedin_url && (
+                          {sanitizeUrl(person.linkedin_url) && (
                             <a
-                              href={person.linkedin_url}
+                              href={sanitizeUrl(person.linkedin_url)!}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="text-xs text-gray-600 hover:text-gray-900 underline"
@@ -758,9 +759,9 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
                               LinkedIn
                             </a>
                           )}
-                          {person.twitter_url && (
+                          {sanitizeUrl(person.twitter_url) && (
                             <a
-                              href={person.twitter_url}
+                              href={sanitizeUrl(person.twitter_url)!}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="text-xs text-gray-600 hover:text-gray-900 underline"
