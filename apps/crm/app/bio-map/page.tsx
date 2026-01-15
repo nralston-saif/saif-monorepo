@@ -55,6 +55,7 @@ export type BioMapOrganization = {
     id: string
     name: string
     title: string | null
+    email: string | null
   }[]
 }
 
@@ -181,19 +182,19 @@ export default async function BioMapPage() {
       relationship_type,
       title,
       end_date,
-      person:saif_people(id, first_name, last_name, name)
+      person:saif_people(id, first_name, last_name, name, email)
     `)
     .in('company_id', bioOrgIds)
     .eq('relationship_type', 'founder')
     .is('end_date', null)
 
   // Create founders map by company
-  const foundersByCompany: Record<string, Array<{ id: string; name: string; title: string | null }>> = {}
+  const foundersByCompany: Record<string, Array<{ id: string; name: string; title: string | null; email: string | null }>> = {}
   orgPeople?.forEach(op => {
     if (!foundersByCompany[op.company_id]) {
       foundersByCompany[op.company_id] = []
     }
-    const person = op.person as { id: string; first_name: string | null; last_name: string | null; name: string | null } | null
+    const person = op.person as { id: string; first_name: string | null; last_name: string | null; name: string | null; email: string | null } | null
     if (person) {
       const name = person.first_name && person.last_name
         ? `${person.first_name} ${person.last_name}`
@@ -202,6 +203,7 @@ export default async function BioMapPage() {
         id: person.id,
         name,
         title: op.title,
+        email: person.email,
       })
     }
   })

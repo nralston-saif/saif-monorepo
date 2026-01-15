@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
 import type { BioMapPerson, BioMapOrganization } from './page'
+import BioMapDetailModal from './BioMapDetailModal'
 
 type ViewMode = 'people' | 'organizations'
 type SortOption = 'name-az' | 'name-za' | 'date-newest'
@@ -51,8 +51,7 @@ export default function BioMapClient({
   const [selectedTag, setSelectedTag] = useState<string>('all')
   const [sortOption, setSortOption] = useState<SortOption>('name-az')
   const [selectedPerson, setSelectedPerson] = useState<BioMapPerson | null>(null)
-
-  const router = useRouter()
+  const [selectedOrganization, setSelectedOrganization] = useState<BioMapOrganization | null>(null)
 
   // Filter people
   const filteredPeople = useMemo(() => {
@@ -163,64 +162,31 @@ export default function BioMapClient({
         </p>
       </div>
 
-      {/* View Mode Tabs */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-2 mb-6">
-        <div className="flex gap-1">
-          <button
-            onClick={() => setViewMode('organizations')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-              viewMode === 'organizations'
-                ? 'bg-[#1a1a1a] text-white'
-                : 'text-gray-600 hover:bg-gray-100'
-            }`}
-          >
-            Organizations ({filteredOrganizations.length})
-          </button>
-          <button
-            onClick={() => setViewMode('people')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-              viewMode === 'people'
-                ? 'bg-[#1a1a1a] text-white'
-                : 'text-gray-600 hover:bg-gray-100'
-            }`}
-          >
-            People ({filteredPeople.length})
-          </button>
-        </div>
-      </div>
-
-      {/* Tag Filter Pills */}
-      {bioTags.length > 0 && (
-        <div className="flex flex-wrap gap-2 mb-6">
-          <button
-            onClick={() => setSelectedTag('all')}
-            className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
-              selectedTag === 'all'
-                ? 'bg-green-600 text-white'
-                : 'bg-green-100 text-green-800 hover:bg-green-200'
-            }`}
-          >
-            All Tags
-          </button>
-          {bioTags.map(tag => (
+      {/* Search, Sort, View Mode and Tag Filters */}
+      <div className="bg-white rounded-xl rounded-b-none shadow-sm border border-gray-100 border-b-0 p-4">
+        <div className="flex flex-col sm:flex-row gap-4 mb-4">
+          <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
             <button
-              key={tag}
-              onClick={() => setSelectedTag(tag)}
-              className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
-                selectedTag === tag
-                  ? 'bg-green-600 text-white'
-                  : 'bg-green-100 text-green-800 hover:bg-green-200'
+              onClick={() => setViewMode('organizations')}
+              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                viewMode === 'organizations'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
               }`}
             >
-              {tag}
+              Organizations ({filteredOrganizations.length})
             </button>
-          ))}
-        </div>
-      )}
-
-      {/* Search and Sort */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6">
-        <div className="flex flex-col sm:flex-row gap-4">
+            <button
+              onClick={() => setViewMode('people')}
+              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                viewMode === 'people'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              People ({filteredPeople.length})
+            </button>
+          </div>
           <div className="flex-1 relative">
             <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -244,75 +210,74 @@ export default function BioMapClient({
             </select>
           </div>
         </div>
+        {bioTags.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setSelectedTag('all')}
+              className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
+                selectedTag === 'all'
+                  ? 'bg-green-600 text-white'
+                  : 'bg-green-100 text-green-800 hover:bg-green-200'
+              }`}
+            >
+              All Tags
+            </button>
+            {bioTags.map(tag => (
+              <button
+                key={tag}
+                onClick={() => setSelectedTag(tag)}
+                className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
+                  selectedTag === tag
+                    ? 'bg-green-600 text-white'
+                    : 'bg-green-100 text-green-800 hover:bg-green-200'
+                }`}
+              >
+                {tag}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Content */}
       {viewMode === 'organizations' ? (
         /* Organizations Table */
         filteredOrganizations.length === 0 ? (
-          <div className="text-center py-12 bg-white rounded-2xl shadow-sm border border-gray-100">
+          <div className="text-center py-12 bg-white rounded-2xl rounded-t-none shadow-sm border border-gray-100">
             <span className="text-4xl mb-4 block">🧬</span>
             <p className="text-gray-500">No organizations found with bio-related tags</p>
             <p className="text-sm text-gray-400 mt-2">Add bio-related tags to organizations to see them here</p>
           </div>
         ) : (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="bg-white rounded-2xl rounded-t-none shadow-sm border border-gray-100 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-50 border-b border-gray-100">
                   <tr>
-                    <th className="text-left px-6 py-4 text-sm font-medium text-gray-600">Organization</th>
-                    <th className="text-left px-6 py-4 text-sm font-medium text-gray-600 hidden md:table-cell">Description</th>
-                    <th className="text-left px-6 py-4 text-sm font-medium text-gray-600 hidden lg:table-cell">Type</th>
-                    <th className="text-left px-6 py-4 text-sm font-medium text-gray-600 hidden lg:table-cell">Location</th>
-                    <th className="text-left px-6 py-4 text-sm font-medium text-gray-600 hidden xl:table-cell">Founders</th>
-                    <th className="text-left px-6 py-4 text-sm font-medium text-gray-600">Tags</th>
+                    <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">Organization</th>
+                    <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">Type</th>
+                    <th className="text-left px-4 py-3 text-sm font-medium text-gray-600 hidden md:table-cell">Focus</th>
+                    <th className="text-left px-4 py-3 text-sm font-medium text-gray-600 hidden lg:table-cell">Description</th>
+                    <th className="text-left px-4 py-3 text-sm font-medium text-gray-600 hidden md:table-cell">Contact</th>
+                    <th className="text-left px-4 py-3 text-sm font-medium text-gray-600 hidden lg:table-cell">Contact Info</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {filteredOrganizations.map(org => (
                     <tr
                       key={org.id}
-                      onClick={() => router.push(`/companies/${org.id}`)}
+                      onClick={() => setSelectedOrganization(org)}
                       className="hover:bg-gray-50 cursor-pointer transition-colors"
                     >
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          {org.logo_url ? (
-                            <img
-                              src={org.logo_url}
-                              alt={org.name}
-                              className="w-10 h-10 rounded-lg object-cover flex-shrink-0"
-                            />
-                          ) : (
-                            <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                              <span className="text-lg">🧬</span>
-                            </div>
-                          )}
-                          <div className="font-medium text-gray-900">{org.name}</div>
-                        </div>
+                      <td className="px-4 py-3">
+                        <div className="font-medium text-gray-900">{org.name}</div>
                       </td>
-                      <td className="px-6 py-4 hidden md:table-cell text-sm text-gray-600 max-w-md">
-                        {org.short_description ? (
-                          <span className="line-clamp-2">{org.short_description}</span>
-                        ) : '-'}
+                      <td className="px-4 py-3 text-sm text-gray-600">
+                        {org.entity_type ? (ENTITY_TYPE_LABELS[org.entity_type] || org.entity_type) : '-'}
                       </td>
-                      <td className="px-6 py-4 hidden lg:table-cell">
-                        {org.entity_type && (
-                          <span className="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-700">
-                            {ENTITY_TYPE_LABELS[org.entity_type] || org.entity_type}
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 hidden lg:table-cell text-sm text-gray-500">
-                        {[org.city, org.country].filter(Boolean).join(', ') || '-'}
-                      </td>
-                      <td className="px-6 py-4 hidden xl:table-cell text-sm text-gray-600">
-                        {org.founders.length > 0 ? org.founders.map(f => f.name).join(', ') : '-'}
-                      </td>
-                      <td className="px-6 py-4">
+                      <td className="px-4 py-3 hidden md:table-cell">
                         <div className="flex flex-wrap gap-1">
-                          {getBioTags(org.tags).slice(0, 2).map(tag => (
+                          {getBioTags(org.tags).map(tag => (
                             <span
                               key={tag}
                               className="px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-800"
@@ -320,12 +285,27 @@ export default function BioMapClient({
                               {tag}
                             </span>
                           ))}
-                          {getBioTags(org.tags).length > 2 && (
-                            <span className="px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-600">
-                              +{getBioTags(org.tags).length - 2}
-                            </span>
-                          )}
+                          {getBioTags(org.tags).length === 0 && <span className="text-sm text-gray-400">-</span>}
                         </div>
+                      </td>
+                      <td className="px-4 py-3 hidden lg:table-cell text-sm text-gray-600 max-w-xs">
+                        {org.short_description ? (
+                          <span className="line-clamp-2">{org.short_description}</span>
+                        ) : '-'}
+                      </td>
+                      <td className="px-4 py-3 hidden md:table-cell text-sm text-gray-600">
+                        {org.founders.length > 0 ? org.founders.map(f => f.name).join(', ') : '-'}
+                      </td>
+                      <td className="px-4 py-3 hidden lg:table-cell text-sm text-gray-500">
+                        {org.founders.length > 0 && org.founders[0].email ? (
+                          <a
+                            href={`mailto:${org.founders[0].email}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-blue-600 hover:underline"
+                          >
+                            {org.founders[0].email}
+                          </a>
+                        ) : '-'}
                       </td>
                     </tr>
                   ))}
@@ -337,13 +317,13 @@ export default function BioMapClient({
       ) : (
         /* People Table */
         filteredPeople.length === 0 ? (
-          <div className="text-center py-12 bg-white rounded-2xl shadow-sm border border-gray-100">
+          <div className="text-center py-12 bg-white rounded-2xl rounded-t-none shadow-sm border border-gray-100">
             <span className="text-4xl mb-4 block">👥</span>
             <p className="text-gray-500">No people found with bio-related tags</p>
             <p className="text-sm text-gray-400 mt-2">Add bio-related tags to people to see them here</p>
           </div>
         ) : (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="bg-white rounded-2xl rounded-t-none shadow-sm border border-gray-100 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-50 border-b border-gray-100">
@@ -359,7 +339,7 @@ export default function BioMapClient({
                   {filteredPeople.map(person => (
                     <tr
                       key={person.id}
-                      onClick={() => router.push(`/people/${person.id}`)}
+                      onClick={() => setSelectedPerson(person)}
                       className="hover:bg-gray-50 cursor-pointer transition-colors"
                     >
                       <td className="px-6 py-4">
@@ -412,6 +392,18 @@ export default function BioMapClient({
             </div>
           </div>
         )
+      )}
+
+      {/* Detail Modal */}
+      {(selectedOrganization || selectedPerson) && (
+        <BioMapDetailModal
+          organization={selectedOrganization}
+          person={selectedPerson}
+          onClose={() => {
+            setSelectedOrganization(null)
+            setSelectedPerson(null)
+          }}
+        />
       )}
     </div>
   )
