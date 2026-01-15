@@ -120,6 +120,15 @@ function formatDateShort(dateString: string | null): string {
   })
 }
 
+// Check if email_sent_at is a real tracked date (after Jan 9, 2026) vs backfill placeholder
+function isRealEmailDate(dateString: string | null): boolean {
+  if (!dateString) return false
+  const date = new Date(dateString)
+  // Dates before Jan 9, 2026 were backfilled and don't represent actual send times
+  const cutoffDate = new Date('2026-01-09T00:00:00Z')
+  return date >= cutoffDate
+}
+
 function formatFounderNames(names: string | null): string {
   if (!names) return ''
   // Handle both newline-separated and comma-separated names consistently
@@ -571,7 +580,7 @@ export default function DealsClient({
       portfolio: 4,
     }
 
-    const currentRank = stageRank[company.stage] || 0
+    const currentRank = company.stage ? stageRank[company.stage] || 0 : 0
     const newRank = stageRank[newCompanyStage] || 0
 
     // Only update if new stage is higher in hierarchy (or moving back to prospect)
@@ -1722,7 +1731,7 @@ export default function DealsClient({
                                   <svg className="w-3 h-3 -ml-1.5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
                                     <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                                   </svg>
-                                  {app.email_sent_at && <span className="text-gray-500">{formatDateShort(app.email_sent_at)}</span>}
+                                  {isRealEmailDate(app.email_sent_at) && <span className="text-gray-500">{formatDateShort(app.email_sent_at)}</span>}
                                 </span>
                               )}
                             </div>
@@ -1947,7 +1956,7 @@ export default function DealsClient({
                                         <svg className="w-3 h-3 -ml-1.5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
                                           <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                                         </svg>
-                                        {app.email_sent_at && <span className="text-gray-500">{formatDateShort(app.email_sent_at)}</span>}
+                                        {isRealEmailDate(app.email_sent_at) && <span className="text-gray-500">{formatDateShort(app.email_sent_at)}</span>}
                                       </span>
                                     )}
                                     {app.deliberation?.decision && (
@@ -2076,7 +2085,7 @@ export default function DealsClient({
                             <svg className="w-3 h-3 -ml-1.5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
                               <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                             </svg>
-                            <span className="text-gray-500">Sent{app.email_sent_at && ` ${formatDateShort(app.email_sent_at)}`}</span>
+                            <span className="text-gray-500">Sent{isRealEmailDate(app.email_sent_at) && ` ${formatDateShort(app.email_sent_at)}`}</span>
                           </span>
                         ) : (
                           app.email_sender_name && (

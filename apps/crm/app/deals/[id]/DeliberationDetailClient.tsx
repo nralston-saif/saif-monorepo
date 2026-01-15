@@ -113,7 +113,7 @@ export default function DeliberationDetailClient({
       portfolio: 4,
     }
 
-    const currentRank = stageRank[company.stage] || 0
+    const currentRank = company.stage ? stageRank[company.stage] || 0 : 0
     const newRank = stageRank[newCompanyStage] || 0
 
     if (newRank > currentRank || newAppStage === 'voting') {
