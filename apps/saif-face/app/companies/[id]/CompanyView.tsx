@@ -191,37 +191,58 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
     setError(null)
 
     try {
-      // Check if person already exists by email
-      let personId = null
+      // Security: Only partners can link existing people to companies
+      // Founders can only create NEW tracked profiles for co-founders
+      // This prevents a malicious founder from claiming any existing user as their co-founder
 
       if (newFounder.email) {
+        // Check if person already exists by email
         const { data: existingPerson } = await supabase
           .from('saif_people')
-          .select('id')
+          .select('id, auth_user_id')
           .eq('email', newFounder.email)
           .single()
 
         if (existingPerson) {
-          personId = existingPerson.id
+          // If they have an auth_user_id, they've claimed their profile
+          // Only they should be able to link themselves to companies
+          if (existingPerson.auth_user_id) {
+            setError('This person has already claimed their profile. They must add themselves as a founder.')
+            setAddingFounder(false)
+            return
+          }
+
+          // If unclaimed but exists, only partners can link them
+          // (prevents founders from arbitrarily claiming people as co-founders)
+          if (!isPartner) {
+            setError('A profile with this email already exists. Please contact SAIF to link existing profiles.')
+            setAddingFounder(false)
+            return
+          }
         }
       }
 
-      // Create new person if doesn't exist
-      if (!personId) {
-        const { data: createdPerson, error: createError } = await supabase
-          .from('saif_people')
-          .insert({
-            first_name: newFounder.first_name,
-            last_name: newFounder.last_name,
-            email: newFounder.email || null,
-            role: 'founder',
-            status: 'tracked', // Tracked until they sign up
-          })
-          .select()
-          .single()
+      // Create new person (either email doesn't exist, or partner is linking an unclaimed profile)
+      const { data: createdPerson, error: createError } = await supabase
+        .from('saif_people')
+        .insert({
+          first_name: newFounder.first_name,
+          last_name: newFounder.last_name,
+          email: newFounder.email || null,
+          role: 'founder',
+          status: 'tracked', // Tracked until they sign up
+        })
+        .select()
+        .single()
 
-        if (createError) throw createError
-        personId = createdPerson.id
+      if (createError) {
+        // Handle duplicate email constraint
+        if (createError.code === '23505') {
+          setError('A profile with this email already exists. Please contact SAIF to link existing profiles.')
+          setAddingFounder(false)
+          return
+        }
+        throw createError
       }
 
       // Link founder to company
@@ -229,7 +250,7 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
         .from('saif_company_people')
         .insert({
           company_id: company.id,
-          user_id: personId,
+          user_id: createdPerson.id,
           relationship_type: 'founder',
           title: newFounder.title || null,
           is_primary_contact: false,

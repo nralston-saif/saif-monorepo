@@ -31,50 +31,81 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
     redirect('/profile/claim')
   }
 
-  // Fetch company with all related data
+  // Determine partner status FIRST to control what data is fetched
+  const isPartner = currentPerson.role === 'partner'
+
+  // Build query based on user role - only partners get investment data
+  const baseSelect = `
+    *,
+    people:saif_company_people(
+      id,
+      user_id,
+      relationship_type,
+      title,
+      is_primary_contact,
+      start_date,
+      end_date,
+      person:saif_people(
+        id,
+        first_name,
+        last_name,
+        email,
+        title,
+        avatar_url,
+        bio,
+        linkedin_url,
+        twitter_url,
+        location
+      )
+    )
+  `
+
+  // Only fetch investments for partners (server-side data filtering)
+  const partnerSelect = `
+    *,
+    people:saif_company_people(
+      id,
+      user_id,
+      relationship_type,
+      title,
+      is_primary_contact,
+      start_date,
+      end_date,
+      person:saif_people(
+        id,
+        first_name,
+        last_name,
+        email,
+        title,
+        avatar_url,
+        bio,
+        linkedin_url,
+        twitter_url,
+        location
+      )
+    ),
+    investments:saif_investments(
+      id,
+      investment_date,
+      amount,
+      round,
+      type,
+      status,
+      post_money_valuation,
+      discount,
+      shares,
+      common_shares,
+      preferred_shares,
+      fd_shares,
+      lead_partner_id,
+      exit_date,
+      acquirer
+    )
+  `
+
   const { data: company, error: companyError } = await supabase
     .from('saif_companies')
-    .select(`
-      *,
-      people:saif_company_people(
-        id,
-        user_id,
-        relationship_type,
-        title,
-        is_primary_contact,
-        start_date,
-        end_date,
-        person:saif_people(
-          id,
-          first_name,
-          last_name,
-          email,
-          title,
-          avatar_url,
-          bio,
-          linkedin_url,
-          twitter_url,
-          location
-        )
-      ),
-      investments:saif_investments(
-        id,
-        investment_date,
-        amount,
-        round,
-        type,
-        status,
-        post_money_valuation,
-        discount,
-        shares,
-        common_shares,
-        preferred_shares,
-        fd_shares,
-        lead_partner_id,
-        exit_date,
-        acquirer
-      )
-    `)
+    .select(isPartner ? partnerSelect : baseSelect)
     .eq('id', id)
     .single()
 
@@ -89,7 +120,6 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
   }
 
   // Check if current user can edit this company
-  const isPartner = currentPerson.role === 'partner'
   const isFounder = company.people?.some(
     (cp: any) =>
       cp.user_id === currentPerson.id &&
@@ -99,7 +129,17 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
 
   const canEdit = isPartner || isFounder
 
-  const typedCompany = company as Company & {
+  // For non-partners, filter out former founder info (end_date) from the response
+  // This prevents information disclosure about who left companies
+  const sanitizedPeople = isPartner
+    ? company.people
+    : company.people?.filter((cp: any) => !cp.end_date) // Only show current team members
+
+  const typedCompany = {
+    ...company,
+    people: sanitizedPeople,
+    // investments is only present for partners due to conditional select
+  } as Company & {
     people?: (CompanyPerson & {
       person: Person | null
     })[]
