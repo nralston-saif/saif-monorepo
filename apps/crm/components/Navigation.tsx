@@ -68,9 +68,10 @@ export default function Navigation({ userName, personId }: { userName: string; p
   const crmItems = [
     { name: 'Companies', href: '/companies' },
     { name: 'People', href: '/people' },
+    { name: 'Bio-Map', href: '/bio-map' },
   ]
 
-  const isCrmActive = pathname === '/companies' || pathname === '/people' || pathname.startsWith('/companies/') || pathname.startsWith('/people/')
+  const isCrmActive = pathname === '/companies' || pathname === '/people' || pathname === '/bio-map' || pathname.startsWith('/companies/') || pathname.startsWith('/people/')
 
   return (
     <nav className="bg-white border-b border-gray-200 sticky top-0 z-40">

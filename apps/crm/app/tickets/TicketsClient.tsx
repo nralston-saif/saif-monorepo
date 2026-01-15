@@ -45,6 +45,7 @@ type TicketWithRelations = BaseTicket & {
 }
 
 type StatusFilter = 'active' | 'archived' | 'unassigned' | 'all'
+type StageFilter = 'all' | 'open' | 'in_progress'
 type SortOption = 'date-newest' | 'date-oldest' | 'priority' | 'due-date' | 'title'
 
 export default function TicketsClient({
@@ -65,6 +66,7 @@ export default function TicketsClient({
   // State
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('active')
+  const [stageFilter, setStageFilter] = useState<StageFilter>('all')
   const [priorityFilter, setPriorityFilter] = useState<TicketPriority | 'all'>('all')
   const [assignedFilter, setAssignedFilter] = useState<string | 'all' | 'unassigned'>(currentUserId)
   const [sortOption, setSortOption] = useState<SortOption>('date-newest')
@@ -127,7 +129,12 @@ export default function TicketsClient({
     } else if (statusFilter === 'archived') {
       filtered = filtered.filter(t => t.status === 'archived')
     } else if (statusFilter === 'unassigned') {
-      filtered = filtered.filter(t => !t.assigned_to)
+      filtered = filtered.filter(t => !t.assigned_to && t.status !== 'archived')
+    }
+
+    // Stage filter (open vs in_progress)
+    if (stageFilter !== 'all') {
+      filtered = filtered.filter(t => t.status === stageFilter)
     }
 
     // Priority filter
@@ -175,7 +182,7 @@ export default function TicketsClient({
     })
 
     return filtered
-  }, [localTickets, statusFilter, priorityFilter, assignedFilter, searchQuery, sortOption])
+  }, [localTickets, statusFilter, stageFilter, priorityFilter, assignedFilter, searchQuery, sortOption])
 
   // Stats
   const stats = useMemo(() => ({
@@ -183,7 +190,7 @@ export default function TicketsClient({
     open: localTickets.filter(t => t.status === 'open').length,
     inProgress: localTickets.filter(t => t.status === 'in_progress').length,
     archived: localTickets.filter(t => t.status === 'archived').length,
-    unassigned: localTickets.filter(t => !t.assigned_to).length,
+    unassigned: localTickets.filter(t => !t.assigned_to && t.status !== 'archived').length,
     overdue: localTickets.filter(t =>
       t.due_date &&
       new Date(t.due_date) < new Date() &&
@@ -477,7 +484,17 @@ export default function TicketsClient({
 
           {/* Filters row */}
           <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-4 flex-1">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4 flex-1">
+              <select
+                value={stageFilter}
+                onChange={(e) => setStageFilter(e.target.value as StageFilter)}
+                className="px-3 py-2 text-sm border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-gray-900 focus:border-gray-900"
+              >
+                <option value="all">All Stages</option>
+                <option value="open">Open</option>
+                <option value="in_progress">In Progress</option>
+              </select>
+
               <select
                 value={priorityFilter}
                 onChange={(e) => setPriorityFilter(e.target.value as TicketPriority | 'all')}
