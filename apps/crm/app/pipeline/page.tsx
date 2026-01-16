@@ -26,34 +26,31 @@ export default async function PipelinePage() {
     redirect('/access-denied')
   }
 
-  // Get applications in pipeline with votes and user info
-  const { data: applications } = await supabase
-    .from('saifcrm_applications')
-    .select(`
-      *,
-      saifcrm_votes(id, vote, user_id, notes, vote_type, saif_people(name))
-    `)
-    .in('stage', ['new', 'voting'])
-    .order('submitted_at', { ascending: false })
+  // Consolidated: Fetch all applications in one query (was 2 queries, now 1)
+  // Partners query runs in parallel
+  const [{ data: allApplications }, { data: partners }] = await Promise.all([
+    supabase
+      .from('saifcrm_applications')
+      .select(`
+        *,
+        email_sender:saif_people!applications_email_sender_id_fkey(name),
+        saifcrm_votes(id, vote, user_id, notes, vote_type, saif_people(name))
+      `)
+      .in('stage', ['new', 'voting', 'deliberation', 'invested', 'rejected'])
+      .order('submitted_at', { ascending: false }),
 
-  // Get old/archived applications (already processed) with email sender info and votes
-  const { data: oldApplications } = await supabase
-    .from('saifcrm_applications')
-    .select(`
-      *,
-      email_sender:saif_people!applications_email_sender_id_fkey(name),
-      saifcrm_votes(id, vote, user_id, notes, vote_type, saif_people(name))
-    `)
-    .in('stage', ['deliberation', 'invested', 'rejected'])
-    .order('submitted_at', { ascending: false })
+    // Get all partners for email sender selection
+    supabase
+      .from('saif_people')
+      .select('id, name')
+      .eq('role', 'partner')
+      .eq('status', 'active')
+      .order('name')
+  ])
 
-  // Get all partners for email sender selection
-  const { data: partners } = await supabase
-    .from('saif_people')
-    .select('id, name')
-    .eq('role', 'partner')
-    .eq('status', 'active')
-    .order('name')
+  // Split applications by stage in JS (instead of 2 separate DB queries)
+  const applications = allApplications?.filter(app => app.stage && ['new', 'voting'].includes(app.stage)) || []
+  const oldApplications = allApplications?.filter(app => app.stage && ['deliberation', 'invested', 'rejected'].includes(app.stage)) || []
 
   // Transform applications to include vote counts and user's vote
   const applicationsWithVotes = applications?.map((app) => {

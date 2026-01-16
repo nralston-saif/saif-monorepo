@@ -19,17 +19,14 @@ type TransformedVote = {
   notes: string | null
 }
 
-function transformVotes(
-  votes: RawVote[] | undefined,
-  peopleMap?: Map<string, string | null>
-): TransformedVote[] {
+function transformVotes(votes: RawVote[] | undefined): TransformedVote[] {
   if (!votes) return []
 
   return votes
     .filter((v) => v.vote_type === 'initial')
     .map((v) => ({
       oduserId: v.user_id,
-      userName: v.saif_people?.name || peopleMap?.get(v.user_id) || 'Unknown',
+      userName: v.saif_people?.name || 'Unknown',
       vote: v.vote,
       notes: v.notes,
     }))
@@ -57,10 +54,10 @@ export default async function DealsPage(): Promise<React.ReactElement> {
   }
 
   // Parallel fetch: all applications + supporting data
+  // Removed redundant people query - vote names come from nested saif_people join
   const [
     { data: allApplications },
     { data: partners },
-    { data: people },
     { data: interviewTags }
   ] = await Promise.all([
     // Single query for ALL applications with all related data
@@ -83,11 +80,6 @@ export default async function DealsPage(): Promise<React.ReactElement> {
       .eq('status', 'active')
       .order('name'),
 
-    // People for vote name lookup
-    supabase
-      .from('saif_people')
-      .select('id, name'),
-
     // Interview tags
     supabase
       .from('saif_tags')
@@ -96,13 +88,11 @@ export default async function DealsPage(): Promise<React.ReactElement> {
       .order('name')
   ])
 
-  const peopleMap = new Map(people?.map((p) => [p.id, p.name]) || [])
-
   // Transform and filter applications by stage
   const votingAppsWithVotes = (allApplications || [])
     .filter(app => app.stage === 'new' || app.stage === 'voting')
     .map((app) => {
-      const allVotes = transformVotes(app.saifcrm_votes as RawVote[], peopleMap)
+      const allVotes = transformVotes(app.saifcrm_votes as RawVote[])
       const userVote = allVotes.find((v) => v.oduserId === profile?.id)
 
       return {
@@ -128,7 +118,7 @@ export default async function DealsPage(): Promise<React.ReactElement> {
   const deliberationAppsWithVotes = (allApplications || [])
     .filter(app => app.stage === 'deliberation' && app.votes_revealed === true)
     .map((app) => {
-      const votes = transformVotes(app.saifcrm_votes as RawVote[], peopleMap)
+      const votes = transformVotes(app.saifcrm_votes as RawVote[])
       const deliberation = Array.isArray(app.saifcrm_deliberations)
         ? app.saifcrm_deliberations[0]
         : app.saifcrm_deliberations || null
@@ -199,7 +189,7 @@ export default async function DealsPage(): Promise<React.ReactElement> {
       email_sent: app.email_sent,
       email_sent_at: app.email_sent_at,
       email_sender_name: (app.email_sender as { name: string } | null)?.name || null,
-      allVotes: transformVotes(app.saifcrm_votes as RawVote[], peopleMap),
+      allVotes: transformVotes(app.saifcrm_votes as RawVote[]),
       draft_rejection_email: (app as { draft_rejection_email?: string }).draft_rejection_email || null,
     }))
 

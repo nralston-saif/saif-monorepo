@@ -120,17 +120,18 @@ export default async function DashboardPage() {
 
   // Partners see the CRM dashboard
   // Run all queries in parallel for maximum performance
+  // Consolidated: Combined pipeline + deliberation apps into one query (saves 1 round-trip)
+  // Consolidated: Removed separate overdue count query - calculated from tickets data
+  const todayDate = new Date().toISOString().split('T')[0]
   const [
-    { data: pipelineApps },
-    { data: deliberationApps },
+    { data: allApplications },
     { data: statsData },
-    { data: myActiveTickets },
-    { count: overdueTicketsCount },
+    { data: allActiveTickets },
     { data: notificationsData },
     { data: portfolioData },
     { data: newsArticles }
   ] = await Promise.all([
-    // Pipeline applications
+    // Combined: Pipeline + Deliberation applications (was 2 queries, now 1)
     supabase
       .from('saifcrm_applications')
       .select(`
@@ -139,28 +140,17 @@ export default async function DashboardPage() {
         founder_names,
         company_description,
         submitted_at,
-        saifcrm_votes(id, user_id, vote_type)
-      `)
-      .in('stage', ['new', 'voting'])
-      .order('submitted_at', { ascending: false }),
-
-    // Deliberation applications
-    supabase
-      .from('saifcrm_applications')
-      .select(`
-        id,
-        company_name,
-        founder_names,
-        submitted_at,
+        stage,
+        saifcrm_votes(id, user_id, vote_type),
         saifcrm_deliberations(decision)
       `)
-      .eq('stage', 'deliberation')
+      .in('stage', ['new', 'voting', 'deliberation'])
       .order('submitted_at', { ascending: false }),
 
     // Application stats
     supabase.rpc('get_application_stats'),
 
-    // Active tickets
+    // Active tickets (includes overdue - we'll calculate count in JS)
     supabase
       .from('saif_tickets')
       .select(`
@@ -176,15 +166,7 @@ export default async function DashboardPage() {
       .in('status', ['open', 'in_progress'])
       .or(`assigned_to.eq.${profile?.id},assigned_to.is.null`)
       .order('priority', { ascending: true })
-      .order('due_date', { ascending: true, nullsFirst: false })
-      .limit(10),
-
-    // Overdue tickets count
-    supabase
-      .from('saif_tickets')
-      .select('*', { count: 'exact', head: true })
-      .in('status', ['open', 'in_progress'])
-      .lt('due_date', new Date().toISOString().split('T')[0]),
+      .order('due_date', { ascending: true, nullsFirst: false }),
 
     // Notifications
     supabase
@@ -219,6 +201,14 @@ export default async function DashboardPage() {
       .order('published_at', { ascending: false })
       .limit(5)
   ])
+
+  // Split applications by stage (filter in JS instead of 2 DB queries)
+  const pipelineApps = allApplications?.filter(app => app.stage && ['new', 'voting'].includes(app.stage)) || []
+  const deliberationApps = allApplications?.filter(app => app.stage === 'deliberation') || []
+
+  // Calculate overdue count from tickets data (instead of separate DB query)
+  const overdueTicketsCount = allActiveTickets?.filter(t => t.due_date && t.due_date < todayDate).length || 0
+  const myActiveTickets = allActiveTickets?.slice(0, 10) || []
 
   // Filter pipeline apps that need user's vote
   const needsVote = pipelineApps?.filter((app) => {
