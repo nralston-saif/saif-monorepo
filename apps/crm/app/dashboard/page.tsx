@@ -88,25 +88,34 @@ export default async function DashboardPage() {
       })).filter((f: any) => f.id)
     }
 
-    // Fetch community (active/pending people) - limited for performance
-    const { data: communityPeople } = await supabase
-      .from('saif_people')
-      .select(`
-        *,
-        companies:saif_company_people(
-          id,
-          relationship_type,
-          title,
-          is_primary_contact,
-          end_date,
-          company:saif_companies(id, name, logo_url, stage)
-        )
-      `)
-      .in('status', ['active', 'pending'])
-      .order('first_name')
-      .limit(100)
+    // Fetch community and news in parallel for performance
+    const [{ data: communityPeople }, { data: newsArticles }] = await Promise.all([
+      supabase
+        .from('saif_people')
+        .select(`
+          *,
+          companies:saif_company_people(
+            id,
+            relationship_type,
+            title,
+            is_primary_contact,
+            end_date,
+            company:saif_companies(id, name, logo_url, stage)
+          )
+        `)
+        .in('status', ['active', 'pending'])
+        .order('first_name')
+        .limit(100),
+      // AI News articles for founders (fewer than partners)
+      supabase
+        .from('saifcrm_ai_news_articles')
+        .select('id, title, url, source_name, topic, is_ai_safety, published_at, fetch_date')
+        .order('fetch_date', { ascending: false })
+        .order('published_at', { ascending: false })
+        .limit(3)
+    ])
 
-    return <FounderDashboard person={typedProfile} userEmail={user.email || ''} company={company} founders={founders} founderTitle={companyRelation?.title} community={communityPeople || []} />
+    return <FounderDashboard person={typedProfile} userEmail={user.email || ''} company={company} founders={founders} founderTitle={companyRelation?.title} community={communityPeople || []} newsArticles={newsArticles || []} />
   }
 
   // Partners see the CRM dashboard

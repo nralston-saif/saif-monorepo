@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useToast } from '@saif/ui'
@@ -122,12 +122,21 @@ export default function PeopleClient({
   const [companies, setCompanies] = useState<{ id: string; name: string }[]>([])
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>('')
   const [relationshipType, setRelationshipType] = useState<string>('employee')
+  const [showCreateCompany, setShowCreateCompany] = useState(false)
+  const [newCompanyName, setNewCompanyName] = useState('')
+  const [selectedTags, setSelectedTags] = useState<string[]>([])
+  const [availableTags, setAvailableTags] = useState<{ id: string; name: string; color: string | null }[]>([])
+  const [tagSearchQuery, setTagSearchQuery] = useState('')
+  const [showTagDropdown, setShowTagDropdown] = useState(false)
+  const [isCreatingTag, setIsCreatingTag] = useState(false)
+  const tagDropdownRef = useRef<HTMLDivElement>(null)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
   const router = useRouter()
   const supabase = createClient()
   const { showToast } = useToast()
 
-  // Fetch companies for the dropdown
+  // Fetch companies and tags for the dropdowns
   useEffect(() => {
     const fetchCompanies = async () => {
       const { data } = await supabase
@@ -139,7 +148,21 @@ export default function PeopleClient({
         setCompanies(data)
       }
     }
+
+    const fetchTags = async () => {
+      const { data } = await supabase
+        .from('saif_tags')
+        .select('id, name, color')
+        .order('usage_count', { ascending: false, nullsFirst: false })
+        .order('name', { ascending: true })
+
+      if (data) {
+        setAvailableTags(data)
+      }
+    }
+
     fetchCompanies()
+    fetchTags()
   }, [supabase])
 
   // Sync URL search param to state (handles client-side navigation)
@@ -154,6 +177,18 @@ export default function PeopleClient({
   useEffect(() => {
     localStorage.setItem('people-role-filter', roleFilter)
   }, [roleFilter])
+
+  // Close tag dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (tagDropdownRef.current && !tagDropdownRef.current.contains(event.target as Node)) {
+        setShowTagDropdown(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   // Filter and search people
   const filteredPeople = useMemo(() => {
@@ -254,6 +289,11 @@ export default function PeopleClient({
     })
     setSelectedCompanyId('')
     setRelationshipType('employee')
+    setShowCreateCompany(false)
+    setNewCompanyName('')
+    setSelectedTags([])
+    setTagSearchQuery('')
+    setShowTagDropdown(false)
     setShowAddModal(true)
   }
 
@@ -286,30 +326,28 @@ export default function PeopleClient({
       const personName = (person.name || person.displayName || `${person.first_name || ''} ${person.last_name || ''}`).toLowerCase().trim()
       const personWords = personName.split(/\s+/).filter(w => w.length > 0)
 
-      // Exact name match
+      // Exact full name match
       if (personName === nameLower) {
         return true
       }
 
-      // Check if all words from the new name appear in existing person's name
-      // or if all words from existing person appear in new name
-      const allNewWordsMatch = nameWords.length > 0 && nameWords.every(word =>
-        personWords.some(pw => pw.includes(word) || word.includes(pw))
-      )
-      const allExistingWordsMatch = personWords.length > 0 && personWords.every(word =>
-        nameWords.some(nw => nw.includes(word) || word.includes(nw))
-      )
+      // Check for exact first name match (most common duplicate scenario)
+      const newFirstName = nameWords[0]
+      const existingFirstName = personWords[0]
+      if (newFirstName && existingFirstName && newFirstName === existingFirstName) {
+        // Same first name - check if last names are similar or one is missing
+        const newLastName = nameWords[1]
+        const existingLastName = personWords[1]
 
-      // If significant overlap in names
-      if (allNewWordsMatch || allExistingWordsMatch) {
-        return true
-      }
-
-      // Check first name + last initial or vice versa
-      if (nameWords.length >= 1 && personWords.length >= 1) {
-        const firstWordMatch = nameWords[0] === personWords[0]
-        if (firstWordMatch && (nameWords.length === 1 || personWords.length === 1)) {
+        // If either has no last name, or last names match, it's a potential duplicate
+        if (!newLastName || !existingLastName || newLastName === existingLastName) {
           return true
+        }
+        // Check if last names start the same (e.g., "Smith" vs "Smithson")
+        if (newLastName.length >= 3 && existingLastName.length >= 3) {
+          if (newLastName.startsWith(existingLastName) || existingLastName.startsWith(newLastName)) {
+            return true
+          }
         }
       }
 
@@ -337,6 +375,30 @@ export default function PeopleClient({
     setLoading(true)
 
     try {
+      // If creating a new company, create it first
+      let companyIdToLink = selectedCompanyId
+      if (showCreateCompany && newCompanyName.trim()) {
+        const { data: newCompany, error: companyError } = await supabase
+          .from('saif_companies')
+          .insert({
+            name: newCompanyName.trim(),
+            stage: 'prospect',
+            is_active: true,
+          })
+          .select('id')
+          .single()
+
+        if (companyError) {
+          showToast('Error creating company: ' + companyError.message, 'error')
+          setLoading(false)
+          return
+        }
+
+        companyIdToLink = newCompany.id
+        // Add to local companies list
+        setCompanies(prev => [...prev, { id: newCompany.id, name: newCompanyName.trim() }].sort((a, b) => a.name.localeCompare(b.name)))
+      }
+
       const dataToSave = {
         first_name: formData.first_name || null,
         last_name: formData.last_name || null,
@@ -353,6 +415,7 @@ export default function PeopleClient({
         introduced_by: formData.introduced_by || null,
         introduction_context: formData.introduction_context || null,
         relationship_notes: formData.relationship_notes || null,
+        tags: selectedTags.length > 0 ? selectedTags : null,
       }
 
       if (formData.id) {
@@ -367,7 +430,7 @@ export default function PeopleClient({
           setLoading(false)
           return
         }
-        showToast('Person updated', 'success')
+        showToast(`${fullName} has been updated`, 'success')
       } else {
         // Create new person
         const { data: newPerson, error } = await supabase
@@ -383,11 +446,12 @@ export default function PeopleClient({
         }
 
         // Link to company if selected
-        if (selectedCompanyId && newPerson?.id) {
+        let message: string
+        if (companyIdToLink && newPerson?.id) {
           const { error: linkError } = await supabase
             .from('saif_company_people')
             .insert({
-              company_id: selectedCompanyId,
+              company_id: companyIdToLink,
               user_id: newPerson.id,
               relationship_type: relationshipType as RelationshipType,
               title: formData.title || null,
@@ -395,21 +459,40 @@ export default function PeopleClient({
 
           if (linkError) {
             console.error('Error linking to company:', linkError)
-            // Person was created, just show partial success
-            showToast('Person added, but failed to link to company', 'warning')
+            message = `${fullName} was added as a ${ROLE_LABELS[formData.role || 'contact'] || 'contact'}, but failed to link to company`
+            showToast(message, 'warning')
           } else {
-            showToast('Person added and linked to company', 'success')
+            const companyName = showCreateCompany ? newCompanyName.trim() : companies.find(c => c.id === companyIdToLink)?.name
+            message = `${fullName} was added as a ${ROLE_LABELS[formData.role || 'contact'] || 'contact'} at ${companyName}`
           }
         } else {
-          showToast('Person added', 'success')
+          message = `${fullName} was added as a ${ROLE_LABELS[formData.role || 'contact'] || 'contact'}`
         }
+
+        // Show success banner (more visible than toast)
+        setSuccessMessage(message)
+        // Auto-hide after 5 seconds
+        setTimeout(() => setSuccessMessage(null), 5000)
       }
 
+      // Close modal and reset form state
       setShowAddModal(false)
       setFormData({})
       setSelectedCompanyId('')
+      setShowCreateCompany(false)
+      setNewCompanyName('')
+      setSelectedTags([])
+      setTagSearchQuery('')
+      setShowTagDropdown(false)
       setPotentialDuplicates([])
-      router.refresh()
+      setSearchQuery('') // Clear search so the new person is visible
+      setLoading(false)
+
+      // Delay refresh slightly to ensure toast is visible
+      setTimeout(() => {
+        router.refresh()
+      }, 100)
+      return
     } catch (err) {
       showToast('An unexpected error occurred', 'error')
     }
@@ -456,6 +539,28 @@ export default function PeopleClient({
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* Success Message Banner */}
+      {successMessage && (
+        <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg flex items-center justify-between animate-fade-in">
+          <div className="flex items-center gap-3">
+            <div className="flex-shrink-0">
+              <svg className="w-5 h-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <p className="text-green-800 font-medium">{successMessage}</p>
+          </div>
+          <button
+            onClick={() => setSuccessMessage(null)}
+            className="text-green-600 hover:text-green-800"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      )}
+
       {/* Header with count */}
       <div className="mb-6 flex items-center gap-4">
         <h1 className="text-3xl font-bold text-gray-900">All People</h1>
@@ -990,27 +1095,53 @@ export default function PeopleClient({
               {/* Company Linking - only shown when creating new person */}
               {!formData.id && (
                 <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 space-y-4">
-                  <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
-                    <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                    </svg>
-                    Link to Company (Optional)
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                      <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                      </svg>
+                      Link to Company (Optional)
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowCreateCompany(!showCreateCompany)
+                        if (!showCreateCompany) {
+                          setSelectedCompanyId('')
+                        } else {
+                          setNewCompanyName('')
+                        }
+                      }}
+                      className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                    >
+                      {showCreateCompany ? 'Select existing' : '+ Create new'}
+                    </button>
                   </div>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div>
                       <label className="block text-sm font-medium text-gray-600 mb-1.5">
                         Company
                       </label>
-                      <select
-                        value={selectedCompanyId}
-                        onChange={(e) => setSelectedCompanyId(e.target.value)}
-                        className="input"
-                      >
-                        <option value="">No company</option>
-                        {companies.map(company => (
-                          <option key={company.id} value={company.id}>{company.name}</option>
-                        ))}
-                      </select>
+                      {showCreateCompany ? (
+                        <input
+                          type="text"
+                          value={newCompanyName}
+                          onChange={(e) => setNewCompanyName(e.target.value)}
+                          className="input"
+                          placeholder="Enter new company name"
+                        />
+                      ) : (
+                        <select
+                          value={selectedCompanyId}
+                          onChange={(e) => setSelectedCompanyId(e.target.value)}
+                          className="input"
+                        >
+                          <option value="">No company</option>
+                          {companies.map(company => (
+                            <option key={company.id} value={company.id}>{company.name}</option>
+                          ))}
+                        </select>
+                      )}
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-600 mb-1.5">
@@ -1020,7 +1151,7 @@ export default function PeopleClient({
                         value={relationshipType}
                         onChange={(e) => setRelationshipType(e.target.value)}
                         className="input"
-                        disabled={!selectedCompanyId}
+                        disabled={!selectedCompanyId && !newCompanyName.trim()}
                       >
                         <option value="employee">Employee</option>
                         <option value="founder">Founder</option>
@@ -1029,6 +1160,163 @@ export default function PeopleClient({
                         <option value="partner">Partner</option>
                       </select>
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Tags Section */}
+              {!formData.id && (
+                <div className="p-4 bg-purple-50 rounded-lg border border-purple-100 space-y-3">
+                  <div className="flex items-center gap-2 text-sm font-medium text-purple-800">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                    </svg>
+                    Tags (Optional)
+                  </div>
+
+                  {/* Selected Tags */}
+                  {selectedTags.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {selectedTags.map(tag => {
+                        const tagData = availableTags.find(t => t.name === tag)
+                        return (
+                          <span
+                            key={tag}
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium text-white"
+                            style={{ backgroundColor: tagData?.color || '#6B7280' }}
+                          >
+                            {tag}
+                            <button
+                              type="button"
+                              onClick={() => setSelectedTags(selectedTags.filter(t => t !== tag))}
+                              className="hover:bg-white/20 rounded-full p-0.5"
+                            >
+                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          </span>
+                        )
+                      })}
+                    </div>
+                  )}
+
+                  {/* Tag Input */}
+                  <div className="relative" ref={tagDropdownRef}>
+                    <input
+                      type="text"
+                      value={tagSearchQuery}
+                      onChange={(e) => setTagSearchQuery(e.target.value)}
+                      onFocus={() => setShowTagDropdown(true)}
+                      onKeyDown={async (e) => {
+                        if (e.key === 'Enter' && tagSearchQuery.trim()) {
+                          e.preventDefault()
+                          const tagName = tagSearchQuery.trim().toLowerCase()
+                          // Check if tag already exists
+                          const existingTag = availableTags.find(t => t.name.toLowerCase() === tagName)
+                          if (existingTag) {
+                            if (!selectedTags.includes(existingTag.name)) {
+                              setSelectedTags([...selectedTags, existingTag.name])
+                            }
+                          } else {
+                            // Create new tag
+                            setIsCreatingTag(true)
+                            const { data, error } = await supabase
+                              .from('saif_tags')
+                              .insert({ name: tagName, created_by: userId, usage_count: 1 })
+                              .select('id, name, color')
+                              .single()
+                            setIsCreatingTag(false)
+                            if (!error && data) {
+                              setAvailableTags([...availableTags, data])
+                              setSelectedTags([...selectedTags, data.name])
+                            }
+                          }
+                          setTagSearchQuery('')
+                          setShowTagDropdown(false)
+                        }
+                      }}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500"
+                      placeholder={selectedTags.length > 0 ? "Add more tags..." : "Search or create tags..."}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowTagDropdown(!showTagDropdown)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      <svg className={`w-4 h-4 transition-transform ${showTagDropdown ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+
+                    {/* Tag Dropdown */}
+                    {showTagDropdown && (
+                      <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                        {/* Create new tag option */}
+                        {tagSearchQuery.trim() && !availableTags.some(t => t.name.toLowerCase() === tagSearchQuery.trim().toLowerCase()) && (
+                          <button
+                            type="button"
+                            disabled={isCreatingTag}
+                            onClick={async () => {
+                              const tagName = tagSearchQuery.trim().toLowerCase()
+                              setIsCreatingTag(true)
+                              const { data, error } = await supabase
+                                .from('saif_tags')
+                                .insert({ name: tagName, created_by: userId, usage_count: 1 })
+                                .select('id, name, color')
+                                .single()
+                              setIsCreatingTag(false)
+                              if (!error && data) {
+                                setAvailableTags([...availableTags, data])
+                                setSelectedTags([...selectedTags, data.name])
+                              }
+                              setTagSearchQuery('')
+                              setShowTagDropdown(false)
+                            }}
+                            className="w-full px-3 py-2 text-left hover:bg-purple-50 flex items-center gap-2 border-b border-gray-100 text-purple-600 font-medium text-sm"
+                          >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                            </svg>
+                            {isCreatingTag ? 'Creating...' : `Create "${tagSearchQuery.trim()}"`}
+                          </button>
+                        )}
+
+                        {/* Existing tags */}
+                        {availableTags
+                          .filter(tag =>
+                            tag.name.toLowerCase().includes(tagSearchQuery.toLowerCase()) &&
+                            !selectedTags.includes(tag.name)
+                          )
+                          .slice(0, 10)
+                          .map(tag => (
+                            <button
+                              key={tag.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedTags([...selectedTags, tag.name])
+                                setTagSearchQuery('')
+                                setShowTagDropdown(false)
+                              }}
+                              className="w-full px-3 py-2 text-left hover:bg-gray-50 flex items-center gap-2 text-sm"
+                            >
+                              <span
+                                className="w-3 h-3 rounded-full flex-shrink-0"
+                                style={{ backgroundColor: tag.color || '#6B7280' }}
+                              />
+                              <span className="flex-1">{tag.name}</span>
+                            </button>
+                          ))
+                        }
+
+                        {availableTags.filter(t => t.name.toLowerCase().includes(tagSearchQuery.toLowerCase()) && !selectedTags.includes(t.name)).length === 0 &&
+                          !tagSearchQuery.trim() && (
+                          <div className="px-3 py-2 text-gray-500 text-sm text-center">
+                            No tags available. Type to create one.
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

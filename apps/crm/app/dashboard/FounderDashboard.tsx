@@ -41,6 +41,17 @@ type PersonWithCompanies = Person & {
   }>
 }
 
+type AINewsArticle = {
+  id: string
+  title: string
+  url: string
+  source_name: string | null
+  topic: string
+  is_ai_safety: boolean
+  published_at: string
+  fetch_date: string
+}
+
 interface FounderDashboardProps {
   person: Person
   userEmail: string
@@ -48,9 +59,24 @@ interface FounderDashboardProps {
   founders: Founder[]
   founderTitle?: string | null
   community: PersonWithCompanies[]
+  newsArticles?: AINewsArticle[]
 }
 
-export default function FounderDashboard({ person, userEmail, company, founders, founderTitle, community }: FounderDashboardProps) {
+const getTopicLabel = (topic: string): string => {
+  const labels: Record<string, string> = {
+    llm: 'LLM',
+    robotics: 'Robotics',
+    regulation: 'Policy',
+    business: 'Business',
+    research: 'Research',
+    healthcare: 'Healthcare',
+    ai_safety: 'Safety',
+    general: 'General',
+  }
+  return labels[topic] || topic
+}
+
+export default function FounderDashboard({ person, userEmail, company, founders, founderTitle, community, newsArticles = [] }: FounderDashboardProps) {
   return (
     <div className="min-h-screen bg-white">
       <FounderNavigation />
@@ -148,6 +174,39 @@ export default function FounderDashboard({ person, userEmail, company, founders,
               >
                 View Company
               </Link>
+            </div>
+          </div>
+        )}
+
+        {/* AI News Section - Condensed */}
+        {newsArticles.length > 0 && (
+          <div className="mb-6 bg-white border border-gray-200 rounded-lg overflow-hidden">
+            <div className="px-4 py-2 bg-gray-50 border-b border-gray-200 flex items-center gap-2">
+              <span className="text-blue-600 text-sm">📰</span>
+              <h3 className="text-sm font-medium text-gray-900">AI News</h3>
+            </div>
+            <div className="divide-y divide-gray-100">
+              {newsArticles.map((article) => (
+                <a
+                  key={article.id}
+                  href={article.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block px-4 py-2 hover:bg-gray-50 transition-colors"
+                >
+                  <p className="text-sm text-gray-900 line-clamp-1">{article.title}</p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="text-xs text-gray-500">{article.source_name}</span>
+                    <span className={`text-xs px-1.5 py-0.5 rounded ${
+                      article.is_ai_safety
+                        ? 'bg-red-100 text-red-700'
+                        : 'bg-gray-100 text-gray-600'
+                    }`}>
+                      {article.is_ai_safety ? 'Safety' : getTopicLabel(article.topic)}
+                    </span>
+                  </div>
+                </a>
+              ))}
             </div>
           </div>
         )}
