@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import type { UserRole, UserStatus } from '@saif/supabase'
 import TagSelector from '@/app/tickets/TagSelector'
+import PersonMeetingNotes from '@/components/PersonMeetingNotes'
 
 type CompanyAssociation = {
   id: string
@@ -52,6 +53,8 @@ interface PersonViewProps {
   activeCompanies: CompanyAssociation[]
   canEdit: boolean
   isPartner: boolean
+  currentUserId: string
+  currentUserName: string
 }
 
 const ROLE_LABELS: Record<UserRole, string> = {
@@ -71,13 +74,15 @@ const STATUS_LABELS: Record<UserStatus, string> = {
   inactive: 'Inactive',
 }
 
-export default function PersonView({ person, introducerName, activeCompanies, canEdit, isPartner }: PersonViewProps) {
+export default function PersonView({ person, introducerName, activeCompanies, canEdit, isPartner, currentUserId, currentUserName }: PersonViewProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const supabase = createClient()
 
   // Start in edit mode if ?edit=true is in URL
   const [isEditing, setIsEditing] = useState(searchParams.get('edit') === 'true' && canEdit)
+  // Show notes modal if ?notes=true is in URL (partners only)
+  const [showNotes, setShowNotes] = useState(searchParams.get('notes') === 'true' && isPartner)
   const [saving, setSaving] = useState(false)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -1261,6 +1266,17 @@ export default function PersonView({ person, introducerName, activeCompanies, ca
             </div>
           </div>
         </div>
+      )}
+
+      {/* Person Meeting Notes Modal */}
+      {showNotes && isPartner && (
+        <PersonMeetingNotes
+          personId={person.id}
+          personName={fullName}
+          userId={currentUserId}
+          userName={currentUserName}
+          onClose={() => setShowNotes(false)}
+        />
       )}
     </>
   )

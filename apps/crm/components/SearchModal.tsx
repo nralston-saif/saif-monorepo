@@ -292,8 +292,10 @@ export default function SearchModal({ onClose }: { onClose: () => void }) {
                     const flatIdx = idx
                     const isSelected = selectedIndex === flatIdx
                     return (
-                      <button
+                      <div
                         key={company.id}
+                        role="button"
+                        tabIndex={0}
                         onClick={() =>
                           navigateToResult({
                             type: 'company',
@@ -308,7 +310,7 @@ export default function SearchModal({ onClose }: { onClose: () => void }) {
                           })
                         }
                         onMouseEnter={() => setSelectedIndex(flatIdx)}
-                        className={`w-full px-4 py-3 flex items-center gap-3 text-left transition-colors ${
+                        className={`w-full px-4 py-3 flex items-center gap-3 text-left transition-colors cursor-pointer ${
                           isSelected ? 'bg-gray-100' : 'hover:bg-gray-50'
                         }`}
                       >
@@ -331,10 +333,29 @@ export default function SearchModal({ onClose }: { onClose: () => void }) {
                             <p className="text-sm text-gray-500 truncate">{company.short_description}</p>
                           )}
                         </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onClose()
+                            router.push(`/companies/${company.id}#notes`)
+                            setTimeout(() => {
+                              const notesSection = document.getElementById('notes')
+                              if (notesSection) {
+                                notesSection.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                              }
+                            }, 300)
+                          }}
+                          className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                          title="View notes"
+                        >
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                        </button>
                         <span className="badge bg-blue-100 text-blue-700">
                           {company.industry || 'Company'}
                         </span>
-                      </button>
+                      </div>
                     )
                   })}
                 </div>
@@ -353,8 +374,10 @@ export default function SearchModal({ onClose }: { onClose: () => void }) {
                     const isSelected = selectedIndex === flatIdx
                     const fullName = getPersonDisplayName(person)
                     return (
-                      <button
+                      <div
                         key={person.id}
+                        role="button"
+                        tabIndex={0}
                         onClick={() =>
                           navigateToResult({
                             type: 'person',
@@ -369,7 +392,7 @@ export default function SearchModal({ onClose }: { onClose: () => void }) {
                           })
                         }
                         onMouseEnter={() => setSelectedIndex(flatIdx)}
-                        className={`w-full px-4 py-3 flex items-center gap-3 text-left transition-colors ${
+                        className={`w-full px-4 py-3 flex items-center gap-3 text-left transition-colors cursor-pointer ${
                           isSelected ? 'bg-gray-100' : 'hover:bg-gray-50'
                         }`}
                       >
@@ -392,10 +415,23 @@ export default function SearchModal({ onClose }: { onClose: () => void }) {
                             <p className="text-sm text-gray-500 truncate">{person.title || person.email}</p>
                           )}
                         </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onClose()
+                            router.push(`/people/${person.id}?notes=true`)
+                          }}
+                          className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                          title="View notes"
+                        >
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                        </button>
                         <span className={`badge ${getRoleBadgeStyle(person.role)}`}>
                           {getRoleLabel(person.role)}
                         </span>
-                      </button>
+                      </div>
                     )
                   })}
                 </div>

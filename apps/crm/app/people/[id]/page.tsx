@@ -89,6 +89,8 @@ export default async function PersonPage({ params }: { params: Promise<{ id: str
           activeCompanies={activeCompanies as any}
           canEdit={canEdit}
           isPartner={isPartner}
+          currentUserId={currentPerson.id}
+          currentUserName={currentPerson.first_name || 'User'}
         />
       </main>
     </div>
