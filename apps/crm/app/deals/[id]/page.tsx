@@ -69,6 +69,7 @@ export default async function DeliberationDetailPage({
 
   const applicationData = {
     id: application.id,
+    company_id: application.company_id,
     company_name: application.company_name,
     founder_names: application.founder_names,
     founder_linkedins: application.founder_linkedins,

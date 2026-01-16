@@ -8,58 +8,47 @@ import DeleteNoteModal from '../DeleteNoteModal'
 // TYPES
 // ============================================================================
 
-export type NoteType = 'application' | 'investment' | 'person'
-
-type TableName = 'saifcrm_meeting_notes' | 'saifcrm_investment_notes' | 'saifcrm_people_notes'
+export type NoteContextType = 'deal' | 'portfolio' | 'person' | 'company'
 
 type BaseNote = {
   id: string
+  company_id?: string
+  person_id?: string
   user_id: string
   content: string
   meeting_date: string
+  context_type: NoteContextType | null
+  context_id: string | null
   created_at: string
-  updated_at?: string
+  updated_at?: string | null
   user_name?: string
 }
 
-type NotesListProps = {
-  noteType: NoteType
-  entityId: string
+// For company-linked notes (deal, portfolio, company pages)
+type CompanyNotesListProps = {
+  mode?: 'company'  // Default mode
+  companyId: string  // Required: fetch all notes for this company
+  personId?: never
   refreshTrigger: number
   excludeNoteId?: string | null
   deliberationNotes?: string | null
   showHeader?: boolean
+  filterByContext?: NoteContextType
 }
 
-// ============================================================================
-// TABLE & COLUMN CONFIGURATION
-// ============================================================================
-
-const NOTE_CONFIG: Record<NoteType, {
-  table: TableName
-  foreignKey: string
-  authorJoin: string
-  channelPrefix: string
-}> = {
-  application: {
-    table: 'saifcrm_meeting_notes',
-    foreignKey: 'application_id',
-    authorJoin: 'author:saif_people!meeting_notes_user_id_fkey(name, first_name, last_name)',
-    channelPrefix: 'meeting-notes',
-  },
-  investment: {
-    table: 'saifcrm_investment_notes',
-    foreignKey: 'investment_id',
-    authorJoin: 'author:saif_people!saifcrm_investment_notes_user_id_fkey(name, first_name, last_name)',
-    channelPrefix: 'investment-notes',
-  },
-  person: {
-    table: 'saifcrm_people_notes',
-    foreignKey: 'person_id',
-    authorJoin: 'author:saif_people!saifcrm_people_notes_user_id_fkey(name, first_name, last_name)',
-    channelPrefix: 'people-notes',
-  },
+// For person-only notes (people page)
+type PersonNotesListProps = {
+  mode: 'person-only'
+  personId: string  // Required: fetch notes for this person
+  companyId?: never
+  refreshTrigger: number
+  excludeNoteId?: string | null
+  deliberationNotes?: string | null
+  showHeader?: boolean
+  filterByContext?: never
 }
+
+type NotesListProps = CompanyNotesListProps | PersonNotesListProps
 
 // ============================================================================
 // HELPER FUNCTIONS
@@ -101,6 +90,21 @@ function groupNotesByDate<T extends { meeting_date: string }>(notes: T[]): Recor
     grouped[date].push(note)
   }
   return grouped
+}
+
+function getContextBadge(contextType: NoteContextType | null): { label: string; color: string } | null {
+  switch (contextType) {
+    case 'deal':
+      return { label: 'Deal', color: 'bg-blue-100 text-blue-700' }
+    case 'portfolio':
+      return { label: 'Portfolio', color: 'bg-green-100 text-green-700' }
+    case 'person':
+      return { label: 'Person', color: 'bg-purple-100 text-purple-700' }
+    case 'company':
+      return { label: 'Company', color: 'bg-gray-100 text-gray-700' }
+    default:
+      return null
+  }
 }
 
 // ============================================================================
@@ -148,13 +152,25 @@ function DeliberationNotesSection({ notes }: { notes: string }) {
   )
 }
 
-function NoteCard({ note, onDelete }: { note: BaseNote; onDelete: (note: BaseNote) => void }) {
+function NoteCard({ note, onDelete, showContextBadge = true }: { note: BaseNote; onDelete: (note: BaseNote) => void; showContextBadge?: boolean }) {
+  const badge = showContextBadge ? getContextBadge(note.context_type) : null
+
   return (
     <div className="bg-gray-50 rounded-lg p-4 border border-gray-100 group">
       <div className="flex items-start gap-3">
-        <p className="text-gray-700 whitespace-pre-wrap break-words break-all flex-1">
-          {note.content}
-        </p>
+        <div className="flex-1">
+          {badge && (
+            <span className={`inline-block text-xs font-medium px-2 py-0.5 rounded mb-2 ${badge.color}`}>
+              {badge.label}
+            </span>
+          )}
+          <p className="text-gray-700 whitespace-pre-wrap break-words break-all">
+            {note.content}
+          </p>
+          {note.user_name && (
+            <p className="text-xs text-gray-400 mt-2">— {note.user_name}</p>
+          )}
+        </div>
         <button
           onClick={() => onDelete(note)}
           className="opacity-0 group-hover:opacity-100 p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all flex-shrink-0"
@@ -174,11 +190,13 @@ function DateGroup({
   notes,
   onDeleteNote,
   useLongDate = true,
+  showContextBadge = true,
 }: {
   date: string
   notes: BaseNote[]
   onDeleteNote: (note: BaseNote) => void
   useLongDate?: boolean
+  showContextBadge?: boolean
 }) {
   return (
     <div>
@@ -190,7 +208,7 @@ function DateGroup({
       </h4>
       <div className="space-y-3">
         {notes.map((note) => (
-          <NoteCard key={note.id} note={note} onDelete={onDeleteNote} />
+          <NoteCard key={note.id} note={note} onDelete={onDeleteNote} showContextBadge={showContextBadge} />
         ))}
       </div>
     </div>
@@ -201,14 +219,19 @@ function DateGroup({
 // MAIN COMPONENT
 // ============================================================================
 
-export default function NotesList({
-  noteType,
-  entityId,
-  refreshTrigger,
-  excludeNoteId,
-  deliberationNotes,
-  showHeader = false,
-}: NotesListProps) {
+export default function NotesList(props: NotesListProps) {
+  const {
+    refreshTrigger,
+    excludeNoteId,
+    deliberationNotes,
+    showHeader = false,
+  } = props
+
+  const mode = props.mode || 'company'
+  const companyId = mode === 'company' ? (props as CompanyNotesListProps).companyId : undefined
+  const personId = mode === 'person-only' ? (props as PersonNotesListProps).personId : undefined
+  const filterByContext = mode === 'company' ? (props as CompanyNotesListProps).filterByContext : undefined
+
   const [notes, setNotes] = useState<BaseNote[]>([])
   const [loading, setLoading] = useState(true)
   const [noteToDelete, setNoteToDelete] = useState<BaseNote | null>(null)
@@ -216,47 +239,85 @@ export default function NotesList({
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const supabase = createClient()
-  const config = NOTE_CONFIG[noteType]
 
   const fetchNotes = useCallback(async () => {
-    const { data, error } = await supabase
-      .from(config.table)
-      .select(`*, ${config.authorJoin}`)
-      .eq(config.foreignKey, entityId)
-      .order('meeting_date', { ascending: false })
-      .order('created_at', { ascending: false })
+    if (mode === 'person-only' && personId) {
+      // Fetch person-only notes from saifcrm_people_notes
+      const { data, error } = await supabase
+        .from('saifcrm_people_notes')
+        .select(`*, author:saif_people!saifcrm_people_notes_user_id_fkey(name, first_name, last_name)`)
+        .eq('person_id', personId)
+        .order('meeting_date', { ascending: false })
+        .order('created_at', { ascending: false })
 
-    if (error) {
-      console.error(`Error fetching ${noteType} notes:`, error)
-    }
+      if (error) {
+        console.error('Error fetching people notes:', error)
+      }
 
-    if (!error && data) {
-      setNotes(
-        data.map((note: any) => ({
-          ...note,
-          user_name: getAuthorName(note.author),
-        }))
-      )
+      if (!error && data) {
+        setNotes(
+          data.map((note: any) => ({
+            ...note,
+            context_type: null,
+            context_id: null,
+            user_name: getAuthorName(note.author),
+          }))
+        )
+      }
+    } else if (companyId) {
+      // Fetch company-linked notes from saifcrm_company_notes
+      let query = supabase
+        .from('saifcrm_company_notes')
+        .select(`*, author:saif_people!saifcrm_company_notes_user_id_fkey(name, first_name, last_name)`)
+        .eq('company_id', companyId)
+        .order('meeting_date', { ascending: false })
+        .order('created_at', { ascending: false })
+
+      // Optionally filter by context type
+      if (filterByContext) {
+        query = query.eq('context_type', filterByContext)
+      }
+
+      const { data, error } = await query
+
+      if (error) {
+        console.error('Error fetching company notes:', error)
+      }
+
+      if (!error && data) {
+        setNotes(
+          data.map((note: any) => ({
+            ...note,
+            user_name: getAuthorName(note.author),
+          }))
+        )
+      }
     }
     setLoading(false)
-  }, [entityId, supabase, config, noteType])
+  }, [mode, companyId, personId, supabase, filterByContext])
 
   // Fetch notes on mount and when refreshTrigger changes
   useEffect(() => {
     fetchNotes()
   }, [fetchNotes, refreshTrigger])
 
-  // Real-time subscription for DELETE events only
+  // Real-time subscription for changes
   useEffect(() => {
+    const tableName = mode === 'person-only' ? 'saifcrm_people_notes' : 'saifcrm_company_notes'
+    const filterColumn = mode === 'person-only' ? 'person_id' : 'company_id'
+    const filterId = mode === 'person-only' ? personId : companyId
+
+    if (!filterId) return
+
     const channel = supabase
-      .channel(`${config.channelPrefix}-${entityId}`)
+      .channel(`notes-${mode}-${filterId}`)
       .on(
         'postgres_changes',
         {
-          event: 'DELETE',
+          event: '*',
           schema: 'public',
-          table: config.table,
-          filter: `${config.foreignKey}=eq.${entityId}`,
+          table: tableName,
+          filter: `${filterColumn}=eq.${filterId}`,
         },
         () => {
           fetchNotes()
@@ -267,7 +328,7 @@ export default function NotesList({
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [entityId, supabase, fetchNotes, config])
+  }, [mode, companyId, personId, supabase, fetchNotes])
 
   async function handleDeleteNote(): Promise<void> {
     if (!noteToDelete) return
@@ -275,8 +336,10 @@ export default function NotesList({
     setIsDeleting(true)
     setDeleteError(null)
 
+    const tableName = mode === 'person-only' ? 'saifcrm_people_notes' : 'saifcrm_company_notes'
+
     const { data, error } = await supabase
-      .from(config.table)
+      .from(tableName)
       .delete()
       .eq('id', noteToDelete.id)
       .select()
@@ -320,7 +383,8 @@ export default function NotesList({
   }
 
   const groupedNotes = groupNotesByDate(filteredNotes)
-  const useLongDate = noteType === 'application'
+  // Show context badge only if not filtering by a specific context
+  const showContextBadge = !filterByContext
 
   return (
     <div className="space-y-6">
@@ -340,7 +404,8 @@ export default function NotesList({
           date={date}
           notes={dateNotes}
           onDeleteNote={setNoteToDelete}
-          useLongDate={useLongDate}
+          useLongDate={true}
+          showContextBadge={showContextBadge}
         />
       ))}
 

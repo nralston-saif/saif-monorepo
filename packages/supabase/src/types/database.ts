@@ -866,6 +866,61 @@ export interface Database {
           }
         ]
       }
+      saifcrm_company_notes: {
+        Row: {
+          id: string
+          company_id: string
+          user_id: string
+          content: string
+          meeting_date: string | null
+          context_type: 'deal' | 'portfolio' | 'person' | 'company' | null
+          context_id: string | null
+          migrated_from_table: string | null
+          migrated_from_id: string | null
+          created_at: string
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          user_id: string
+          content: string
+          meeting_date?: string | null
+          context_type?: 'deal' | 'portfolio' | 'person' | 'company' | null
+          context_id?: string | null
+          migrated_from_table?: string | null
+          migrated_from_id?: string | null
+          created_at?: string
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          company_id?: string
+          user_id?: string
+          content?: string
+          meeting_date?: string | null
+          context_type?: 'deal' | 'portfolio' | 'person' | 'company' | null
+          context_id?: string | null
+          migrated_from_table?: string | null
+          migrated_from_id?: string | null
+          created_at?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saifcrm_company_notes_company_id_fkey"
+            columns: ["company_id"]
+            referencedRelation: "saif_companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "saifcrm_company_notes_user_id_fkey"
+            columns: ["user_id"]
+            referencedRelation: "saif_people"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -918,6 +973,8 @@ export type Deliberation = Database['public']['Tables']['saifcrm_deliberations']
 export type CrmInvestment = Database['public']['Tables']['saifcrm_investments']['Row']
 export type InvestmentNote = Database['public']['Tables']['saifcrm_investment_notes']['Row']
 export type PeopleNote = Database['public']['Tables']['saifcrm_people_notes']['Row']
+export type CompanyNote = Database['public']['Tables']['saifcrm_company_notes']['Row']
+export type NoteContextType = 'deal' | 'portfolio' | 'person' | 'company'
 
 // Composite types
 export type PersonWithCompany = Person & {

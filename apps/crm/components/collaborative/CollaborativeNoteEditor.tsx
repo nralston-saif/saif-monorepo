@@ -17,10 +17,29 @@ import { CollaborativeTiptapEditor } from './CollaborativeTiptapEditor'
 // TYPES
 // ============================================================================
 
-export type NoteContext = {
-  type: 'application' | 'investment' | 'person' | 'meeting'
-  id: string  // applicationId, investmentId, personId, or meetingId
+// Context types for company-linked notes - matches database context_type
+export type NoteContextType = 'deal' | 'portfolio' | 'person' | 'company'
+
+// For general meeting notes (not company-specific)
+export type MeetingNoteContext = {
+  type: 'meeting'
+  id: string  // meetingId
 }
+
+// For person-only notes (stored in saifcrm_people_notes, not company-linked)
+export type PersonNoteContext = {
+  type: 'person-only'
+  id: string  // personId
+}
+
+// For company-linked notes (stored in saifcrm_company_notes)
+export type CompanyNoteContext = {
+  type: NoteContextType
+  id: string  // applicationId, investmentId, personId, or companyId
+  companyId: string  // Required: the company this note belongs to
+}
+
+export type NoteContext = CompanyNoteContext | MeetingNoteContext | PersonNoteContext
 
 export type SavedNote = {
   id: string
@@ -30,6 +49,7 @@ export type SavedNote = {
   updated_at?: string
   last_edited_by?: string
   last_edited_by_name?: string
+  context_type?: NoteContextType | null
 }
 
 type SaveStatus = 'idle' | 'unsaved' | 'saving' | 'saved' | 'error'
@@ -282,31 +302,28 @@ function EditorContent({
 
     try {
       if (sharedNoteId) {
-        // Update existing shared note - use explicit table queries
+        // Update existing shared note
         let error: Error | null = null
 
-        if (context.type === 'application') {
-          const result = await supabase
-            .from('saifcrm_meeting_notes')
-            .update({ content, meeting_date: meetingDate, user_id: userId })
-            .eq('id', sharedNoteId)
-          error = result.error
-        } else if (context.type === 'investment') {
-          const result = await supabase
-            .from('saifcrm_investment_notes')
-            .update({ content, meeting_date: meetingDate, user_id: userId })
-            .eq('id', sharedNoteId)
-          error = result.error
-        } else if (context.type === 'person') {
-          const result = await supabase
-            .from('saifcrm_people_notes')
-            .update({ content, meeting_date: meetingDate, user_id: userId })
-            .eq('id', sharedNoteId)
-          error = result.error
-        } else if (context.type === 'meeting') {
+        if (context.type === 'meeting') {
+          // Meeting notes use the separate meeting notes table
           const result = await supabase
             .from('saif_meeting_notes')
             .update({ content })
+            .eq('id', sharedNoteId)
+          error = result.error
+        } else if (context.type === 'person-only') {
+          // Person-only notes use the people notes table
+          const result = await supabase
+            .from('saifcrm_people_notes')
+            .update({ content, meeting_date: meetingDate })
+            .eq('id', sharedNoteId)
+          error = result.error
+        } else {
+          // Company-linked notes use the unified company notes table
+          const result = await supabase
+            .from('saifcrm_company_notes')
+            .update({ content, meeting_date: meetingDate, user_id: userId })
             .eq('id', sharedNoteId)
           error = result.error
         }
@@ -322,38 +339,47 @@ function EditorContent({
           return
         }
 
-        // Create new shared note - use explicit table queries
+        // Create new shared note
         let newNoteId: string | null = null
         let error: Error | null = null
 
-        if (context.type === 'application') {
-          const result = await supabase
-            .from('saifcrm_meeting_notes')
-            .insert({ application_id: context.id, content, meeting_date: meetingDate, user_id: userId })
-            .select('id')
-            .single()
-          error = result.error
-          newNoteId = result.data?.id || null
-        } else if (context.type === 'investment') {
-          const result = await supabase
-            .from('saifcrm_investment_notes')
-            .insert({ investment_id: context.id, content, meeting_date: meetingDate, user_id: userId })
-            .select('id')
-            .single()
-          error = result.error
-          newNoteId = result.data?.id || null
-        } else if (context.type === 'person') {
-          const result = await supabase
-            .from('saifcrm_people_notes')
-            .insert({ person_id: context.id, content, meeting_date: meetingDate, user_id: userId })
-            .select('id')
-            .single()
-          error = result.error
-          newNoteId = result.data?.id || null
-        } else if (context.type === 'meeting') {
+        if (context.type === 'meeting') {
+          // Meeting notes use the separate meeting notes table
           const result = await supabase
             .from('saif_meeting_notes')
             .insert({ meeting_id: context.id, content, author_id: userId })
+            .select('id')
+            .single()
+          error = result.error
+          newNoteId = result.data?.id || null
+        } else if (context.type === 'person-only') {
+          // Person-only notes use the people notes table
+          const result = await supabase
+            .from('saifcrm_people_notes')
+            .insert({
+              person_id: context.id,
+              content,
+              meeting_date: meetingDate,
+              user_id: userId,
+            })
+            .select('id')
+            .single()
+          error = result.error
+          newNoteId = result.data?.id || null
+        } else {
+          // Company-linked notes use the unified company notes table
+          // context is CompanyNoteContext here (has companyId)
+          const companyContext = context as CompanyNoteContext
+          const result = await supabase
+            .from('saifcrm_company_notes')
+            .insert({
+              company_id: companyContext.companyId,
+              content,
+              meeting_date: meetingDate,
+              user_id: userId,
+              context_type: companyContext.type,
+              context_id: companyContext.type === 'company' ? null : companyContext.id,
+            })
             .select('id')
             .single()
           error = result.error
@@ -602,69 +628,74 @@ function EditorWithoutLiveblocks({
 
     try {
       if (sharedNoteId) {
-        // Update existing note - use explicit table queries
+        // Update existing note
         let error: Error | null = null
 
-        if (context.type === 'application') {
-          const result = await supabase
-            .from('saifcrm_meeting_notes')
-            .update({ content: noteContent, meeting_date: meetingDate, user_id: userId })
-            .eq('id', sharedNoteId)
-          error = result.error
-        } else if (context.type === 'investment') {
-          const result = await supabase
-            .from('saifcrm_investment_notes')
-            .update({ content: noteContent, meeting_date: meetingDate, user_id: userId })
-            .eq('id', sharedNoteId)
-          error = result.error
-        } else if (context.type === 'person') {
-          const result = await supabase
-            .from('saifcrm_people_notes')
-            .update({ content: noteContent, meeting_date: meetingDate, user_id: userId })
-            .eq('id', sharedNoteId)
-          error = result.error
-        } else if (context.type === 'meeting') {
+        if (context.type === 'meeting') {
+          // Meeting notes use the separate meeting notes table
           const result = await supabase
             .from('saif_meeting_notes')
             .update({ content: noteContent })
+            .eq('id', sharedNoteId)
+          error = result.error
+        } else if (context.type === 'person-only') {
+          // Person-only notes use the people notes table
+          const result = await supabase
+            .from('saifcrm_people_notes')
+            .update({ content: noteContent, meeting_date: meetingDate })
+            .eq('id', sharedNoteId)
+          error = result.error
+        } else {
+          // Company-linked notes use the unified company notes table
+          const result = await supabase
+            .from('saifcrm_company_notes')
+            .update({ content: noteContent, meeting_date: meetingDate, user_id: userId })
             .eq('id', sharedNoteId)
           error = result.error
         }
 
         if (error) throw error
       } else if (noteContent) {
-        // Create new note - use explicit table queries
+        // Create new note
         let newNoteId: string | null = null
         let error: Error | null = null
 
-        if (context.type === 'application') {
-          const result = await supabase
-            .from('saifcrm_meeting_notes')
-            .insert({ application_id: context.id, content: noteContent, meeting_date: meetingDate, user_id: userId })
-            .select('id')
-            .single()
-          error = result.error
-          newNoteId = result.data?.id || null
-        } else if (context.type === 'investment') {
-          const result = await supabase
-            .from('saifcrm_investment_notes')
-            .insert({ investment_id: context.id, content: noteContent, meeting_date: meetingDate, user_id: userId })
-            .select('id')
-            .single()
-          error = result.error
-          newNoteId = result.data?.id || null
-        } else if (context.type === 'person') {
-          const result = await supabase
-            .from('saifcrm_people_notes')
-            .insert({ person_id: context.id, content: noteContent, meeting_date: meetingDate, user_id: userId })
-            .select('id')
-            .single()
-          error = result.error
-          newNoteId = result.data?.id || null
-        } else if (context.type === 'meeting') {
+        if (context.type === 'meeting') {
+          // Meeting notes use the separate meeting notes table
           const result = await supabase
             .from('saif_meeting_notes')
             .insert({ meeting_id: context.id, content: noteContent, author_id: userId })
+            .select('id')
+            .single()
+          error = result.error
+          newNoteId = result.data?.id || null
+        } else if (context.type === 'person-only') {
+          // Person-only notes use the people notes table
+          const result = await supabase
+            .from('saifcrm_people_notes')
+            .insert({
+              person_id: context.id,
+              content: noteContent,
+              meeting_date: meetingDate,
+              user_id: userId,
+            })
+            .select('id')
+            .single()
+          error = result.error
+          newNoteId = result.data?.id || null
+        } else {
+          // Company-linked notes use the unified company notes table
+          const companyContext = context as CompanyNoteContext
+          const result = await supabase
+            .from('saifcrm_company_notes')
+            .insert({
+              company_id: companyContext.companyId,
+              content: noteContent,
+              meeting_date: meetingDate,
+              user_id: userId,
+              context_type: companyContext.type,
+              context_id: companyContext.type === 'company' ? null : companyContext.id,
+            })
             .select('id')
             .single()
           error = result.error

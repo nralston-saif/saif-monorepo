@@ -535,6 +535,7 @@ export default function PortfolioClient({
       {meetingNotesInvestment && (
         <InvestmentMeetingNotes
           investmentId={meetingNotesInvestment.id}
+          companyId={meetingNotesInvestment.company_id}
           companyName={meetingNotesInvestment.company_name}
           userId={userId}
           userName={userName}

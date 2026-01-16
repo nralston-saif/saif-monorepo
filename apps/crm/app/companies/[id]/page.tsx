@@ -117,6 +117,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
         canEdit={canEdit}
         isPartner={isPartner}
         currentPersonId={currentPerson.id}
+        userName={userName}
       />
     </div>
   )

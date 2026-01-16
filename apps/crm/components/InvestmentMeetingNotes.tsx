@@ -1,11 +1,10 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
-import { CollaborativeNoteEditor } from './collaborative'
-import { NotesList } from './shared'
+import CompanyNotes from './CompanyNotes'
 
 type InvestmentMeetingNotesProps = {
   investmentId: string
+  companyId: string
   companyName: string
   userId: string
   userName: string
@@ -14,29 +13,12 @@ type InvestmentMeetingNotesProps = {
 
 export default function InvestmentMeetingNotes({
   investmentId,
+  companyId,
   companyName,
   userId,
   userName,
   onClose,
 }: InvestmentMeetingNotesProps) {
-  const [refreshTrigger, setRefreshTrigger] = useState(0)
-  const [currentNoteId, setCurrentNoteId] = useState<string | null | undefined>(undefined)
-  const prevCurrentNoteIdRef = useRef<string | null | undefined>(undefined)
-
-  // Detect when sharedNoteId transitions from a value to null (Save & New clicked)
-  useEffect(() => {
-    const prev = prevCurrentNoteIdRef.current
-    prevCurrentNoteIdRef.current = currentNoteId
-
-    if (prev && prev !== undefined && currentNoteId === null) {
-      setRefreshTrigger((p) => p + 1)
-    }
-  }, [currentNoteId])
-
-  function handleNoteSaved(): void {
-    setRefreshTrigger((prev) => prev + 1)
-  }
-
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal-content max-w-2xl" onClick={(e) => e.stopPropagation()}>
@@ -59,28 +41,17 @@ export default function InvestmentMeetingNotes({
         </div>
 
         {/* Modal Content */}
-        <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
-          <CollaborativeNoteEditor
-            key={investmentId}
-            context={{ type: 'investment', id: investmentId }}
+        <div className="p-6 max-h-[70vh] overflow-y-auto">
+          <CompanyNotes
+            companyId={companyId}
+            companyName={companyName}
             userId={userId}
             userName={userName}
-            showDatePicker={true}
+            contextType="portfolio"
+            contextId={investmentId}
             placeholder="Type your meeting notes here... Changes auto-save and sync in real-time with other users."
             minHeight="200px"
-            onNoteSaved={handleNoteSaved}
-            onCurrentNoteIdChange={setCurrentNoteId}
           />
-
-          {currentNoteId !== undefined && (
-            <NotesList
-              noteType="investment"
-              entityId={investmentId}
-              refreshTrigger={refreshTrigger}
-              excludeNoteId={currentNoteId}
-              showHeader={true}
-            />
-          )}
         </div>
 
         {/* Modal Footer */}

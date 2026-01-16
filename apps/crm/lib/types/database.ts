@@ -1181,6 +1181,63 @@ export type Database = {
           },
         ]
       }
+      saifcrm_company_notes: {
+        Row: {
+          id: string
+          company_id: string
+          user_id: string
+          content: string
+          meeting_date: string
+          context_type: string | null
+          context_id: string | null
+          migrated_from_table: string | null
+          migrated_from_id: string | null
+          created_at: string
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          user_id: string
+          content?: string
+          meeting_date?: string
+          context_type?: string | null
+          context_id?: string | null
+          migrated_from_table?: string | null
+          migrated_from_id?: string | null
+          created_at?: string
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          company_id?: string
+          user_id?: string
+          content?: string
+          meeting_date?: string
+          context_type?: string | null
+          context_id?: string | null
+          migrated_from_table?: string | null
+          migrated_from_id?: string | null
+          created_at?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saifcrm_company_notes_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "saif_companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "saifcrm_company_notes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "saif_people"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       saifcrm_votes: {
         Row: {
           application_id: string

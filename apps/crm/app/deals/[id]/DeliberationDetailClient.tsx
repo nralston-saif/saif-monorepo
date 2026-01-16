@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import MeetingNotes from '@/components/MeetingNotes'
+import CompanyNotes from '@/components/CompanyNotes'
 import { useToast } from '@saif/ui'
 import CreateTicketButton from '@/components/CreateTicketButton'
 import { ensureProtocol } from '@/lib/utils'
@@ -27,6 +27,7 @@ type Deliberation = {
 
 type Application = {
   id: string
+  company_id: string | null
   company_name: string
   founder_names: string | null
   founder_linkedins: string | null
@@ -576,12 +577,23 @@ export default function DeliberationDetailClient({
               </div>
             </div>
 
-            <MeetingNotes
-              applicationId={application.id}
-              userId={userId}
-              userName={userName}
-              deliberationNotes={application.deliberation?.thoughts}
-            />
+            {application.company_id ? (
+              <CompanyNotes
+                companyId={application.company_id}
+                companyName={application.company_name}
+                userId={userId}
+                userName={userName}
+                contextType="deal"
+                contextId={application.id}
+                deliberationNotes={application.deliberation?.thoughts}
+                placeholder="Type your meeting notes here... Changes auto-save and sync in real-time with other users."
+              />
+            ) : (
+              <div className="text-gray-500 text-center py-8">
+                <p>Notes require a linked company.</p>
+                <p className="text-sm">Please link this application to a company first.</p>
+              </div>
+            )}
           </div>
         </div>
       </div>

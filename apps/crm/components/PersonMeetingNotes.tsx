@@ -62,7 +62,7 @@ export default function PersonMeetingNotes({
         <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
           <CollaborativeNoteEditor
             key={personId}
-            context={{ type: 'person', id: personId }}
+            context={{ type: 'person-only', id: personId }}
             userId={userId}
             userName={userName}
             showDatePicker={true}
@@ -74,8 +74,8 @@ export default function PersonMeetingNotes({
 
           {currentNoteId !== undefined && (
             <NotesList
-              noteType="person"
-              entityId={personId}
+              mode="person-only"
+              personId={personId}
               refreshTrigger={refreshTrigger}
               excludeNoteId={currentNoteId}
               showHeader={true}

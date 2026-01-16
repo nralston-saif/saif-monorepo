@@ -8,6 +8,7 @@ import type { Database } from '@/lib/types/database'
 import CreateTicketButton from '@/components/CreateTicketButton'
 import PersonModal from '@/components/PersonModal'
 import TagSelector from '@/app/tickets/TagSelector'
+import CompanyNotes from '@/components/CompanyNotes'
 import { ensureProtocol } from '@/lib/utils'
 
 type Company = Database['public']['Tables']['saif_companies']['Row']
@@ -45,9 +46,10 @@ interface CompanyViewProps {
   canEdit: boolean
   isPartner: boolean
   currentPersonId: string
+  userName: string
 }
 
-export default function CompanyView({ company, canEdit, isPartner, currentPersonId }: CompanyViewProps) {
+export default function CompanyView({ company, canEdit, isPartner, currentPersonId, userName }: CompanyViewProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const supabase = createClient()
@@ -1328,6 +1330,20 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
                   {investment.acquirer && ` → ${investment.acquirer}`}
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* Notes Section */}
+          {isPartner && (
+            <div className="bg-white border border-gray-200 rounded-lg p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Notes</h2>
+              <CompanyNotes
+                companyId={company.id}
+                companyName={company.name}
+                userId={currentPersonId}
+                userName={userName}
+                contextType="company"
+              />
             </div>
           )}
 
