@@ -53,6 +53,49 @@ export default function BioMapClient({
   const [selectedPerson, setSelectedPerson] = useState<BioMapPerson | null>(null)
   const [selectedOrganization, setSelectedOrganization] = useState<BioMapOrganization | null>(null)
 
+  // Organization filters
+  const [typeFilter, setTypeFilter] = useState<string>('all')
+
+  // People filters
+  const [roleFilter, setRoleFilter] = useState<string>('all')
+  const [orgFilter, setOrgFilter] = useState<string>('all')
+  const [locationFilter, setLocationFilter] = useState<string>('all')
+
+  // Get unique values for filter dropdowns
+  const uniqueTypes = useMemo(() => {
+    const types = new Set<string>()
+    organizations.forEach(org => {
+      if (org.entity_type) types.add(org.entity_type)
+    })
+    return Array.from(types).sort()
+  }, [organizations])
+
+  const uniqueRoles = useMemo(() => {
+    const roles = new Set<string>()
+    people.forEach(p => {
+      if (p.role) roles.add(p.role)
+    })
+    return Array.from(roles).sort()
+  }, [people])
+
+  const uniqueOrgs = useMemo(() => {
+    const orgs = new Set<string>()
+    people.forEach(p => {
+      p.company_associations.forEach(ca => {
+        if (ca.company?.name) orgs.add(ca.company.name)
+      })
+    })
+    return Array.from(orgs).sort()
+  }, [people])
+
+  const uniqueLocations = useMemo(() => {
+    const locations = new Set<string>()
+    people.forEach(p => {
+      if (p.location) locations.add(p.location)
+    })
+    return Array.from(locations).sort()
+  }, [people])
+
   // Filter people
   const filteredPeople = useMemo(() => {
     let filtered = people
@@ -62,6 +105,23 @@ export default function BioMapClient({
       filtered = filtered.filter(p =>
         p.tags.some(t => t.toLowerCase() === selectedTag.toLowerCase())
       )
+    }
+
+    // Apply role filter
+    if (roleFilter !== 'all') {
+      filtered = filtered.filter(p => p.role === roleFilter)
+    }
+
+    // Apply organization filter
+    if (orgFilter !== 'all') {
+      filtered = filtered.filter(p =>
+        p.company_associations.some(ca => ca.company?.name === orgFilter)
+      )
+    }
+
+    // Apply location filter
+    if (locationFilter !== 'all') {
+      filtered = filtered.filter(p => p.location === locationFilter)
     }
 
     // Apply search
@@ -95,7 +155,7 @@ export default function BioMapClient({
     })
 
     return filtered
-  }, [people, searchQuery, selectedTag, sortOption])
+  }, [people, searchQuery, selectedTag, sortOption, roleFilter, orgFilter, locationFilter])
 
   // Filter organizations
   const filteredOrganizations = useMemo(() => {
@@ -106,6 +166,11 @@ export default function BioMapClient({
       filtered = filtered.filter(o =>
         o.tags.some(t => t.toLowerCase() === selectedTag.toLowerCase())
       )
+    }
+
+    // Apply type filter
+    if (typeFilter !== 'all') {
+      filtered = filtered.filter(o => o.entity_type === typeFilter)
     }
 
     // Apply search
@@ -139,7 +204,7 @@ export default function BioMapClient({
     })
 
     return filtered
-  }, [organizations, searchQuery, selectedTag, sortOption])
+  }, [organizations, searchQuery, selectedTag, sortOption, typeFilter])
 
   // Get primary company for a person
   const getPrimaryCompany = (person: BioMapPerson): string | null => {
@@ -210,33 +275,95 @@ export default function BioMapClient({
             </select>
           </div>
         </div>
-        {bioTags.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => setSelectedTag('all')}
-              className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
-                selectedTag === 'all'
-                  ? 'bg-green-600 text-white'
-                  : 'bg-green-100 text-green-800 hover:bg-green-200'
-              }`}
-            >
-              All Tags
-            </button>
-            {bioTags.map(tag => (
-              <button
-                key={tag}
-                onClick={() => setSelectedTag(tag)}
-                className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
-                  selectedTag === tag
-                    ? 'bg-green-600 text-white'
-                    : 'bg-green-100 text-green-800 hover:bg-green-200'
-                }`}
+
+        {/* Filter dropdowns - different for organizations vs people */}
+        <div className="flex flex-wrap gap-3">
+          {viewMode === 'organizations' ? (
+            // Organization filters
+            <>
+              <select
+                value={typeFilter}
+                onChange={(e) => setTypeFilter(e.target.value)}
+                className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-gray-900 focus:border-gray-900"
               >
-                {tag}
-              </button>
-            ))}
-          </div>
-        )}
+                <option value="all">All Types</option>
+                {uniqueTypes.map(type => (
+                  <option key={type} value={type}>
+                    {ENTITY_TYPE_LABELS[type] || type}
+                  </option>
+                ))}
+              </select>
+              {bioTags.length > 0 && (
+                <select
+                  value={selectedTag}
+                  onChange={(e) => setSelectedTag(e.target.value)}
+                  className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-gray-900 focus:border-gray-900"
+                >
+                  <option value="all">All Focus</option>
+                  {bioTags.map(tag => (
+                    <option key={tag} value={tag}>
+                      {tag}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </>
+          ) : (
+            // People filters
+            <>
+              <select
+                value={roleFilter}
+                onChange={(e) => setRoleFilter(e.target.value)}
+                className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-gray-900 focus:border-gray-900"
+              >
+                <option value="all">All Roles</option>
+                {uniqueRoles.map(role => (
+                  <option key={role} value={role}>
+                    {ROLE_LABELS[role] || role}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={orgFilter}
+                onChange={(e) => setOrgFilter(e.target.value)}
+                className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-gray-900 focus:border-gray-900"
+              >
+                <option value="all">All Organizations</option>
+                {uniqueOrgs.map(org => (
+                  <option key={org} value={org}>
+                    {org}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={locationFilter}
+                onChange={(e) => setLocationFilter(e.target.value)}
+                className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-gray-900 focus:border-gray-900"
+              >
+                <option value="all">All Locations</option>
+                {uniqueLocations.map(loc => (
+                  <option key={loc} value={loc}>
+                    {loc}
+                  </option>
+                ))}
+              </select>
+              {bioTags.length > 0 && (
+                <select
+                  value={selectedTag}
+                  onChange={(e) => setSelectedTag(e.target.value)}
+                  className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-gray-900 focus:border-gray-900"
+                >
+                  <option value="all">All Tags</option>
+                  {bioTags.map(tag => (
+                    <option key={tag} value={tag}>
+                      {tag}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </>
+          )}
+        </div>
       </div>
 
       {/* Content */}
