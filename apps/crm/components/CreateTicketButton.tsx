@@ -156,7 +156,7 @@ function QuickTicketModal({
 
     setLoading(true)
 
-    const { error } = await supabase.from('saif_tickets').insert({
+    const { data, error } = await supabase.from('saif_tickets').insert({
       title: formData.title.trim(),
       description: formData.description.trim() || null,
       status: formData.status,
@@ -168,7 +168,7 @@ function QuickTicketModal({
       tags: formData.tags.length > 0 ? formData.tags : null,
       created_by: currentUserId,
       was_unassigned_at_creation: !formData.assigned_to,
-    })
+    }).select('id').single()
 
     setLoading(false)
 
@@ -177,6 +177,28 @@ function QuickTicketModal({
       console.error(error)
     } else {
       showToast('Ticket created successfully', 'success')
+
+      // Send notification if assigned to someone else
+      if (formData.assigned_to && formData.assigned_to !== currentUserId && data?.id) {
+        const currentUser = partners.find(p => p.id === currentUserId)
+        const currentUserName = currentUser
+          ? `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || 'Someone'
+          : 'Someone'
+
+        fetch('/api/notifications/ticket', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'assigned',
+            ticketId: data.id,
+            ticketTitle: formData.title.trim(),
+            targetId: formData.assigned_to,
+            actorId: currentUserId,
+            actorName: currentUserName,
+          }),
+        }).catch(console.error)
+      }
+
       onClose()
       if (onSuccess) {
         onSuccess()
