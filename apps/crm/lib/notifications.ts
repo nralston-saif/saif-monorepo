@@ -47,8 +47,11 @@ async function maybeSendSMSNotification(
   title: string,
   message?: string
 ) {
+  console.log('[SMS] Starting maybeSendSMSNotification:', { recipientId, type, title })
+
   // Skip if this notification type isn't SMS-eligible
   if (!SMS_ELIGIBLE_TYPES.includes(type)) {
+    console.log('[SMS] Type not SMS-eligible:', type)
     return
   }
 
@@ -66,8 +69,15 @@ async function maybeSendSMSNotification(
     return
   }
 
+  console.log('[SMS] Recipient preferences:', {
+    sms_enabled: recipient.sms_notifications_enabled,
+    phone: recipient.mobile_phone ? 'set' : 'missing',
+    types: recipient.sms_notification_types
+  })
+
   // Check if SMS is enabled globally for this user
   if (!recipient.sms_notifications_enabled) {
+    console.log('[SMS] SMS not enabled for user')
     return
   }
 
@@ -80,12 +90,15 @@ async function maybeSendSMSNotification(
   // Check if this notification type is enabled for SMS
   const enabledTypes = recipient.sms_notification_types || []
   if (!enabledTypes.includes(type)) {
+    console.log('[SMS] Type not in user enabled types:', { type, enabledTypes })
     return
   }
 
   // Format and send SMS
   const smsText = formatNotificationForSMS(title, message)
-  await sendSMS(recipient.mobile_phone, smsText)
+  console.log('[SMS] Attempting to send:', { to: recipient.mobile_phone, text: smsText })
+  const result = await sendSMS(recipient.mobile_phone, smsText)
+  console.log('[SMS] Send result:', result)
 }
 
 /**
@@ -110,9 +123,13 @@ export async function createNotification(params: CreateNotificationParams) {
   if (error) {
     console.error('Error creating notification:', error)
   } else {
-    // Send SMS notification if recipient has opted in (fire and forget)
-    maybeSendSMSNotification(params.recipientId, params.type, params.title, params.message)
-      .catch(err => console.error('[SMS] Error sending SMS:', err))
+    // Send SMS notification if recipient has opted in
+    // Must await on serverless to ensure it completes before function terminates
+    try {
+      await maybeSendSMSNotification(params.recipientId, params.type, params.title, params.message)
+    } catch (err) {
+      console.error('[SMS] Error sending SMS:', err)
+    }
   }
 
   return { error }
@@ -156,9 +173,9 @@ export async function createNotificationForMany(
   if (error) {
     console.error('Error creating notifications:', error)
   } else {
-    // Send SMS notifications to recipients who have opted in (fire and forget)
-    // Process in parallel for efficiency
-    Promise.all(
+    // Send SMS notifications to recipients who have opted in
+    // Must await on serverless to ensure it completes before function terminates
+    await Promise.all(
       recipients.map(recipientId =>
         maybeSendSMSNotification(recipientId, params.type, params.title, params.message)
           .catch(err => console.error(`[SMS] Error sending to ${recipientId}:`, err))
