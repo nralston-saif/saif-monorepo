@@ -876,11 +876,23 @@ export default function DealsClient({
     try {
       // Restore to previous_stage if available, otherwise default to 'application'
       const restoreStage = (detailArchivedApp.previous_stage as 'application' | 'interview') || 'application'
+      const wasRejected = detailArchivedApp.stage === 'rejected'
 
-      // Update application stage to the restored stage
+      // Update application stage and clear email fields
       const { error } = await supabase
         .from('saifcrm_applications')
-        .update({ stage: restoreStage, previous_stage: null })
+        .update({
+          stage: restoreStage,
+          previous_stage: null,
+          // Clear email fields when restoring from rejection
+          ...(wasRejected && {
+            email_sender_id: null,
+            email_sent: null,
+            email_sent_at: null,
+            draft_rejection_email: null,
+            original_draft_email: null,
+          }),
+        })
         .eq('id', detailArchivedApp.id)
 
       if (error) {
@@ -889,8 +901,14 @@ export default function DealsClient({
         return
       }
 
-      // Reset deliberation decision to pending if restoring to application stage
-      if (restoreStage === 'application') {
+      // Reset deliberation decision to pending when restoring from rejection
+      if (wasRejected) {
+        await supabase
+          .from('saifcrm_deliberations')
+          .update({ decision: 'pending' })
+          .eq('application_id', detailArchivedApp.id)
+      } else if (restoreStage === 'application') {
+        // Only reset status if restoring to application stage from portfolio
         await supabase
           .from('saifcrm_deliberations')
           .update({ decision: 'pending', status: null })
