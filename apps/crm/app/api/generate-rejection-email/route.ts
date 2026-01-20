@@ -267,17 +267,55 @@ export async function POST(request: NextRequest) {
       })
     }
 
+    // Fetch interview notes if rejected from interview stage
+    let interviewNotes: string[] = []
+    const isInterviewRejection = application.previous_stage === 'interview'
+
+    if (isInterviewRejection && application.company_id) {
+      const { data: companyNotes, error: notesError } = await supabase
+        .from('saifcrm_company_notes')
+        .select('content, meeting_date, saif_people(name)')
+        .eq('company_id', application.company_id)
+        .order('meeting_date', { ascending: false })
+        .limit(10)
+
+      if (notesError) {
+        console.error('Error fetching interview notes:', notesError)
+      }
+
+      if (companyNotes && companyNotes.length > 0) {
+        interviewNotes = companyNotes
+          .filter((note: any) => note.content && note.content.trim())
+          .map((note: any) => {
+            const author = (note.saif_people as { name: string } | null)?.name || 'Unknown'
+            const date = note.meeting_date || 'Unknown date'
+            return `[${date} - ${author}]: ${note.content}`
+          })
+      }
+    }
+
     // Build the user message with application details
-    const userMessage = `Generate a rejection email for this application:
+    let userMessage = `Generate a rejection email for this application:
 
 Company Name: ${application.company_name}
 Founder Name(s): ${application.founder_names || 'Unknown'}
 Company Description: ${application.company_description || 'No description provided'}
 Website: ${application.website || 'Not provided'}
 Previous Funding: ${application.previous_funding || 'Not provided'}
+Rejection Stage: ${isInterviewRejection ? 'After interviews (they passed initial application review)' : 'Initial application review'}
 
 Internal Notes from Partners (DO NOT share verbatim - use to inform your assessment):
-${internalNotes.length > 0 ? internalNotes.map((note, i) => `- ${note}`).join('\n') : '- No specific notes provided'}
+${internalNotes.length > 0 ? internalNotes.map((note) => `- ${note}`).join('\n') : '- No specific notes provided'}`
+
+    // Add interview notes if available
+    if (interviewNotes.length > 0) {
+      userMessage += `
+
+Interview Meeting Notes (DO NOT share verbatim - use to inform your assessment):
+${interviewNotes.map((note) => `- ${note}`).join('\n')}`
+    }
+
+    userMessage += `
 
 Generate ONLY the email text, nothing else.`
 

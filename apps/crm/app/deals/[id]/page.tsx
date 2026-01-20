@@ -53,6 +53,14 @@ export default async function DeliberationDetailPage({
 
   const peopleMap = new Map(people?.map((p) => [p.id, p.name]) || [])
 
+  // Get partners for email sender selection
+  const { data: partners } = await supabase
+    .from('saif_people')
+    .select('id, name')
+    .eq('role', 'partner')
+    .eq('status', 'active')
+    .order('name')
+
   // Transform votes
   const initialVotes = application.saifcrm_votes?.filter((v: any) => v.vote_type === 'initial') || []
   const votes = initialVotes.map((v: any) => ({
@@ -92,6 +100,7 @@ export default async function DeliberationDetailPage({
         application={applicationData as any}
         userId={profile?.id || ''}
         userName={profile?.first_name || 'User'}
+        partners={(partners || []).filter((p): p is { id: string; name: string } => p.name !== null)}
       />
     </div>
   )

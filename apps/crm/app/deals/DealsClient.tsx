@@ -410,6 +410,7 @@ export default function DealsClient({
   const [investmentTerms, setInvestmentTerms] = useState('')
   const [investmentDate, setInvestmentDate] = useState('')
   const [otherFunders, setOtherFunders] = useState('')
+  const [rejectionEmailSender, setRejectionEmailSender] = useState<string>('')
 
   // Detail modals
   const [detailVotingApp, setDetailVotingApp] = useState<VotingApplication | null>(null)
@@ -827,6 +828,7 @@ export default function DealsClient({
     setInvestmentTerms('10mm cap safe')
     setInvestmentDate(new Date().toISOString().split('T')[0])
     setOtherFunders('')
+    setRejectionEmailSender('')
   }
 
   async function handleMoveBackToApplication(): Promise<void> {
@@ -927,6 +929,13 @@ export default function DealsClient({
       }
     }
 
+    if (decision === 'no') {
+      if (!rejectionEmailSender) {
+        showToast('Please select who will send the rejection email', 'warning')
+        return
+      }
+    }
+
     setDelibLoading(true)
 
     try {
@@ -980,13 +989,61 @@ export default function DealsClient({
         // Sync company stage to portfolio
         await syncCompanyStage(selectedDelibApp.id, 'portfolio')
       } else if (decision === 'no') {
+        // Update application with rejection status and email sender
         await supabase
           .from('saifcrm_applications')
-          .update({ stage: 'rejected', previous_stage: 'interview' })
+          .update({
+            stage: 'rejected',
+            previous_stage: 'interview',
+            email_sender_id: rejectionEmailSender,
+            email_sent: false,
+            email_sent_at: null,
+            draft_rejection_email: null,
+            original_draft_email: null,
+          })
           .eq('id', selectedDelibApp.id)
 
         // Sync company stage to passed
         await syncCompanyStage(selectedDelibApp.id, 'rejected')
+
+        // Create ticket for sending rejection email
+        const ticketTitle = `Send rejection email: ${selectedDelibApp.company_name}${selectedDelibApp.primary_email ? ` (${selectedDelibApp.primary_email})` : ''}`
+        const ticketDescription = `Send rejection email to ${selectedDelibApp.company_name} (rejected from interviews).${selectedDelibApp.founder_names ? `\n\nFounders: ${selectedDelibApp.founder_names}` : ''}`
+
+        const { data: ticketData } = await supabase
+          .from('saif_tickets')
+          .insert({
+            title: ticketTitle,
+            description: ticketDescription,
+            status: 'open',
+            priority: 'medium',
+            assigned_to: rejectionEmailSender,
+            created_by: userId,
+            tags: ['email-follow-up', 'rejected', 'interview'],
+            application_id: selectedDelibApp.id,
+          })
+          .select('id')
+          .single()
+
+        // Send notification to the assigned person
+        if (ticketData?.id) {
+          const currentUserName = partners.find((p) => p.id === userId)?.name || 'Someone'
+          fetch('/api/notifications', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              recipientId: rejectionEmailSender,
+              type: 'ticket_assigned',
+              title: 'Rejection Email Assigned',
+              message: `${currentUserName} assigned you to send a rejection email to ${selectedDelibApp.company_name}`,
+              metadata: {
+                ticketId: ticketData.id,
+                companyName: selectedDelibApp.company_name,
+              },
+            }),
+          }).catch(console.error)
+        }
       }
 
       setSelectedDelibApp(null)
@@ -994,7 +1051,7 @@ export default function DealsClient({
       if (decision === 'yes') {
         showToast('Investment recorded and added to portfolio', 'success')
       } else if (decision === 'no') {
-        showToast('Application marked as rejected', 'success')
+        showToast('Application rejected - email task assigned', 'success')
       } else {
         showToast('Deliberation saved', 'success')
       }
@@ -2613,6 +2670,35 @@ export default function DealsClient({
                       onChange={(e) => setOtherFunders(e.target.value)}
                       className="input"
                     />
+                  </div>
+                </div>
+              )}
+
+              {/* Rejection Email Sender */}
+              {decision === 'no' && (
+                <div className="bg-red-50 rounded-xl p-3 border-2 border-red-200">
+                  <h3 className="text-sm font-semibold text-red-800 mb-2 flex items-center gap-2">
+                    <span>Rejection Email</span>
+                  </h3>
+                  <p className="text-sm text-red-700 mb-2">
+                    Select who will send the rejection email to the founders.
+                  </p>
+                  <div>
+                    <label className="block text-sm font-medium text-red-800 mb-1.5">
+                      Email Sender *
+                    </label>
+                    <select
+                      value={rejectionEmailSender}
+                      onChange={(e) => setRejectionEmailSender(e.target.value)}
+                      className="input"
+                    >
+                      <option value="">Select a partner...</option>
+                      {partners.map((partner) => (
+                        <option key={partner.id} value={partner.id}>
+                          {partner.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
               )}

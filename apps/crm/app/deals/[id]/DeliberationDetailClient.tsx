@@ -43,14 +43,21 @@ type Application = {
   deliberation: Deliberation
 }
 
+type Partner = {
+  id: string
+  name: string
+}
+
 export default function DeliberationDetailClient({
   application,
   userId,
   userName,
+  partners,
 }: {
   application: Application
   userId: string
   userName: string
+  partners: Partner[]
 }) {
   const [isEditingDeliberation, setIsEditingDeliberation] = useState(false)
   const [showDecisionModal, setShowDecisionModal] = useState(false)
@@ -68,6 +75,9 @@ export default function DeliberationDetailClient({
   const [investmentTerms, setInvestmentTerms] = useState('10mm cap safe')
   const [investmentDate, setInvestmentDate] = useState(new Date().toISOString().split('T')[0])
   const [otherFunders, setOtherFunders] = useState('')
+
+  // Rejection email sender (shown when decision is 'no')
+  const [rejectionEmailSender, setRejectionEmailSender] = useState<string>('')
 
   const router = useRouter()
   const supabase = createClient()
@@ -201,6 +211,14 @@ export default function DeliberationDetailClient({
       }
     }
 
+    // Validate email sender if decision is 'no'
+    if (decision === 'no') {
+      if (!rejectionEmailSender) {
+        showToast('Please select who will send the rejection email', 'warning')
+        return
+      }
+    }
+
     setLoading(true)
     try {
       const previousDecision = application.deliberation?.decision
@@ -258,16 +276,63 @@ export default function DeliberationDetailClient({
 
         showToast('Investment recorded and added to portfolio', 'success')
       } else if (decision === 'no') {
-        // Update application stage to rejected
+        // Update application with rejection status and email sender
         await supabase
           .from('saifcrm_applications')
-          .update({ stage: 'rejected', previous_stage: 'interview' })
+          .update({
+            stage: 'rejected',
+            previous_stage: 'interview',
+            email_sender_id: rejectionEmailSender,
+            email_sent: false,
+            email_sent_at: null,
+            draft_rejection_email: null,
+            original_draft_email: null,
+          })
           .eq('id', application.id)
 
         // Sync company stage to passed
         await syncCompanyStage(application.id, 'rejected')
 
-        showToast('Application marked as rejected', 'success')
+        // Create ticket for sending rejection email
+        const ticketTitle = `Send rejection email: ${application.company_name}${application.primary_email ? ` (${application.primary_email})` : ''}`
+        const ticketDescription = `Send rejection email to ${application.company_name} (rejected from interviews).${application.founder_names ? `\n\nFounders: ${application.founder_names}` : ''}`
+
+        const { data: ticketData } = await supabase
+          .from('saif_tickets')
+          .insert({
+            title: ticketTitle,
+            description: ticketDescription,
+            status: 'open',
+            priority: 'medium',
+            assigned_to: rejectionEmailSender,
+            created_by: userId,
+            tags: ['email-follow-up', 'rejected', 'interview'],
+            application_id: application.id,
+          })
+          .select('id')
+          .single()
+
+        // Send notification to the assigned person
+        if (ticketData?.id) {
+          const currentUserName = partners.find((p) => p.id === userId)?.name || userName
+          fetch('/api/notifications', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              recipientId: rejectionEmailSender,
+              type: 'ticket_assigned',
+              title: 'Rejection Email Assigned',
+              message: `${currentUserName} assigned you to send a rejection email to ${application.company_name}`,
+              metadata: {
+                ticketId: ticketData.id,
+                companyName: application.company_name,
+              },
+            }),
+          }).catch(console.error)
+        }
+
+        showToast('Application rejected - email task assigned', 'success')
       } else {
         showToast('Deliberation saved', 'success')
       }
@@ -782,6 +847,35 @@ export default function DeliberationDetailClient({
                       onChange={(e) => setOtherFunders(e.target.value)}
                       className="input"
                     />
+                  </div>
+                </div>
+              )}
+
+              {/* Rejection Email Sender - shown when decision is 'no' */}
+              {decision === 'no' && (
+                <div className="bg-red-50 rounded-xl p-6 border-2 border-red-200">
+                  <h3 className="text-lg font-semibold text-red-800 mb-4 flex items-center gap-2">
+                    <span>✉️</span> Rejection Email
+                  </h3>
+                  <p className="text-sm text-red-700 mb-4">
+                    Select who will send the rejection email to the founders.
+                  </p>
+                  <div>
+                    <label className="block text-sm font-medium text-red-800 mb-1.5">
+                      Email Sender *
+                    </label>
+                    <select
+                      value={rejectionEmailSender}
+                      onChange={(e) => setRejectionEmailSender(e.target.value)}
+                      className="input"
+                    >
+                      <option value="">Select a partner...</option>
+                      {partners.map((partner) => (
+                        <option key={partner.id} value={partner.id}>
+                          {partner.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
               )}
