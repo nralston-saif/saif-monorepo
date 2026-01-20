@@ -79,12 +79,12 @@ export default function DeliberationDetailClient({
    */
   async function syncCompanyStage(
     applicationId: string,
-    newAppStage: 'voting' | 'deliberation' | 'invested' | 'rejected'
+    newAppStage: 'application' | 'interview' | 'portfolio' | 'rejected'
   ): Promise<void> {
     const stageMap: Record<string, string> = {
-      voting: 'prospect',
-      deliberation: 'diligence',
-      invested: 'portfolio',
+      application: 'prospect',
+      interview: 'diligence',
+      portfolio: 'portfolio',
       rejected: 'passed',
     }
 
@@ -117,7 +117,7 @@ export default function DeliberationDetailClient({
     const currentRank = company.stage ? stageRank[company.stage] || 0 : 0
     const newRank = stageRank[newCompanyStage] || 0
 
-    if (newRank > currentRank || newAppStage === 'voting') {
+    if (newRank > currentRank || newAppStage === 'application') {
       await supabase
         .from('saif_companies')
         .update({ stage: newCompanyStage })
@@ -148,17 +148,17 @@ export default function DeliberationDetailClient({
     setShowDecisionModal(true)
   }
 
-  const handleMoveBackToVoting = async () => {
+  const handleMoveBackToApplication = async () => {
     setMoveBackLoading(true)
     try {
-      // Update application stage back to voting
+      // Update application stage back to application
       const { error } = await supabase
         .from('saifcrm_applications')
-        .update({ stage: 'voting' })
+        .update({ stage: 'application' })
         .eq('id', application.id)
 
       if (error) {
-        showToast('Error moving back to voting: ' + error.message, 'error')
+        showToast('Error moving back to application: ' + error.message, 'error')
         setMoveBackLoading(false)
         return
       }
@@ -172,7 +172,7 @@ export default function DeliberationDetailClient({
       }
 
       // Sync company stage back to prospect
-      await syncCompanyStage(application.id, 'voting')
+      await syncCompanyStage(application.id, 'application')
 
       showToast('Application moved back to Applications', 'success')
       setShowMoveBackConfirm(false)
@@ -210,7 +210,7 @@ export default function DeliberationDetailClient({
           idea_summary: ideaSummary || null,
           thoughts: thoughts || null,
           decision: decision as 'pending' | 'maybe' | 'yes' | 'no',
-          status: decision === 'yes' ? 'invested' : status,
+          status: decision === 'yes' ? 'portfolio' : status,
           meeting_date: meetingDate || null,
         },
         { onConflict: 'application_id' }
@@ -247,21 +247,21 @@ export default function DeliberationDetailClient({
           return
         }
 
-        // Update application stage to invested
+        // Update application stage to portfolio
         await supabase
           .from('saifcrm_applications')
-          .update({ stage: 'invested' })
+          .update({ stage: 'portfolio', previous_stage: 'interview' })
           .eq('id', application.id)
 
         // Sync company stage to portfolio
-        await syncCompanyStage(application.id, 'invested')
+        await syncCompanyStage(application.id, 'portfolio')
 
         showToast('Investment recorded and added to portfolio', 'success')
       } else if (decision === 'no') {
         // Update application stage to rejected
         await supabase
           .from('saifcrm_applications')
-          .update({ stage: 'rejected' })
+          .update({ stage: 'rejected', previous_stage: 'interview' })
           .eq('id', application.id)
 
         // Sync company stage to passed
@@ -651,7 +651,7 @@ export default function DeliberationDetailClient({
                     <option value="scheduled">Scheduled</option>
                     <option value="met">Met</option>
                     <option value="emailed">Emailed</option>
-                    <option value="invested">Invested</option>
+                    <option value="portfolio">Portfolio</option>
                     <option value="rejected">Rejected</option>
                   </select>
                 </div>
@@ -851,7 +851,7 @@ export default function DeliberationDetailClient({
                   Cancel
                 </button>
                 <button
-                  onClick={handleMoveBackToVoting}
+                  onClick={handleMoveBackToApplication}
                   disabled={moveBackLoading}
                   className="btn btn-primary flex-1 bg-amber-500 hover:bg-amber-600"
                 >

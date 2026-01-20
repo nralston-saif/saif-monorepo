@@ -69,7 +69,7 @@ export default async function DealsPage(): Promise<React.ReactElement> {
         saifcrm_deliberations(*),
         email_sender:saif_people!applications_email_sender_id_fkey(name)
       `)
-      .in('stage', ['new', 'voting', 'deliberation', 'invested', 'rejected'])
+      .in('stage', ['new', 'application', 'interview', 'portfolio', 'rejected'])
       .order('submitted_at', { ascending: false }),
 
     // Partners for assignment
@@ -90,7 +90,7 @@ export default async function DealsPage(): Promise<React.ReactElement> {
 
   // Transform and filter applications by stage
   const votingAppsWithVotes = (allApplications || [])
-    .filter(app => app.stage === 'new' || app.stage === 'voting')
+    .filter(app => app.stage === 'new' || app.stage === 'application')
     .map((app) => {
       const allVotes = transformVotes(app.saifcrm_votes as RawVote[])
       const userVote = allVotes.find((v) => v.oduserId === profile?.id)
@@ -116,7 +116,7 @@ export default async function DealsPage(): Promise<React.ReactElement> {
     })
 
   const deliberationAppsWithVotes = (allApplications || [])
-    .filter(app => app.stage === 'deliberation' && app.votes_revealed === true)
+    .filter(app => app.stage === 'interview' && app.votes_revealed === true)
     .map((app) => {
       const votes = transformVotes(app.saifcrm_votes as RawVote[])
       const deliberation = Array.isArray(app.saifcrm_deliberations)
@@ -172,7 +172,7 @@ export default async function DealsPage(): Promise<React.ReactElement> {
     )
 
   const archivedAppsTransformed = (allApplications || [])
-    .filter(app => app.stage === 'invested' || app.stage === 'rejected')
+    .filter(app => app.stage === 'portfolio' || app.stage === 'rejected')
     .map((app) => ({
       id: app.id,
       company_name: app.company_name,
@@ -185,6 +185,7 @@ export default async function DealsPage(): Promise<React.ReactElement> {
       previous_funding: app.previous_funding,
       deck_link: app.deck_link,
       stage: app.stage,
+      previous_stage: (app as { previous_stage?: string }).previous_stage || null,
       submitted_at: app.submitted_at,
       email_sent: app.email_sent,
       email_sent_at: app.email_sent_at,

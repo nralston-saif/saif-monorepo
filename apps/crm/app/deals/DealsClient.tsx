@@ -71,6 +71,7 @@ type DeliberationApplication = BaseApplication & {
 
 type ArchivedApplication = BaseApplication & {
   stage: string | null
+  previous_stage: string | null
   email_sent: boolean | null
   email_sent_at: string | null
   email_sender_name: string | null
@@ -83,11 +84,11 @@ type Partner = {
   name: string | null
 }
 
-type Tab = 'voting' | 'deliberation' | 'archive'
+type Tab = 'application' | 'interview' | 'archive'
 
 type EmailSenderModal = {
   app: VotingApplication
-  action: 'deliberation' | 'reject'
+  action: 'interview' | 'reject'
 } | null
 
 type SortOption =
@@ -155,9 +156,9 @@ function getVoteBadgeStyle(voteValue: string): string {
 function getStageBadgeStyle(stage: string | null): string {
   if (!stage) return 'bg-gray-100 text-gray-700'
   switch (stage) {
-    case 'invested':
+    case 'portfolio':
       return 'bg-emerald-100 text-emerald-700'
-    case 'deliberation':
+    case 'interview':
       return 'bg-amber-100 text-amber-700'
     case 'rejected':
       return 'bg-red-100 text-red-700'
@@ -181,7 +182,7 @@ function getDecisionBadgeStyle(decision: string): string {
 
 function getStatusBadgeStyle(status: string): string {
   switch (status) {
-    case 'invested':
+    case 'portfolio':
       return 'badge-success'
     case 'rejected':
       return 'badge-danger'
@@ -378,7 +379,7 @@ export default function DealsClient({
   interviewTags,
 }: DealsClientProps): React.ReactElement {
   const searchParams = useSearchParams()
-  const initialTab = (searchParams.get('tab') as Tab) || 'voting'
+  const initialTab = (searchParams.get('tab') as Tab) || 'application'
 
   const [activeTab, setActiveTab] = useState<Tab>(initialTab)
   const [clientVotingApps, setClientVotingApps] =
@@ -541,13 +542,13 @@ export default function DealsClient({
    */
   async function syncCompanyStage(
     applicationId: string,
-    newAppStage: 'voting' | 'deliberation' | 'invested' | 'rejected'
+    newAppStage: 'application' | 'interview' | 'portfolio' | 'rejected'
   ): Promise<void> {
     // Map application stage to company stage
     const stageMap: Record<string, string> = {
-      voting: 'prospect',
-      deliberation: 'diligence',
-      invested: 'portfolio',
+      application: 'prospect',
+      interview: 'diligence',
+      portfolio: 'portfolio',
       rejected: 'passed',
     }
 
@@ -584,7 +585,7 @@ export default function DealsClient({
     const newRank = stageRank[newCompanyStage] || 0
 
     // Only update if new stage is higher in hierarchy (or moving back to prospect)
-    if (newRank > currentRank || newAppStage === 'voting') {
+    if (newRank > currentRank || newAppStage === 'application') {
       await supabase
         .from('saif_companies')
         .update({ stage: newCompanyStage })
@@ -627,7 +628,7 @@ export default function DealsClient({
       if (selectedVoteApp.voteCount === 0) {
         await supabase
           .from('saifcrm_applications')
-          .update({ stage: 'voting' })
+          .update({ stage: 'application' })
           .eq('id', selectedVoteApp.id)
       }
 
@@ -652,8 +653,8 @@ export default function DealsClient({
     setVoteLoading(false)
   }
 
-  function promptMoveToDeliberation(app: VotingApplication): void {
-    setEmailSenderModal({ app, action: 'deliberation' })
+  function promptMoveToInterview(app: VotingApplication): void {
+    setEmailSenderModal({ app, action: 'interview' })
     setSelectedEmailSender('')
   }
 
@@ -669,12 +670,13 @@ export default function DealsClient({
     setMovingToDelib(app.id)
 
     try {
-      const newStage = action === 'deliberation' ? 'deliberation' : 'rejected'
+      const newStage = action === 'interview' ? 'interview' : 'rejected'
 
       const { error } = await supabase
         .from('saifcrm_applications')
         .update({
           stage: newStage,
+          previous_stage: 'application', // Save current stage before moving to archive/interview
           votes_revealed: true,
           email_sender_id: selectedEmailSender,
           email_sent: false,
@@ -688,9 +690,9 @@ export default function DealsClient({
       }
 
       // Sync company stage with application stage
-      await syncCompanyStage(app.id, newStage as 'deliberation' | 'rejected')
+      await syncCompanyStage(app.id, newStage as 'interview' | 'rejected')
 
-      const isInterview = action === 'deliberation'
+      const isInterview = action === 'interview'
       const ticketTitle = isInterview
         ? `Schedule interview follow-up: ${app.company_name}${app.primary_email ? ` (${app.primary_email})` : ''}`
         : `Send rejection email: ${app.company_name}${app.primary_email ? ` (${app.primary_email})` : ''}`
@@ -743,7 +745,7 @@ export default function DealsClient({
       }).catch(console.error)
 
       const message =
-        action === 'deliberation' ? 'Moved to Interviews' : 'Marked as rejected'
+        action === 'interview' ? 'Moved to Interviews' : 'Marked as rejected'
       showToast(message, 'success')
       setEmailSenderModal(null)
 
@@ -760,7 +762,7 @@ export default function DealsClient({
     setMovingToDelib(null)
   }
 
-  async function handleMoveToDeliberationWithoutVoting(): Promise<void> {
+  async function handleMoveToInterviewWithoutVoting(): Promise<void> {
     if (!confirmMoveApp) return
 
     setMovingToDelib(confirmMoveApp.id)
@@ -769,13 +771,14 @@ export default function DealsClient({
       const { error } = await supabase
         .from('saifcrm_applications')
         .update({
-          stage: 'deliberation',
+          stage: 'interview',
+          previous_stage: 'application', // Save current stage before moving
           votes_revealed: true,
         })
         .eq('id', confirmMoveApp.id)
 
       if (error) {
-        showToast('Error moving to deliberation: ' + error.message, 'error')
+        showToast('Error moving to interview: ' + error.message, 'error')
         setMovingToDelib(null)
         setConfirmMoveApp(null)
         return
@@ -826,19 +829,19 @@ export default function DealsClient({
     setOtherFunders('')
   }
 
-  async function handleMoveBackToVoting(): Promise<void> {
+  async function handleMoveBackToApplication(): Promise<void> {
     if (!detailDelibApp) return
 
     setMoveBackLoading(true)
     try {
-      // Update application stage back to voting
+      // Update application stage back to application
       const { error } = await supabase
         .from('saifcrm_applications')
-        .update({ stage: 'voting' })
+        .update({ stage: 'application' })
         .eq('id', detailDelibApp.id)
 
       if (error) {
-        showToast('Error moving back to voting: ' + error.message, 'error')
+        showToast('Error moving back to application: ' + error.message, 'error')
         setMoveBackLoading(false)
         return
       }
@@ -852,7 +855,7 @@ export default function DealsClient({
       }
 
       // Sync company stage back to prospect
-      await syncCompanyStage(detailDelibApp.id, 'voting')
+      await syncCompanyStage(detailDelibApp.id, 'application')
 
       showToast('Application moved back to Applications', 'success')
       setShowMoveBackConfirm(false)
@@ -864,33 +867,39 @@ export default function DealsClient({
     setMoveBackLoading(false)
   }
 
-  async function handleArchivedMoveBackToVoting(): Promise<void> {
+  async function handleArchivedRestore(): Promise<void> {
     if (!detailArchivedApp) return
 
     setArchivedMoveBackLoading(true)
     try {
-      // Update application stage back to voting
+      // Restore to previous_stage if available, otherwise default to 'application'
+      const restoreStage = (detailArchivedApp.previous_stage as 'application' | 'interview') || 'application'
+
+      // Update application stage to the restored stage
       const { error } = await supabase
         .from('saifcrm_applications')
-        .update({ stage: 'voting' })
+        .update({ stage: restoreStage, previous_stage: null })
         .eq('id', detailArchivedApp.id)
 
       if (error) {
-        showToast('Error moving back to voting: ' + error.message, 'error')
+        showToast('Error restoring application: ' + error.message, 'error')
         setArchivedMoveBackLoading(false)
         return
       }
 
-      // Reset deliberation decision to pending if it exists
-      await supabase
-        .from('saifcrm_deliberations')
-        .update({ decision: 'pending', status: null })
-        .eq('application_id', detailArchivedApp.id)
+      // Reset deliberation decision to pending if restoring to application stage
+      if (restoreStage === 'application') {
+        await supabase
+          .from('saifcrm_deliberations')
+          .update({ decision: 'pending', status: null })
+          .eq('application_id', detailArchivedApp.id)
+      }
 
-      // Sync company stage back to prospect
-      await syncCompanyStage(detailArchivedApp.id, 'voting')
+      // Sync company stage based on restore target
+      await syncCompanyStage(detailArchivedApp.id, restoreStage)
 
-      showToast('Application moved back to Applications', 'success')
+      const stageLabel = restoreStage === 'interview' ? 'Interviews' : 'Applications'
+      showToast(`Application restored to ${stageLabel}`, 'success')
       setShowArchivedMoveBackConfirm(false)
       setDetailArchivedApp(null)
       router.refresh()
@@ -927,7 +936,7 @@ export default function DealsClient({
           idea_summary: ideaSummary || null,
           thoughts: thoughts || null,
           decision: decision as 'pending' | 'maybe' | 'yes' | 'no',
-          status: decision === 'yes' ? 'invested' : status,
+          status: decision === 'yes' ? 'portfolio' : status,
           meeting_date: meetingDate || null,
         },
         {
@@ -965,15 +974,15 @@ export default function DealsClient({
 
         await supabase
           .from('saifcrm_applications')
-          .update({ stage: 'invested' })
+          .update({ stage: 'portfolio', previous_stage: 'interview' })
           .eq('id', selectedDelibApp.id)
 
         // Sync company stage to portfolio
-        await syncCompanyStage(selectedDelibApp.id, 'invested')
+        await syncCompanyStage(selectedDelibApp.id, 'portfolio')
       } else if (decision === 'no') {
         await supabase
           .from('saifcrm_applications')
-          .update({ stage: 'rejected' })
+          .update({ stage: 'rejected', previous_stage: 'interview' })
           .eq('id', selectedDelibApp.id)
 
         // Sync company stage to passed
@@ -1397,8 +1406,8 @@ export default function DealsClient({
       {/* Tabs */}
       <div className="border-b border-gray-200 mb-3">
         <nav className="-mb-px flex gap-4">
-          {renderTabButton('voting', 'Applications', votingCount)}
-          {renderTabButton('deliberation', 'Interviews', deliberationCount)}
+          {renderTabButton('application', 'Applications', votingCount)}
+          {renderTabButton('interview', 'Interviews', deliberationCount)}
           {renderTabButton('archive', 'Archive', archiveCount)}
         </nav>
       </div>
@@ -1406,7 +1415,7 @@ export default function DealsClient({
       {/* ============================================ */}
       {/* VOTING TAB */}
       {/* ============================================ */}
-      {activeTab === 'voting' && (
+      {activeTab === 'application' && (
         <div>
           {clientVotingApps.length === 0 ? (
             <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6 text-center">
@@ -1681,7 +1690,7 @@ export default function DealsClient({
       {/* ============================================ */}
       {/* DELIBERATION TAB */}
       {/* ============================================ */}
-      {activeTab === 'deliberation' && (
+      {activeTab === 'interview' && (
         <div>
           {localUndecidedDelibs.length === 0 && localDecidedDelibs.length === 0 ? (
             <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-3 text-center">
@@ -2016,7 +2025,7 @@ export default function DealsClient({
                 No archived applications
               </h3>
               <p className="text-gray-500">
-                Applications that have been invested or rejected will appear here.
+                Applications that are in portfolio or rejected will appear here.
               </p>
             </div>
           ) : (
@@ -2278,7 +2287,7 @@ export default function DealsClient({
                       <button
                         onClick={() => {
                           setDetailVotingApp(null)
-                          promptMoveToDeliberation(detailVotingApp)
+                          promptMoveToInterview(detailVotingApp)
                         }}
                         disabled={movingToDelib === detailVotingApp.id}
                         className="btn bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50"
@@ -2337,7 +2346,7 @@ export default function DealsClient({
                 Cancel
               </button>
               <button
-                onClick={handleMoveToDeliberationWithoutVoting}
+                onClick={handleMoveToInterviewWithoutVoting}
                 disabled={movingToDelib === confirmMoveApp.id}
                 className="btn btn-primary flex-1"
               >
@@ -2364,7 +2373,7 @@ export default function DealsClient({
           <div className="modal-content max-w-md" onClick={(e) => e.stopPropagation()}>
             <div className="px-3 py-2 border-b border-gray-100">
               <h2 className="text-xl font-bold text-gray-900">
-                {emailSenderModal.action === 'deliberation'
+                {emailSenderModal.action === 'interview'
                   ? 'Move to Interviews'
                   : 'Reject Application'}
               </h2>
@@ -2407,7 +2416,7 @@ export default function DealsClient({
                     <SpinnerIcon />
                     Processing...
                   </span>
-                ) : emailSenderModal.action === 'deliberation' ? (
+                ) : emailSenderModal.action === 'interview' ? (
                   'Move to Interviews'
                 ) : (
                   'Reject Application'
@@ -2465,7 +2474,7 @@ export default function DealsClient({
                     <option value="scheduled">Scheduled</option>
                     <option value="met">Met</option>
                     <option value="emailed">Emailed</option>
-                    <option value="invested">Invested</option>
+                    <option value="portfolio">Portfolio</option>
                     <option value="rejected">Rejected</option>
                   </select>
                 </div>
@@ -2703,7 +2712,7 @@ export default function DealsClient({
                   Cancel
                 </button>
                 <button
-                  onClick={handleMoveBackToVoting}
+                  onClick={handleMoveBackToApplication}
                   disabled={moveBackLoading}
                   className="btn btn-primary flex-1 bg-amber-500 hover:bg-amber-600"
                 >
@@ -2917,7 +2926,7 @@ export default function DealsClient({
 
               <p className="text-gray-600 mb-6">
                 <strong>{detailArchivedApp.company_name}</strong> will be moved back to the Applications tab.
-                {detailArchivedApp.stage === 'invested' && (
+                {detailArchivedApp.stage === 'portfolio' && (
                   <span className="block mt-2 text-amber-600 font-medium">
                     Note: This will NOT remove any investment records.
                   </span>
@@ -2933,7 +2942,7 @@ export default function DealsClient({
                   Cancel
                 </button>
                 <button
-                  onClick={handleArchivedMoveBackToVoting}
+                  onClick={handleArchivedRestore}
                   disabled={archivedMoveBackLoading}
                   className="btn btn-primary flex-1 bg-amber-500 hover:bg-amber-600"
                 >

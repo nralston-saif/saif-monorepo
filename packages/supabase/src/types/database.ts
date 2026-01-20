@@ -15,7 +15,7 @@ export type EntityType = 'for_profit' | 'pbc' | 'nonprofit' | 'government' | 'ot
 export type RelationshipType = 'founder' | 'employee' | 'advisor' | 'board_member' | 'partner'
 
 // CRM-specific enums
-export type ApplicationStage = 'new' | 'voting' | 'deliberation' | 'invested' | 'rejected'
+export type ApplicationStage = 'new' | 'application' | 'interview' | 'portfolio' | 'rejected'
 export type VoteType = 'initial' | 'final'
 export type DeliberationDecision = 'pending' | 'maybe' | 'yes' | 'no'
 export type TicketStatus = 'open' | 'in_progress' | 'archived'
@@ -339,6 +339,7 @@ export interface Database {
           previous_funding: string | null
           deck_link: string | null
           stage: ApplicationStage
+          previous_stage: ApplicationStage | null
           email_sender_id: string | null
           email_sent: boolean
           votes_revealed: boolean
@@ -359,6 +360,7 @@ export interface Database {
           previous_funding?: string | null
           deck_link?: string | null
           stage?: ApplicationStage
+          previous_stage?: ApplicationStage | null
           email_sender_id?: string | null
           email_sent?: boolean
           votes_revealed?: boolean
@@ -379,6 +381,7 @@ export interface Database {
           previous_funding?: string | null
           deck_link?: string | null
           stage?: ApplicationStage
+          previous_stage?: ApplicationStage | null
           email_sender_id?: string | null
           email_sent?: boolean
           votes_revealed?: boolean
