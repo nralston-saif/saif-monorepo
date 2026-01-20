@@ -47,13 +47,34 @@ Guidelines:
 - For unassignedTickets, list all tickets that have no assignee - these need attention
 - Be concise - this is a quick status update, not a detailed report`
 
-// Verify cron secret for scheduled jobs
-function verifyCronSecret(request: NextRequest): boolean {
+// Verify authorization for cron jobs
+// Supports: Vercel cron (via CRON_SECRET), service role key, or internal Vercel cron header
+function verifyAuthorization(request: NextRequest): boolean {
+  // Check for Bearer token with CRON_SECRET
   const authHeader = request.headers.get('authorization')
-  if (authHeader === `Bearer ${process.env.CRON_SECRET}`) {
+  if (process.env.CRON_SECRET && authHeader === `Bearer ${process.env.CRON_SECRET}`) {
     return true
   }
-  // Also allow service role for backfill
+
+  // Check for service role key
+  const serviceKey = request.headers.get('x-service-key')
+  if (serviceKey === process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return true
+  }
+
+  // Check for Vercel cron signature (Vercel adds this header for cron jobs)
+  // This allows Vercel's internal cron scheduler to trigger the endpoint
+  const vercelCron = request.headers.get('x-vercel-cron')
+  if (vercelCron) {
+    return true
+  }
+
+  // In production, also allow if user-agent indicates Vercel cron
+  const userAgent = request.headers.get('user-agent') || ''
+  if (userAgent.includes('vercel-cron')) {
+    return true
+  }
+
   return false
 }
 
@@ -64,13 +85,10 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => ({}))
     const { backfill, backfillDate } = body
 
-    // For scheduled cron, verify secret
-    if (!backfill && !verifyCronSecret(request)) {
-      // Allow if called from internal API with service key
-      const authHeader = request.headers.get('x-service-key')
-      if (authHeader !== process.env.SUPABASE_SERVICE_ROLE_KEY) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
+    // For scheduled cron, verify authorization
+    if (!backfill && !verifyAuthorization(request)) {
+      console.error('Cron auth failed. Headers:', Object.fromEntries(request.headers.entries()))
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Determine what to generate
