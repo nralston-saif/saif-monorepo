@@ -315,22 +315,28 @@ export default function DeliberationDetailClient({
         // Send notification to the assigned person
         if (ticketData?.id) {
           const currentUserName = partners.find((p) => p.id === userId)?.name || userName
-          fetch('/api/notifications', {
+          fetch('/api/notifications/ticket', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
             body: JSON.stringify({
-              recipientId: rejectionEmailSender,
-              type: 'ticket_assigned',
-              title: 'Rejection Email Assigned',
-              message: `${currentUserName} assigned you to send a rejection email to ${application.company_name}`,
-              metadata: {
-                ticketId: ticketData.id,
-                companyName: application.company_name,
-              },
+              type: 'assigned',
+              ticketId: ticketData.id,
+              ticketTitle: ticketTitle,
+              targetId: rejectionEmailSender,
+              actorId: userId,
+              actorName: currentUserName,
             }),
           }).catch(console.error)
         }
+
+        // Auto-generate rejection email
+        fetch('/api/generate-rejection-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ applicationId: application.id }),
+        }).catch(console.error)
 
         showToast('Application rejected - email task assigned', 'success')
       } else {
