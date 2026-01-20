@@ -267,6 +267,13 @@ export async function POST(request: NextRequest) {
       })
     }
 
+    // Fetch deliberation data (idea summary and thoughts)
+    const { data: deliberation } = await supabase
+      .from('saifcrm_deliberations')
+      .select('idea_summary, thoughts')
+      .eq('application_id', applicationId)
+      .single()
+
     // Fetch interview notes if rejected from interview stage
     let interviewNotes: string[] = []
     const isInterviewRejection = application.previous_stage === 'interview'
@@ -306,6 +313,21 @@ Rejection Stage: ${isInterviewRejection ? 'After interviews (they passed initial
 
 Internal Notes from Partners (DO NOT share verbatim - use to inform your assessment):
 ${internalNotes.length > 0 ? internalNotes.map((note) => `- ${note}`).join('\n') : '- No specific notes provided'}`
+
+    // Add deliberation notes if available
+    if (deliberation?.idea_summary || deliberation?.thoughts) {
+      userMessage += `
+
+Deliberation Summary (DO NOT share verbatim - use to inform your assessment):`
+      if (deliberation.idea_summary) {
+        userMessage += `
+- Idea Summary: ${deliberation.idea_summary}`
+      }
+      if (deliberation.thoughts) {
+        userMessage += `
+- Partner Assessment: ${deliberation.thoughts}`
+      }
+    }
 
     // Add interview notes if available
     if (interviewNotes.length > 0) {
