@@ -1,6 +1,10 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { notifyNewApplication } from '@/lib/notifications'
+import { checkRateLimit, getClientIP } from '@/lib/rate-limit'
+
+const RATE_LIMIT_WINDOW = 60 * 1000 // 1 minute
+const RATE_LIMIT_MAX = 10 // 10 requests per minute
 
 // Initialize Supabase with service role key for webhook
 const supabase = createClient(
@@ -83,35 +87,32 @@ async function findOrCreateCompany(
   return newCompany.id
 }
 
-// Webhook secret for authentication
-// Preferred: X-Webhook-Secret header
-// Deprecated: ?secret=xxx query parameter (will be removed in future version)
+// Webhook secret for authentication (X-Webhook-Secret header only)
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET
 
 export async function POST(request: NextRequest) {
+  // Rate limiting
+  const ip = getClientIP(request.headers)
+  const rateLimit = checkRateLimit(`webhook:${ip}`, RATE_LIMIT_MAX, RATE_LIMIT_WINDOW)
+
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: 'Too many requests' },
+      { status: 429, headers: { 'Retry-After': '60' } }
+    )
+  }
+
   try {
     // Verify webhook secret if configured
     if (WEBHOOK_SECRET) {
-      // First, try header-based auth (preferred method)
-      const headerSecret = request.headers.get('X-Webhook-Secret')
-
-      // Fall back to query param (deprecated, for backwards compatibility)
-      const url = new URL(request.url)
-      const querySecret = url.searchParams.get('secret')
-
-      const providedSecret = headerSecret || querySecret
+      const providedSecret = request.headers.get('X-Webhook-Secret')
 
       if (providedSecret !== WEBHOOK_SECRET) {
-        console.error('Webhook authentication failed - invalid secret')
+        console.error('Webhook authentication failed')
         return NextResponse.json(
           { error: 'Unauthorized' },
           { status: 401 }
         )
-      }
-
-      // Log deprecation warning if using query param
-      if (!headerSecret && querySecret) {
-        console.warn('DEPRECATION WARNING: Webhook using query parameter authentication. Please migrate to X-Webhook-Secret header.')
       }
     }
 
@@ -246,14 +247,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Health check endpoint
+// Health check endpoint - minimal info only
 export async function GET() {
-  return NextResponse.json({
-    status: 'ok',
-    message: 'JotForm webhook endpoint is ready',
-    version: 'v8-header-auth',
-    authenticated: !!WEBHOOK_SECRET,
-    authMethod: 'X-Webhook-Secret header (preferred) or ?secret= query param (deprecated)',
-    timestamp: new Date().toISOString()
-  })
+  return NextResponse.json({ status: 'ok' })
 }

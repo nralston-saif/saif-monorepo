@@ -89,34 +89,14 @@ Respond with JSON array of the TOP 5 articles only (highest importance), sorted 
   }
 ]`
 
-// Verify authorization for cron jobs
-// Supports: Vercel cron (via CRON_SECRET), service role key, or internal Vercel cron header
+// Verify authorization for cron jobs - only accepts Authorization: Bearer ${CRON_SECRET}
 function verifyCronSecret(request: NextRequest): boolean {
-  // Check for Bearer token with CRON_SECRET
   const authHeader = request.headers.get('authorization')
-  if (process.env.CRON_SECRET && authHeader === `Bearer ${process.env.CRON_SECRET}`) {
-    return true
+  if (!process.env.CRON_SECRET) {
+    console.error('CRON_SECRET not configured')
+    return false
   }
-
-  // Check for service role key
-  const serviceKey = request.headers.get('x-service-key')
-  if (serviceKey === process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    return true
-  }
-
-  // Check for Vercel cron header (Vercel adds this for cron jobs)
-  const vercelCron = request.headers.get('x-vercel-cron')
-  if (vercelCron) {
-    return true
-  }
-
-  // In production, also allow if user-agent indicates Vercel cron
-  const userAgent = request.headers.get('user-agent') || ''
-  if (userAgent.includes('vercel-cron')) {
-    return true
-  }
-
-  return false
+  return authHeader === `Bearer ${process.env.CRON_SECRET}`
 }
 
 async function fetchNewsAPIArticles(): Promise<NewsAPIArticle[]> {

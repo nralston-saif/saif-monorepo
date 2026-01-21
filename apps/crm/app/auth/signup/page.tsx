@@ -16,6 +16,26 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
 
+  // Validate password strength
+  const validatePassword = (password: string): { valid: boolean; error?: string } => {
+    if (password.length < 8) {
+      return { valid: false, error: 'Password must be at least 8 characters' }
+    }
+    if (!/[A-Z]/.test(password)) {
+      return { valid: false, error: 'Password must contain at least one uppercase letter' }
+    }
+    if (!/[a-z]/.test(password)) {
+      return { valid: false, error: 'Password must contain at least one lowercase letter' }
+    }
+    if (!/[0-9]/.test(password)) {
+      return { valid: false, error: 'Password must contain at least one number' }
+    }
+    if (!/[!@#$%^&*()_+\-=]/.test(password)) {
+      return { valid: false, error: 'Password must contain at least one special character (!@#$%^&*()_+-=)' }
+    }
+    return { valid: true }
+  }
+
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
@@ -29,8 +49,9 @@ export default function SignupPage() {
     }
 
     // Validate password strength
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters')
+    const passwordValidation = validatePassword(password)
+    if (!passwordValidation.valid) {
+      setError(passwordValidation.error!)
       setLoading(false)
       return
     }
@@ -184,7 +205,7 @@ export default function SignupPage() {
                 placeholder="••••••••"
               />
               <p className="mt-1 text-xs text-gray-500">
-                At least 8 characters
+                At least 8 characters with uppercase, lowercase, number, and special character
               </p>
             </div>
 

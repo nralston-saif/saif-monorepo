@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
     return new Response(JSON.stringify({ error: 'Not authenticated' }), { status: 401, headers: { 'Content-Type': 'application/json' } })
   }
 
-  console.log('[Liveblocks Auth] User authenticated:', user.id)
+  console.log('[Liveblocks Auth] User authenticated')
 
   // Get the user's profile - check both auth_user_id and email for flexibility
   let { data: profile, error: profileError } = await supabase
@@ -64,11 +64,11 @@ export async function POST(request: NextRequest) {
   }
 
   if (!profile) {
-    console.log('[Liveblocks Auth] Profile not found for user:', user.id, user.email, profileError?.message)
+    console.log('[Liveblocks Auth] Profile not found for authenticated user')
     return new Response(JSON.stringify({ error: 'Profile not found' }), { status: 403, headers: { 'Content-Type': 'application/json' } })
   }
 
-  console.log('[Liveblocks Auth] Profile found:', profile.id, profile.name || profile.email, 'role:', profile.role)
+  console.log('[Liveblocks Auth] Profile found, role:', profile.role)
 
   // Only partners can access collaborative features
   if (profile.role !== 'partner') {
