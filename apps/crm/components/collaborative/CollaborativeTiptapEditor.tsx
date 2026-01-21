@@ -72,7 +72,9 @@ export function CollaborativeTiptapEditor({
       return // Skip remote changes - don't trigger auto-save for synced content
     }
 
-    const text = editor.getText()
+    // Get text and normalize excessive newlines (3+ newlines → 2)
+    // This prevents empty paragraphs from creating large gaps in saved content
+    const text = editor.getText().replace(/\n{3,}/g, '\n\n')
     onContentChange?.(text)
   }, [onContentChange])
 
