@@ -394,10 +394,6 @@ export default function NotesList(props: NotesListProps) {
         </h3>
       )}
 
-      {hasDeliberationNotes && (
-        <DeliberationNotesSection notes={deliberationNotes!} />
-      )}
-
       {Object.entries(groupedNotes).map(([date, dateNotes]) => (
         <DateGroup
           key={date}
@@ -408,6 +404,10 @@ export default function NotesList(props: NotesListProps) {
           showContextBadge={showContextBadge}
         />
       ))}
+
+      {hasDeliberationNotes && (
+        <DeliberationNotesSection notes={deliberationNotes!} />
+      )}
 
       <DeleteNoteModal
         isOpen={!!noteToDelete}
