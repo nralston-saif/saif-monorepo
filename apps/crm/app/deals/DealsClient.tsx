@@ -2246,10 +2246,7 @@ export default function DealsClient({
                       onClick={() => setVote(option)}
                       className={getVoteButtonStyle(option)}
                     >
-                      <div className="text-2xl mb-1">
-                        {option === 'yes' ? 'Yes' : option === 'maybe' ? 'Maybe' : 'No'}
-                      </div>
-                      <div className="capitalize">{option}</div>
+                      <div className="text-2xl font-semibold capitalize">{option}</div>
                     </button>
                   ))}
                 </div>
