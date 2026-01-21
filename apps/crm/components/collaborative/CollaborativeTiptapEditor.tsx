@@ -4,8 +4,10 @@ import { useCallback, useMemo, useEffect, useImperativeHandle, forwardRef } from
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
+import { isChangeOrigin } from '@tiptap/extension-collaboration'
 import { useLiveblocksExtension } from '@liveblocks/react-tiptap'
 import { useSelf, useUpdateMyPresence } from '@/lib/liveblocks'
+import type { Transaction } from '@tiptap/pm/state'
 
 export type CollaborativeTiptapEditorHandle = {
   clearContent: () => void
@@ -61,8 +63,15 @@ export function CollaborativeTiptapEditor({
   // Use Liveblocks extension which handles Yjs internally
   const liveblocks = useLiveblocksExtension()
 
-  // Content change handler
-  const handleUpdate = useCallback(({ editor }: { editor: any }) => {
+  // Content change handler - only triggers for LOCAL changes
+  // Remote Yjs syncs are filtered out to prevent all users from triggering auto-save
+  const handleUpdate = useCallback(({ editor, transaction }: { editor: any; transaction: Transaction }) => {
+    // isChangeOrigin returns true if the change came from Yjs sync (remote)
+    // We only want to trigger content change callback for local edits
+    if (isChangeOrigin(transaction)) {
+      return // Skip remote changes - don't trigger auto-save for synced content
+    }
+
     const text = editor.getText()
     onContentChange?.(text)
   }, [onContentChange])
