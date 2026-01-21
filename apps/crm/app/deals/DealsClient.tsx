@@ -2190,9 +2190,18 @@ export default function DealsClient({
                           {app.company_description}
                         </p>
                       )}
-                      <p className="text-xs text-gray-400">
+                      <p className="text-xs text-gray-400 mb-2">
                         Submitted {formatDate(app.submitted_at)}
                       </p>
+                      <div className="flex gap-2">
+                        <Link
+                          href={`/deals/${app.id}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-xs px-2 py-1 rounded bg-gray-100 border border-gray-200 text-gray-700 hover:bg-gray-200"
+                        >
+                          Notes
+                        </Link>
+                      </div>
                     </div>
                   ))}
                 </div>
