@@ -251,6 +251,17 @@ function EditorContent({
     setIsInitialized(true)
   }, [context.id, context.type])
 
+  // Reset meeting date to today when there's no active note being edited
+  // This prevents stale dates from previous sessions persisting in Liveblocks storage
+  useEffect(() => {
+    if (!sharedNoteId && storedMeetingDate) {
+      const today = new Date().toISOString().split('T')[0]
+      if (storedMeetingDate !== today) {
+        setStoredMeetingDate(today)
+      }
+    }
+  }, [sharedNoteId, storedMeetingDate, setStoredMeetingDate])
+
   // Auto-save with debounce - triggered by content changes
   useEffect(() => {
     if (!isInitialized) return

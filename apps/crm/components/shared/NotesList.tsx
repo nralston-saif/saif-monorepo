@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import DeleteNoteModal from '../DeleteNoteModal'
+import EditNoteModal from '../EditNoteModal'
 
 // ============================================================================
 // TYPES
@@ -152,7 +153,7 @@ function DeliberationNotesSection({ notes }: { notes: string }) {
   )
 }
 
-function NoteCard({ note, onDelete, showContextBadge = true }: { note: BaseNote; onDelete: (note: BaseNote) => void; showContextBadge?: boolean }) {
+function NoteCard({ note, onDelete, onEdit, showContextBadge = true }: { note: BaseNote; onDelete: (note: BaseNote) => void; onEdit: (note: BaseNote) => void; showContextBadge?: boolean }) {
   const badge = showContextBadge ? getContextBadge(note.context_type) : null
 
   return (
@@ -171,15 +172,26 @@ function NoteCard({ note, onDelete, showContextBadge = true }: { note: BaseNote;
             <p className="text-xs text-gray-400 mt-2">— {note.user_name}</p>
           )}
         </div>
-        <button
-          onClick={() => onDelete(note)}
-          className="opacity-0 group-hover:opacity-100 p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all flex-shrink-0"
-          title="Delete note"
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-          </svg>
-        </button>
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all flex-shrink-0">
+          <button
+            onClick={() => onEdit(note)}
+            className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-all"
+            title="Edit note"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+          </button>
+          <button
+            onClick={() => onDelete(note)}
+            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+            title="Delete note"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+          </button>
+        </div>
       </div>
     </div>
   )
@@ -189,12 +201,14 @@ function DateGroup({
   date,
   notes,
   onDeleteNote,
+  onEditNote,
   useLongDate = true,
   showContextBadge = true,
 }: {
   date: string
   notes: BaseNote[]
   onDeleteNote: (note: BaseNote) => void
+  onEditNote: (note: BaseNote) => void
   useLongDate?: boolean
   showContextBadge?: boolean
 }) {
@@ -208,7 +222,7 @@ function DateGroup({
       </h4>
       <div className="space-y-3">
         {notes.map((note) => (
-          <NoteCard key={note.id} note={note} onDelete={onDeleteNote} showContextBadge={showContextBadge} />
+          <NoteCard key={note.id} note={note} onDelete={onDeleteNote} onEdit={onEditNote} showContextBadge={showContextBadge} />
         ))}
       </div>
     </div>
@@ -237,6 +251,9 @@ export default function NotesList(props: NotesListProps) {
   const [noteToDelete, setNoteToDelete] = useState<BaseNote | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [noteToEdit, setNoteToEdit] = useState<BaseNote | null>(null)
+  const [isEditing, setIsEditing] = useState(false)
+  const [editError, setEditError] = useState<string | null>(null)
 
   const supabase = createClient()
 
@@ -368,6 +385,44 @@ export default function NotesList(props: NotesListProps) {
     setDeleteError(null)
   }
 
+  async function handleEditNote(content: string, meetingDate: string): Promise<void> {
+    if (!noteToEdit) return
+
+    setIsEditing(true)
+    setEditError(null)
+
+    const tableName = mode === 'person-only' ? 'saifcrm_people_notes' : 'saifcrm_company_notes'
+
+    const { data, error } = await supabase
+      .from(tableName)
+      .update({ content, meeting_date: meetingDate })
+      .eq('id', noteToEdit.id)
+      .select()
+
+    if (error) {
+      console.error('Error updating note:', error)
+      setEditError(error.message || 'Failed to update note. Please try again.')
+      setIsEditing(false)
+      return
+    }
+
+    if (!data || data.length === 0) {
+      console.error('Update returned no rows - likely blocked by RLS')
+      setEditError('You do not have permission to edit this note.')
+      setIsEditing(false)
+      return
+    }
+
+    fetchNotes()
+    setIsEditing(false)
+    setNoteToEdit(null)
+  }
+
+  function handleCloseEditModal(): void {
+    setNoteToEdit(null)
+    setEditError(null)
+  }
+
   if (loading) {
     return <LoadingSpinner />
   }
@@ -400,6 +455,7 @@ export default function NotesList(props: NotesListProps) {
           date={date}
           notes={dateNotes}
           onDeleteNote={setNoteToDelete}
+          onEditNote={setNoteToEdit}
           useLongDate={true}
           showContextBadge={showContextBadge}
         />
@@ -416,6 +472,16 @@ export default function NotesList(props: NotesListProps) {
         isDeleting={isDeleting}
         notePreview={noteToDelete?.content}
         error={deleteError}
+      />
+
+      <EditNoteModal
+        isOpen={!!noteToEdit}
+        onClose={handleCloseEditModal}
+        onSave={handleEditNote}
+        isSaving={isEditing}
+        initialContent={noteToEdit?.content || ''}
+        initialMeetingDate={noteToEdit?.meeting_date || new Date().toISOString().split('T')[0]}
+        error={editError}
       />
     </div>
   )
