@@ -94,6 +94,34 @@ export async function GET(request: NextRequest) {
     if (compError) console.error('Error searching companies:', compError)
     if (peopleError) console.error('Error searching people:', peopleError)
 
+    // Stage order for deduplication (higher = further along)
+    const stageOrder: Record<string, number> = {
+      new: 1,
+      voting: 2,
+      deliberation: 3,
+      rejected: 4,
+      invested: 5,
+    }
+
+    // Deduplicate applications by company_name, keeping furthest stage
+    type Application = NonNullable<typeof applications>[number]
+    const deduplicatedApplications = Object.values(
+      (applications || []).reduce(
+        (acc, app) => {
+          const key = app.company_name.toLowerCase().trim()
+          const existingApp = acc[key]
+          const appStage = app.stage || 'new'
+          const existingStage = existingApp?.stage || 'new'
+
+          if (!existingApp || (stageOrder[appStage] || 0) > (stageOrder[existingStage] || 0)) {
+            acc[key] = app
+          }
+          return acc
+        },
+        {} as Record<string, Application>
+      )
+    )
+
     // Filter people to only include results where ALL search words match (including tags)
     const people = (peopleRaw || []).filter(person => {
       const searchableText = [
@@ -123,7 +151,7 @@ export async function GET(request: NextRequest) {
     }).slice(0, 10)
 
     return NextResponse.json({
-      applications: applications || [],
+      applications: deduplicatedApplications,
       investments: investments || [],
       companies: filteredCompanies,
       people: people || [],
