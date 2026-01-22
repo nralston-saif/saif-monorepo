@@ -2,6 +2,9 @@ import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 
+// Force dynamic to prevent caching - required for Vercel cron jobs
+export const dynamic = 'force-dynamic'
+
 // Initialize Supabase with service role key
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -57,21 +60,18 @@ function verifyAuthorization(request: NextRequest): boolean {
   return authHeader === `Bearer ${process.env.CRON_SECRET}`
 }
 
-// POST: Generate scheduled reports (called by Vercel cron)
-// Also supports backfill mode
-export async function POST(request: NextRequest) {
+// GET: Generate scheduled reports (called by Vercel cron)
+// Vercel cron jobs always use GET requests
+export async function GET(request: NextRequest) {
   try {
-    const body = await request.json().catch(() => ({}))
-    const { backfill, backfillDate } = body
-
-    // For scheduled cron, verify authorization
-    if (!backfill && !verifyAuthorization(request)) {
+    // Verify authorization - Vercel sends Authorization: Bearer ${CRON_SECRET}
+    if (!verifyAuthorization(request)) {
       console.error('Cron auth failed. Headers:', Object.fromEntries(request.headers.entries()))
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Determine what to generate
-    const now = backfillDate ? new Date(backfillDate) : new Date()
+    const now = new Date()
     const dayOfWeek = now.getDay() // 0 = Sunday
 
     const results = []
@@ -101,16 +101,40 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// GET: Backfill historical reports
-export async function GET(request: NextRequest) {
-  // Verify authorization
+// POST: Backfill historical reports or generate for specific date
+export async function POST(request: NextRequest) {
+  // Verify authorization with service role key for admin operations
   const authHeader = request.headers.get('authorization')
   if (authHeader !== `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   try {
-    // Find the earliest archived ticket to determine start date
+    const body = await request.json().catch(() => ({}))
+    const { backfillDate } = body
+
+    // If specific date provided, generate for that date only
+    if (backfillDate) {
+      const date = new Date(backfillDate)
+      const dayOfWeek = date.getDay()
+      const results = []
+
+      const dailyResult = await generateReport('daily', date)
+      results.push({ type: 'daily', ...dailyResult })
+
+      if (dayOfWeek === 0) {
+        const weeklyResult = await generateReport('weekly', date)
+        results.push({ type: 'weekly', ...weeklyResult })
+      }
+
+      return NextResponse.json({
+        success: true,
+        date: date.toISOString(),
+        results,
+      })
+    }
+
+    // Full backfill mode - find earliest archived ticket
     const { data: earliestTicket } = await supabase
       .from('saif_tickets')
       .select('archived_at')
