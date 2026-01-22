@@ -115,7 +115,9 @@ export async function POST(request: NextRequest) {
 
     // If specific date provided, generate for that date only
     if (backfillDate) {
-      const date = new Date(backfillDate)
+      // Parse date as noon Pacific time to avoid timezone boundary issues
+      // e.g., "2026-01-22" becomes "2026-01-22T12:00:00" in PT
+      const date = new Date(`${backfillDate}T12:00:00-08:00`)
       const dayOfWeek = date.getDay()
       const results = []
 
