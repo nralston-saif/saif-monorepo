@@ -786,6 +786,21 @@ function EditorWithoutLiveblocks({
       <textarea
         value={content}
         onChange={(e) => setContent(e.target.value)}
+        onKeyDown={(e) => {
+          // Handle Tab key for indentation
+          if (e.key === 'Tab') {
+            e.preventDefault()
+            const target = e.target as HTMLTextAreaElement
+            const start = target.selectionStart
+            const end = target.selectionEnd
+            const newValue = content.substring(0, start) + '\t' + content.substring(end)
+            setContent(newValue)
+            // Move cursor after inserted tab
+            requestAnimationFrame(() => {
+              target.selectionStart = target.selectionEnd = start + 1
+            })
+          }
+        }}
         rows={12}
         className="input resize-y w-full"
         style={{ minHeight }}

@@ -104,6 +104,15 @@ export function CollaborativeTiptapEditor({
         class: 'focus:outline-none prose prose-sm max-w-none',
         style: `min-height: calc(${minHeight} - 24px)`,
       },
+      handleKeyDown: (view, event) => {
+        // Handle Tab key for indentation
+        if (event.key === 'Tab') {
+          event.preventDefault()
+          view.dispatch(view.state.tr.insertText('\t'))
+          return true
+        }
+        return false
+      },
     },
     onUpdate: handleUpdate,
     onFocus: handleFocus,
