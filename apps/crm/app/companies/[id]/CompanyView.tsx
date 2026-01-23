@@ -1666,15 +1666,15 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
           {isPartner && (
             <div className="bg-white border border-gray-200 rounded-lg p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">
-                {activeDeal ? 'Deal Notes' : 'Notes'}
+                {activeDeal ? 'Deal Notes' : company.stage === 'portfolio' ? 'Portfolio Notes' : 'Notes'}
               </h2>
               <CompanyNotes
                 companyId={company.id}
                 companyName={company.name}
                 userId={currentPersonId}
                 userName={userName}
-                contextType={activeDeal ? 'deal' : 'company'}
-                contextId={activeDeal?.id}
+                contextType={activeDeal ? 'deal' : company.stage === 'portfolio' ? 'portfolio' : 'company'}
+                contextId={activeDeal?.id || (company.stage === 'portfolio' && company.investments?.[0]?.id) || undefined}
                 deliberationNotes={activeDeal?.deliberation?.thoughts}
               />
             </div>

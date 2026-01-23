@@ -9,6 +9,35 @@ type Company = Database['public']['Tables']['saif_companies']['Row']
 type Person = Database['public']['Tables']['saif_people']['Row']
 type CompanyPerson = Database['public']['Tables']['saif_company_people']['Row']
 
+export type ActiveDeal = {
+  id: string
+  company_name: string
+  founder_names: string | null
+  founder_linkedins: string | null
+  founder_bios: string | null
+  primary_email: string | null
+  company_description: string | null
+  website: string | null
+  previous_funding: string | null
+  deck_link: string | null
+  submitted_at: string | null
+  stage: string | null
+  votes: {
+    oduserId: string
+    userName: string
+    vote: string
+    notes: string | null
+  }[]
+  deliberation: {
+    id: string
+    meeting_date: string | null
+    idea_summary: string | null
+    thoughts: string | null
+    decision: string
+    status: string | null
+  } | null
+}
+
 export default async function CompanyPage({ params }: { params: Promise<{ id: string }> }) {
   const supabase = await createClient()
   const { id } = await params
@@ -88,6 +117,75 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
     notFound()
   }
 
+  // Fetch active deal (application in interview stage) for this company
+  let activeDeal: ActiveDeal | null = null
+
+  const { data: application } = await supabase
+    .from('saifcrm_applications')
+    .select(`
+      id,
+      company_name,
+      founder_names,
+      founder_linkedins,
+      founder_bios,
+      primary_email,
+      company_description,
+      website,
+      previous_funding,
+      deck_link,
+      submitted_at,
+      stage
+    `)
+    .eq('company_id', id)
+    .eq('stage', 'interview')
+    .single()
+
+  if (application) {
+    // Fetch votes for this application
+    const { data: votes } = await supabase
+      .from('saifcrm_votes')
+      .select(`
+        vote,
+        notes,
+        voter:saif_people!saifcrm_votes_user_id_fkey(id, first_name, last_name)
+      `)
+      .eq('application_id', application.id)
+
+    // Fetch deliberation for this application
+    const { data: deliberation } = await supabase
+      .from('saifcrm_deliberations')
+      .select('id, meeting_date, idea_summary, thoughts, decision, status')
+      .eq('application_id', application.id)
+      .single()
+
+    activeDeal = {
+      ...application,
+      votes: (votes || []).map((v: any) => ({
+        oduserId: v.voter?.id || '',
+        userName: v.voter ? `${v.voter.first_name || ''} ${v.voter.last_name || ''}`.trim() : 'Unknown',
+        vote: v.vote,
+        notes: v.notes,
+      })),
+      deliberation: deliberation ? {
+        ...deliberation,
+        decision: deliberation.decision || 'pending',
+      } : null,
+    }
+  }
+
+  // Fetch partners list for decision modal
+  const { data: partners } = await supabase
+    .from('saif_people')
+    .select('id, first_name, last_name')
+    .eq('role', 'partner')
+    .eq('status', 'active')
+    .order('first_name')
+
+  const partnersList = (partners || []).map((p: any) => ({
+    id: p.id,
+    name: `${p.first_name || ''} ${p.last_name || ''}`.trim(),
+  }))
+
   // Check if current user can edit this company
   const isPartner = currentPerson.role === 'partner'
   const userName = currentPerson.first_name || 'User'
@@ -118,6 +216,8 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
         isPartner={isPartner}
         currentPersonId={currentPerson.id}
         userName={userName}
+        activeDeal={activeDeal}
+        partners={partnersList}
       />
     </div>
   )
