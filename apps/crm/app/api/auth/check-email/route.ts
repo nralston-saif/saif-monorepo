@@ -71,6 +71,30 @@ export async function POST(request: NextRequest) {
       } as CheckEmailResponse)
     }
 
+    // Case 2b: Check if email exists in auth.users (unverified signup)
+    const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers()
+    if (!authError && authUsers?.users) {
+      const existingAuthUser = authUsers.users.find(
+        (u) => u.email?.toLowerCase() === email.toLowerCase()
+      )
+      if (existingAuthUser) {
+        // User exists in auth but hasn't claimed profile yet
+        if (existingAuthUser.email_confirmed_at) {
+          return NextResponse.json({
+            canSignup: false,
+            reason: 'already_claimed',
+            message: 'An account already exists for this email. Please log in and complete your profile.'
+          } as CheckEmailResponse)
+        } else {
+          return NextResponse.json({
+            canSignup: false,
+            reason: 'already_claimed',
+            message: 'A signup is already in progress for this email. Please check your inbox for the verification link, or contact SAIF for assistance.'
+          } as CheckEmailResponse)
+        }
+      }
+    }
+
     // Case 3: Not in pending status (not invited)
     if (person.status !== 'pending') {
       return NextResponse.json({
