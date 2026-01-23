@@ -160,7 +160,7 @@ export default async function CompaniesPage() {
             <p className="text-gray-500">No companies found</p>
           </div>
         ) : (
-          <CompanyGrid companies={typedCompanies} isPartner={isPartner} />
+          <CompanyGrid companies={typedCompanies} isPartner={isPartner} userId={person.id} />
         )}
       </main>
     </div>

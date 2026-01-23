@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { Database, CompanyStage } from '@/lib/types/database'
 import PersonModal from '@/components/PersonModal'
+import CreateTicketButton from '@/components/CreateTicketButton'
 import { ensureProtocol } from '@/lib/utils'
 
 type Company = Database['public']['Tables']['saif_companies']['Row'] & {
@@ -32,11 +33,12 @@ type Company = Database['public']['Tables']['saif_companies']['Row'] & {
 interface CompanyGridProps {
   companies: Company[]
   isPartner?: boolean
+  userId?: string
 }
 
 const STAGE_OPTIONS = ['prospect', 'portfolio', 'diligence', 'passed', 'tracked', 'archived'] as const
 
-export default function CompanyGrid({ companies, isPartner = false }: CompanyGridProps) {
+export default function CompanyGrid({ companies, isPartner = false, userId }: CompanyGridProps) {
   const router = useRouter()
   const supabase = createClient()
   const [searchQuery, setSearchQuery] = useState('')
@@ -178,13 +180,16 @@ export default function CompanyGrid({ companies, isPartner = false }: CompanyGri
     <div>
       {/* Header with count (Partners Only) */}
       {isPartner && (
-        <div className="mb-6 flex items-center gap-4">
-          <h1 className="text-3xl font-bold text-gray-900">All Companies</h1>
-          <span className="text-lg text-gray-400 font-medium">
-            {filteredCompanies.length === companies.length
-              ? companies.length
-              : `${filteredCompanies.length}/${companies.length}`}
-          </span>
+        <div className="mb-6 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <h1 className="text-3xl font-bold text-gray-900">All Companies</h1>
+            <span className="text-lg text-gray-400 font-medium">
+              {filteredCompanies.length === companies.length
+                ? companies.length
+                : `${filteredCompanies.length}/${companies.length}`}
+            </span>
+          </div>
+          {userId && <CreateTicketButton currentUserId={userId} />}
         </div>
       )}
 
@@ -255,7 +260,7 @@ export default function CompanyGrid({ companies, isPartner = false }: CompanyGri
               onClick={() => setShowAddModal(true)}
               className="px-4 py-1.5 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800"
             >
-              + Add
+              + Add Company
             </button>
           )}
         </div>
@@ -395,8 +400,8 @@ export default function CompanyGrid({ companies, isPartner = false }: CompanyGri
 
       {/* Add Company Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+        <div className="modal-backdrop" onClick={() => setShowAddModal(false)}>
+          <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="p-6">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-xl font-semibold text-gray-900">Add New Company</h2>

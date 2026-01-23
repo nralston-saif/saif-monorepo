@@ -561,13 +561,16 @@ export default function PeopleClient({
       )}
 
       {/* Header with count */}
-      <div className="mb-6 flex items-center gap-4">
-        <h1 className="text-3xl font-bold text-gray-900">All People</h1>
-        <span className="text-lg text-gray-400 font-medium">
-          {filteredPeople.length === people.length
-            ? people.length
-            : `${filteredPeople.length}/${people.length}`}
-        </span>
+      <div className="mb-6 flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <h1 className="text-3xl font-bold text-gray-900">All People</h1>
+          <span className="text-lg text-gray-400 font-medium">
+            {filteredPeople.length === people.length
+              ? people.length
+              : `${filteredPeople.length}/${people.length}`}
+          </span>
+        </div>
+        <CreateTicketButton currentUserId={userId} />
       </div>
 
       {/* Search Bar */}
@@ -653,7 +656,6 @@ export default function PeopleClient({
             <option value="date-newest">Newest</option>
             <option value="date-oldest">Oldest</option>
           </select>
-          <CreateTicketButton currentUserId={userId} />
           <button
             onClick={openAddModal}
             className="px-4 py-1.5 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800"
