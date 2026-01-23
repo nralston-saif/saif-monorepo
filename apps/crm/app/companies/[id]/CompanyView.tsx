@@ -37,6 +37,16 @@ const INVESTMENT_ROUNDS = [
   { value: 'Series G', label: 'Series G' },
 ] as const
 
+const COMPANY_STAGES = [
+  { value: 'prospect', label: 'Prospect' },
+  { value: 'diligence', label: 'Diligence' },
+  { value: 'portfolio', label: 'Portfolio' },
+  { value: 'passed', label: 'Passed' },
+  { value: 'tracked', label: 'Tracked' },
+  { value: 'archived', label: 'Archived' },
+  { value: 'saif', label: 'SAIF' },
+] as const
+
 interface CompanyViewProps {
   company: Company & {
     people?: (CompanyPerson & {
@@ -91,6 +101,7 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
     yc_batch: company.yc_batch || '',
     is_aisafety_company: company.is_aisafety_company,
     tags: company.tags || [],
+    stage: company.stage || '',
   })
 
   const [logoUrl, setLogoUrl] = useState(company.logo_url)
@@ -222,6 +233,7 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
           yc_batch: formData.yc_batch || null,
           is_aisafety_company: formData.is_aisafety_company,
           tags: formData.tags,
+          stage: formData.stage || null,
           updated_at: new Date().toISOString(),
         })
         .eq('id', company.id)
@@ -736,19 +748,39 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
                 </div>
               </div>
 
-              <div>
-                <label htmlFor="yc_batch" className="block text-sm font-medium text-gray-700">
-                  YC Batch
-                </label>
-                <input
-                  type="text"
-                  id="yc_batch"
-                  name="yc_batch"
-                  value={formData.yc_batch}
-                  onChange={handleInputChange}
-                  placeholder="S24, W25, etc."
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-gray-900 focus:border-gray-900"
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="yc_batch" className="block text-sm font-medium text-gray-700">
+                    YC Batch
+                  </label>
+                  <input
+                    type="text"
+                    id="yc_batch"
+                    name="yc_batch"
+                    value={formData.yc_batch}
+                    onChange={handleInputChange}
+                    placeholder="S24, W25, etc."
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-gray-900 focus:border-gray-900"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="stage" className="block text-sm font-medium text-gray-700">
+                    Stage
+                  </label>
+                  <select
+                    id="stage"
+                    name="stage"
+                    value={formData.stage}
+                    onChange={handleInputChange}
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-gray-900 focus:border-gray-900"
+                  >
+                    <option value="">Select stage...</option>
+                    {COMPANY_STAGES.map(stage => (
+                      <option key={stage.value} value={stage.value}>{stage.label}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               <div className="flex items-center">
@@ -904,6 +936,7 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
                   yc_batch: company.yc_batch || '',
                   is_aisafety_company: company.is_aisafety_company,
                   tags: company.tags || [],
+                  stage: company.stage || '',
                 })
                 // Reset investment data
                 const inv = company.investments?.[0]
