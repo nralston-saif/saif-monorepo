@@ -300,21 +300,21 @@ body {
   border-color: currentColor !important;
 }
 
-/* Name label - the floating name tag above cursor */
+/* Name label - the floating name tag above cursor (shows first initial only) */
 .collaboration-carets__label,
 .collaboration-cursor__label {
-  /* Nice gradient background instead of solid orange */
-  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%) !important;
-  /* Softer appearance */
-  font-size: 12px !important;
-  font-weight: 500 !important;
-  padding: 3px 8px !important;
-  border-radius: 6px !important;
+  /* Semi-transparent background */
+  background: rgba(99, 102, 241, 0.6) !important;
+  /* Compact appearance for single initial */
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  padding: 2px 6px !important;
+  border-radius: 4px !important;
   border-end-start-radius: 2px !important;
-  /* Subtle shadow for depth */
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15), 0 1px 3px rgba(0, 0, 0, 0.1) !important;
-  /* Slightly transparent */
-  opacity: 0.92;
+  /* Subtle shadow */
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1) !important;
+  /* Semi-transparent */
+  opacity: 0.7;
   /* Smooth transitions */
   transition: opacity 0.15s ease;
   /* Keep it above content */

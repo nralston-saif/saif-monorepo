@@ -80,10 +80,10 @@ export async function POST(request: NextRequest) {
   const { room } = await request.json()
   console.log('[Liveblocks Auth] Authorizing room:', room)
 
-  // Build user display name
-  const displayName = profile.first_name && profile.last_name
-    ? `${profile.first_name} ${profile.last_name}`
-    : profile.name || profile.email || 'Unknown'
+  // Build user display name - just first initial for cursor label
+  const displayName = profile.first_name
+    ? profile.first_name.charAt(0).toUpperCase()
+    : (profile.name?.charAt(0) || profile.email?.charAt(0) || '?').toUpperCase()
 
   // Prepare the session for Liveblocks
   const session = liveblocks.prepareSession(profile.id, {
