@@ -32,6 +32,8 @@ type TicketComment = {
   author_id: string
   content: string
   is_final_comment: boolean
+  is_testing_comment: boolean
+  is_reactivated_comment: boolean
   created_at: string
   updated_at: string
   author?: Partner | null
