@@ -15,6 +15,7 @@ export default function SignupPage() {
   const [success, setSuccess] = useState(false)
   const [resendLoading, setResendLoading] = useState(false)
   const [resendMessage, setResendMessage] = useState<string | null>(null)
+  const [showResendOption, setShowResendOption] = useState(false)
 
   // Validate password strength
   const validatePassword = (password: string): { valid: boolean; error?: string } => {
@@ -68,9 +69,12 @@ export default function SignupPage() {
 
       if (!checkResult.canSignup) {
         setError(checkResult.message || 'This email is not eligible for signup.')
+        setShowResendOption(checkResult.canResendVerification || false)
         setLoading(false)
         return
       }
+      // Reset resend option if email is eligible
+      setShowResendOption(false)
     } catch (err) {
       setError('Unable to verify email. Please try again.')
       setLoading(false)
@@ -190,6 +194,21 @@ export default function SignupPage() {
           {error && (
             <div className="rounded-md bg-red-50 p-4">
               <p className="text-sm text-red-800">{error}</p>
+              {showResendOption && (
+                <div className="mt-3">
+                  <button
+                    type="button"
+                    onClick={handleResendVerification}
+                    disabled={resendLoading}
+                    className="text-sm font-medium text-red-800 hover:text-red-900 underline disabled:opacity-50"
+                  >
+                    {resendLoading ? 'Sending...' : 'Resend verification email'}
+                  </button>
+                  {resendMessage && (
+                    <p className="mt-2 text-sm text-green-700">{resendMessage}</p>
+                  )}
+                </div>
+              )}
             </div>
           )}
 

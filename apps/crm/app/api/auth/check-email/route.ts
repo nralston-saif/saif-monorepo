@@ -11,8 +11,9 @@ const getServiceClient = () => {
 
 type CheckEmailResponse = {
   canSignup: boolean
-  reason: 'eligible' | 'not_recognized' | 'already_claimed' | 'not_invited'
+  reason: 'eligible' | 'not_recognized' | 'already_claimed' | 'not_invited' | 'pending_verification'
   message?: string
+  canResendVerification?: boolean
 }
 
 export async function POST(request: NextRequest) {
@@ -88,8 +89,9 @@ export async function POST(request: NextRequest) {
         } else {
           return NextResponse.json({
             canSignup: false,
-            reason: 'already_claimed',
-            message: 'A signup is already in progress for this email. Please check your inbox for the verification link, or contact SAIF for assistance.'
+            reason: 'pending_verification',
+            message: 'A signup is already in progress for this email. Please check your inbox for the verification link.',
+            canResendVerification: true
           } as CheckEmailResponse)
         }
       }
