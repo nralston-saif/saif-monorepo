@@ -7,7 +7,7 @@ export async function middleware(request: NextRequest) {
   }
 
   return await updateSession(request, {
-    publicPaths: ['/login', '/_next', '/api'],
+    publicPaths: ['/login', '/signup', '/auth', '/_next', '/api'],
     loginPath: '/login',
     defaultRedirect: '/dashboard',
   })

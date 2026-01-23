@@ -1,12 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 
 export default function SignupPage() {
-  const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -15,6 +13,8 @@ export default function SignupPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
+  const [resendLoading, setResendLoading] = useState(false)
+  const [resendMessage, setResendMessage] = useState<string | null>(null)
 
   // Validate password strength
   const validatePassword = (password: string): { valid: boolean; error?: string } => {
@@ -56,9 +56,30 @@ export default function SignupPage() {
       return
     }
 
+    // Check if email is eligible for signup
+    try {
+      const checkResponse = await fetch('/api/auth/check-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim().toLowerCase() }),
+      })
+
+      const checkResult = await checkResponse.json()
+
+      if (!checkResult.canSignup) {
+        setError(checkResult.message || 'This email is not eligible for signup.')
+        setLoading(false)
+        return
+      }
+    } catch (err) {
+      setError('Unable to verify email. Please try again.')
+      setLoading(false)
+      return
+    }
+
+    // Email is eligible - proceed with signup
     const supabase = createClient()
 
-    // Sign up the user
     const { data, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
@@ -82,6 +103,26 @@ export default function SignupPage() {
     setLoading(false)
   }
 
+  const handleResendVerification = async () => {
+    setResendLoading(true)
+    setResendMessage(null)
+
+    try {
+      const response = await fetch('/api/auth/resend-verification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim().toLowerCase() }),
+      })
+
+      const result = await response.json()
+      setResendMessage(result.message)
+    } catch (err) {
+      setResendMessage('Unable to resend email. Please try again.')
+    } finally {
+      setResendLoading(false)
+    }
+  }
+
   if (success) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white px-4">
@@ -101,9 +142,27 @@ export default function SignupPage() {
             <p className="mt-4 text-sm text-gray-600">
               Click the link in the email to verify your account and complete your profile.
             </p>
+
+            {/* Resend verification section */}
+            <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+              <p className="text-sm text-gray-600 mb-3">
+                Didn't receive the email?
+              </p>
+              <button
+                onClick={handleResendVerification}
+                disabled={resendLoading}
+                className="text-sm font-medium text-gray-900 hover:text-gray-700 disabled:opacity-50"
+              >
+                {resendLoading ? 'Sending...' : 'Resend verification email'}
+              </button>
+              {resendMessage && (
+                <p className="mt-2 text-sm text-green-600">{resendMessage}</p>
+              )}
+            </div>
+
             <div className="mt-6">
               <Link
-                href="/auth/login"
+                href="/login"
                 className="text-sm font-medium text-gray-900 hover:text-gray-700"
               >
                 Return to login
@@ -120,10 +179,10 @@ export default function SignupPage() {
       <div className="max-w-md w-full space-y-8">
         <div>
           <h1 className="text-4xl font-bold text-center text-gray-900">
-            Join SAIFface
+            Join SAIF
           </h1>
           <p className="mt-2 text-center text-sm text-gray-600">
-            Connect with the SAIF portfolio community
+            Create your account to access the SAIF community
           </p>
         </div>
 
@@ -185,7 +244,7 @@ export default function SignupPage() {
                 placeholder="founder@company.com"
               />
               <p className="mt-1 text-xs text-gray-500">
-                Use your company email address
+                Use the email address SAIF has on file for you
               </p>
             </div>
 
@@ -240,7 +299,7 @@ export default function SignupPage() {
           <div className="text-center">
             <p className="text-sm text-gray-600">
               Already have an account?{' '}
-              <Link href="/auth/login" className="font-medium text-gray-900 hover:text-gray-700">
+              <Link href="/login" className="font-medium text-gray-900 hover:text-gray-700">
                 Sign in
               </Link>
             </p>

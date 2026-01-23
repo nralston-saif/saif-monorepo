@@ -126,58 +126,6 @@ export default function FounderDashboard({ person, userEmail, company, founders,
           </a>
         </div>
 
-        {/* Company Card */}
-        {company && (
-          <div className="mb-8 bg-white border border-gray-200 rounded-lg p-6">
-            <div className="flex items-start justify-between">
-              <div className="flex items-start space-x-4">
-                {company.logo_url ? (
-                  <img
-                    src={company.logo_url}
-                    alt={company.name}
-                    className="h-16 w-16 object-contain rounded-lg border border-gray-200 p-1"
-                  />
-                ) : (
-                  <div className="h-16 w-16 bg-gray-100 rounded-lg flex items-center justify-center border border-gray-200">
-                    <span className="text-2xl font-bold text-gray-400">{company.name[0]}</span>
-                  </div>
-                )}
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900">{company.name}</h3>
-                  {company.short_description && (
-                    <p className="mt-1 text-sm text-gray-600 line-clamp-2">{company.short_description}</p>
-                  )}
-                  {founders.length > 0 && (
-                    <p className="mt-2 text-sm text-gray-700">
-                      <span className="text-gray-500">Founders:</span>{' '}
-                      {founders.map((f, idx) => (
-                        <span key={f.id}>
-                          {idx > 0 && ', '}
-                          <Link href={`/people/${f.id}`} className="hover:underline">
-                            {f.first_name} {f.last_name}
-                          </Link>
-                        </span>
-                      ))}
-                    </p>
-                  )}
-                  <div className="mt-2 flex flex-wrap gap-2 text-xs text-gray-500">
-                    {company.industry && <span>{company.industry}</span>}
-                    {company.city && company.country && (
-                      <span>• {company.city}, {company.country}</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-              <Link
-                href={`/companies/${company.id}`}
-                className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800"
-              >
-                View Company
-              </Link>
-            </div>
-          </div>
-        )}
-
         {/* AI News Section - Condensed */}
         {newsArticles.length > 0 && (
           <div className="mb-6 bg-white border border-gray-200 rounded-lg overflow-hidden">
@@ -232,9 +180,8 @@ export default function FounderDashboard({ person, userEmail, company, founders,
           </div>
         )}
 
-        {/* SAIF Community */}
+        {/* Community Members */}
         <div className="mt-8">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">SAIF Community</h3>
           <PeopleGrid people={community as Person[]} isPartner={false} />
         </div>
 

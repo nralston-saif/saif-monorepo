@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -78,9 +79,17 @@ export default function LoginPage() {
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1.5">
-                Password
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                  Password
+                </label>
+                <Link
+                  href="/auth/forgot-password"
+                  className="text-sm text-gray-600 hover:text-gray-900"
+                >
+                  Forgot password?
+                </Link>
+              </div>
               <input
                 id="password"
                 name="password"
@@ -120,12 +129,21 @@ export default function LoginPage() {
                 'Sign in'
               )}
             </button>
+
+            <div className="text-center">
+              <p className="text-sm text-gray-600">
+                New to SAIF?{' '}
+                <Link href="/signup" className="font-medium text-gray-900 hover:text-gray-700">
+                  Create an account
+                </Link>
+              </p>
+            </div>
           </form>
         </div>
 
         {/* Footer */}
         <p className="text-center text-sm text-[#666666] mt-6">
-          Secure access for SAIF partners only
+          Secure access for SAIF community members
         </p>
       </div>
     </div>

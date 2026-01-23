@@ -44,6 +44,7 @@ type Person = {
   introduced_by: string | null
   introduction_context: string | null
   relationship_notes: string | null
+  invited_to_community: boolean | null
   companies?: CompanyAssociation[]
 }
 
@@ -134,6 +135,7 @@ export default function PersonView({ person, introducerName, activeCompanies, ca
     first_met_date: person.first_met_date || '',
     introduction_context: person.introduction_context || '',
     relationship_notes: person.relationship_notes || '',
+    invited_to_community: person.invited_to_community || false,
   })
 
   // Fetch all company associations when editing (partners only)
@@ -383,6 +385,11 @@ export default function PersonView({ person, introducerName, activeCompanies, ca
         .join(' ')
         .trim() || null
 
+      // If inviting to community, ensure status is set to pending (unless already active)
+      const effectiveStatus = formData.invited_to_community && formData.status === 'tracked'
+        ? 'pending'
+        : formData.status
+
       const { error: updateError } = await supabase
         .from('saif_people')
         .update({
@@ -398,11 +405,12 @@ export default function PersonView({ person, introducerName, activeCompanies, ca
           mobile_phone: formData.mobile_phone || null,
           location: formData.location || null,
           role: formData.role,
-          status: formData.status,
+          status: effectiveStatus,
           tags: formData.tags,
           first_met_date: formData.first_met_date || null,
           introduction_context: formData.introduction_context || null,
           relationship_notes: formData.relationship_notes || null,
+          invited_to_community: formData.invited_to_community,
           updated_at: new Date().toISOString(),
         })
         .eq('id', person.id)
@@ -604,6 +612,24 @@ export default function PersonView({ person, introducerName, activeCompanies, ca
                   </select>
                 </div>
               </div>
+
+              {/* Invite to Community - Partners only */}
+              {isPartner && (
+                <div className="flex items-center gap-3 py-2">
+                  <input
+                    type="checkbox"
+                    id="invited_to_community"
+                    name="invited_to_community"
+                    checked={formData.invited_to_community}
+                    onChange={(e) => setFormData({ ...formData, invited_to_community: e.target.checked })}
+                    className="h-4 w-4 text-gray-900 focus:ring-gray-900 border-gray-300 rounded"
+                  />
+                  <label htmlFor="invited_to_community" className="text-sm font-medium text-gray-700">
+                    Invite to Community
+                  </label>
+                  <span className="text-xs text-gray-500">(allows signup even if not a portfolio founder)</span>
+                </div>
+              )}
 
               <div>
                 <label htmlFor="location" className="block text-sm font-medium text-gray-700">
