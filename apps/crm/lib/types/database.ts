@@ -444,6 +444,8 @@ export type Database = {
           created_at: string
           id: string
           is_final_comment: boolean
+          is_testing_comment: boolean
+          is_reactivated_comment: boolean
           ticket_id: string
           updated_at: string
         }
@@ -453,6 +455,8 @@ export type Database = {
           created_at?: string
           id?: string
           is_final_comment?: boolean
+          is_testing_comment?: boolean
+          is_reactivated_comment?: boolean
           ticket_id: string
           updated_at?: string
         }
@@ -462,6 +466,8 @@ export type Database = {
           created_at?: string
           id?: string
           is_final_comment?: boolean
+          is_testing_comment?: boolean
+          is_reactivated_comment?: boolean
           ticket_id?: string
           updated_at?: string
         }
@@ -1696,7 +1702,7 @@ export type Database = {
     }
     Enums: {
       ticket_priority: "high" | "medium" | "low"
-      ticket_status: "open" | "in_progress" | "archived"
+      ticket_status: "open" | "in_progress" | "testing" | "archived"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1825,7 +1831,7 @@ export const Constants = {
   public: {
     Enums: {
       ticket_priority: ["high", "medium", "low"],
-      ticket_status: ["open", "in_progress", "archived"],
+      ticket_status: ["open", "in_progress", "testing", "archived"],
     },
   },
 } as const

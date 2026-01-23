@@ -69,6 +69,8 @@ export default async function TicketsPage() {
         author_id,
         content,
         is_final_comment,
+        is_testing_comment,
+        is_reactivated_comment,
         created_at,
         updated_at,
         author:saif_people!saif_ticket_comments_author_id_fkey(id, first_name, last_name, email, avatar_url)
