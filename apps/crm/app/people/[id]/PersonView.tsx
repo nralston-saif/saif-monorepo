@@ -972,6 +972,7 @@ export default function PersonView({ person, introducerName, activeCompanies, ca
                   first_met_date: person.first_met_date || '',
                   introduction_context: person.introduction_context || '',
                   relationship_notes: person.relationship_notes || '',
+                  invited_to_community: person.invited_to_community || false,
                 })
               }}
               className="text-sm text-gray-600 hover:text-gray-900"
