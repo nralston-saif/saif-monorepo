@@ -164,8 +164,19 @@ export default function TicketsClient({
     filtered = [...filtered].sort((a, b) => {
       switch (sortOption) {
         case 'date-newest':
+          // For archived tickets, sort by archived_at (resolve date); otherwise by created_at
+          if (statusFilter === 'archived') {
+            const aDate = a.archived_at ? new Date(a.archived_at).getTime() : 0
+            const bDate = b.archived_at ? new Date(b.archived_at).getTime() : 0
+            return bDate - aDate
+          }
           return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
         case 'date-oldest':
+          if (statusFilter === 'archived') {
+            const aDate = a.archived_at ? new Date(a.archived_at).getTime() : 0
+            const bDate = b.archived_at ? new Date(b.archived_at).getTime() : 0
+            return aDate - bDate
+          }
           return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
         case 'priority':
           const priorityOrder = { high: 0, medium: 1, low: 2 }
@@ -352,6 +363,18 @@ export default function TicketsClient({
               <div className="flex items-center gap-1 text-gray-500">
                 <span className="truncate">👤 {ticket.assigned_partner?.first_name || 'Unassigned'}</span>
               </div>
+
+              {/* Creation date */}
+              <div className="flex items-center gap-1 text-gray-400">
+                <span>📅 {formatDate(ticket.created_at)}</span>
+              </div>
+
+              {/* Archived date - only for archived tickets */}
+              {ticket.status === 'archived' && ticket.archived_at && (
+                <div className="flex items-center gap-1 text-emerald-600">
+                  <span>✓ {formatDate(ticket.archived_at)}</span>
+                </div>
+              )}
 
               {/* Tags - hidden on mobile */}
               {ticket.tags && ticket.tags.length > 0 && (

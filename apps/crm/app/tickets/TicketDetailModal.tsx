@@ -695,9 +695,9 @@ export default function TicketDetailModal({
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-content max-w-3xl" onClick={(e) => e.stopPropagation()}>
+      <div className="modal-content max-w-4xl flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
         {/* Modal Header */}
-        <div className="p-6 border-b border-gray-100">
+        <div className="p-6 border-b border-gray-100 flex-shrink-0">
           <div className="flex items-start justify-between">
             <div className="flex-1">
               {isEditing ? (
@@ -733,7 +733,7 @@ export default function TicketDetailModal({
 
         {/* Content */}
         {isEditing ? (
-          <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+          <form onSubmit={handleSubmit} className="p-6 space-y-4 flex-1 overflow-y-auto min-h-0">
             {/* Description */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -866,7 +866,7 @@ export default function TicketDetailModal({
             </div>
           </form>
         ) : (
-          <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+          <div className="p-6 space-y-6 flex-1 overflow-y-auto min-h-0">
             {/* Description */}
             {ticket.description && (
               <div>
@@ -1191,7 +1191,7 @@ export default function TicketDetailModal({
         )}
 
         {/* Footer */}
-        <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex justify-between">
+        <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex justify-between flex-shrink-0">
           <div>
             {!isEditing && (
               <button
