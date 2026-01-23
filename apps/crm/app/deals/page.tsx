@@ -97,6 +97,7 @@ export default async function DealsPage(): Promise<React.ReactElement> {
 
       return {
         id: app.id,
+        company_id: app.company_id,
         company_name: app.company_name,
         founder_names: app.founder_names,
         founder_linkedins: app.founder_linkedins,
@@ -125,6 +126,7 @@ export default async function DealsPage(): Promise<React.ReactElement> {
 
       return {
         id: app.id,
+        company_id: app.company_id,
         company_name: app.company_name,
         founder_names: app.founder_names,
         founder_linkedins: app.founder_linkedins,
@@ -175,6 +177,7 @@ export default async function DealsPage(): Promise<React.ReactElement> {
     .filter(app => app.stage === 'portfolio' || app.stage === 'rejected')
     .map((app) => ({
       id: app.id,
+      company_id: app.company_id,
       company_name: app.company_name,
       founder_names: app.founder_names,
       founder_linkedins: app.founder_linkedins,

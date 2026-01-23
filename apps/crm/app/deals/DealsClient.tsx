@@ -22,6 +22,7 @@ type Vote = {
 
 type BaseApplication = {
   id: string
+  company_id: string | null
   company_name: string
   founder_names: string | null
   founder_linkedins: string | null
@@ -1892,13 +1893,17 @@ export default function DealsClient({
                         </div>
 
                         <div className="px-3 py-2 bg-gray-50 border-t border-gray-100 flex gap-2 items-center">
-                          <Link
-                            href={`/deals/${app.id}`}
-                            onClick={(e) => e.stopPropagation()}
-                            className="text-xs px-2 py-1 rounded bg-white border border-gray-200 text-gray-700 hover:bg-gray-50"
-                          >
-                            Notes
-                          </Link>
+                          {app.company_id ? (
+                            <Link
+                              href={`/companies/${app.company_id}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className="text-xs px-2 py-1 rounded bg-white border border-gray-200 text-gray-700 hover:bg-gray-50"
+                            >
+                              Notes
+                            </Link>
+                          ) : (
+                            <span className="text-xs px-2 py-1 text-gray-400">No company linked</span>
+                          )}
                           <div className="relative">
                             <button
                               onClick={(e) => {
@@ -2194,13 +2199,17 @@ export default function DealsClient({
                         Submitted {formatDate(app.submitted_at)}
                       </p>
                       <div className="flex gap-2">
-                        <Link
-                          href={`/deals/${app.id}`}
-                          onClick={(e) => e.stopPropagation()}
-                          className="text-xs px-2 py-1 rounded bg-gray-100 border border-gray-200 text-gray-700 hover:bg-gray-200"
-                        >
-                          Notes
-                        </Link>
+                        {app.company_id ? (
+                          <Link
+                            href={`/companies/${app.company_id}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-xs px-2 py-1 rounded bg-gray-100 border border-gray-200 text-gray-700 hover:bg-gray-200"
+                          >
+                            Notes
+                          </Link>
+                        ) : (
+                          <span className="text-xs px-2 py-1 text-gray-400">No company linked</span>
+                        )}
                       </div>
                     </div>
                   ))}

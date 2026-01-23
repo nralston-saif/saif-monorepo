@@ -3,8 +3,8 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter, useSearchParams } from 'next/navigation'
+import Link from 'next/link'
 import { useToast } from '@saif/ui'
-import PersonMeetingNotes from '@/components/PersonMeetingNotes'
 import type { UserRole, UserStatus, RelationshipType } from '@saif/supabase'
 import CreateTicketButton from '@/components/CreateTicketButton'
 
@@ -113,7 +113,6 @@ export default function PeopleClient({
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [sortOption, setSortOption] = useState<SortOption>('name-az')
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null)
-  const [notesPersonId, setNotesPersonId] = useState<Person | null>(null)
   const [showAddModal, setShowAddModal] = useState(false)
   const [formData, setFormData] = useState<Partial<Person>>({})
   const [loading, setLoading] = useState(false)
@@ -711,13 +710,11 @@ export default function PeopleClient({
                       </svg>
                     </a>
                   )}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setNotesPersonId(person)
-                    }}
+                  <Link
+                    href={`/people/${person.id}`}
+                    onClick={(e) => e.stopPropagation()}
                     className="p-1.5 text-gray-400 hover:text-[#1a1a1a] rounded hover:bg-gray-100 transition-colors relative"
-                    title="Meeting Notes"
+                    title="View Profile & Notes"
                   >
                     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -727,7 +724,7 @@ export default function PeopleClient({
                         {person.noteCount}
                       </span>
                     )}
-                  </button>
+                  </Link>
                   <button
                     onClick={(e) => {
                       e.stopPropagation()
@@ -938,18 +935,16 @@ export default function PeopleClient({
             </div>
 
             <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex gap-3">
-              <button
-                onClick={() => {
-                  setNotesPersonId(selectedPerson)
-                  setSelectedPerson(null)
-                }}
+              <Link
+                href={`/people/${selectedPerson.id}`}
+                onClick={() => setSelectedPerson(null)}
                 className="btn btn-secondary flex-1"
               >
                 <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
-                Meeting Notes
-              </button>
+                View Profile
+              </Link>
               <button
                 onClick={() => {
                   setSelectedPerson(null)
@@ -1557,16 +1552,6 @@ export default function PeopleClient({
         </div>
       )}
 
-      {/* Meeting Notes Modal */}
-      {notesPersonId && (
-        <PersonMeetingNotes
-          personId={notesPersonId.id}
-          personName={notesPersonId.displayName || 'Unknown'}
-          userId={userId}
-          userName={userName}
-          onClose={() => setNotesPersonId(null)}
-        />
-      )}
     </div>
   )
 }

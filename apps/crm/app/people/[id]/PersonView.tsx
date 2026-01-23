@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import type { UserRole, UserStatus } from '@saif/supabase'
 import TagSelector from '@/app/tickets/TagSelector'
-import PersonMeetingNotes from '@/components/PersonMeetingNotes'
+import { CollaborativeNoteEditor } from '@/components/collaborative'
+import { NotesList } from '@/components/shared'
 
 type CompanyAssociation = {
   id: string
@@ -82,9 +83,22 @@ export default function PersonView({ person, introducerName, activeCompanies, ca
 
   // Start in edit mode if ?edit=true is in URL
   const [isEditing, setIsEditing] = useState(searchParams.get('edit') === 'true' && canEdit)
-  // Show notes modal if ?notes=true is in URL (partners only)
-  const [showNotes, setShowNotes] = useState(searchParams.get('notes') === 'true' && isPartner)
   const [saving, setSaving] = useState(false)
+
+  // Notes state (for inline notes section)
+  const [notesRefreshTrigger, setNotesRefreshTrigger] = useState(0)
+  const [currentNoteId, setCurrentNoteId] = useState<string | null | undefined>(undefined)
+  const prevCurrentNoteIdRef = useRef<string | null | undefined>(undefined)
+
+  // Detect when sharedNoteId transitions from a value to null (Save & New clicked)
+  useEffect(() => {
+    const prev = prevCurrentNoteIdRef.current
+    prevCurrentNoteIdRef.current = currentNoteId
+
+    if (prev && prev !== undefined && currentNoteId === null) {
+      setNotesRefreshTrigger((p) => p + 1)
+    }
+  }, [currentNoteId])
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
@@ -1264,6 +1278,36 @@ export default function PersonView({ person, introducerName, activeCompanies, ca
               )}
             </div>
           </div>
+
+          {/* Notes Section (Partners Only) */}
+          {isPartner && (
+            <div className="mt-8 pt-6 border-t border-gray-200">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Meeting Notes</h2>
+              <div className="space-y-6">
+                <CollaborativeNoteEditor
+                  key={person.id}
+                  context={{ type: 'person-only', id: person.id }}
+                  userId={currentUserId}
+                  userName={currentUserName}
+                  showDatePicker={true}
+                  placeholder="Type your meeting notes here... Changes auto-save and sync in real-time."
+                  minHeight="200px"
+                  onNoteSaved={() => setNotesRefreshTrigger((prev) => prev + 1)}
+                  onCurrentNoteIdChange={setCurrentNoteId}
+                />
+
+                {currentNoteId !== undefined && (
+                  <NotesList
+                    mode="person-only"
+                    personId={person.id}
+                    refreshTrigger={notesRefreshTrigger}
+                    excludeNoteId={currentNoteId}
+                    showHeader={true}
+                  />
+                )}
+              </div>
+            </div>
+          )}
         </>
       )}
 
@@ -1293,17 +1337,6 @@ export default function PersonView({ person, introducerName, activeCompanies, ca
             </div>
           </div>
         </div>
-      )}
-
-      {/* Person Meeting Notes Modal */}
-      {showNotes && isPartner && (
-        <PersonMeetingNotes
-          personId={person.id}
-          personName={fullName}
-          userId={currentUserId}
-          userName={currentUserName}
-          onClose={() => setShowNotes(false)}
-        />
       )}
     </>
   )

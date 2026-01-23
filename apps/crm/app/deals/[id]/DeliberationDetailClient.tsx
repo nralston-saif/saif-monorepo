@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import CompanyNotes from '@/components/CompanyNotes'
 import { useToast } from '@saif/ui'
 import CreateTicketButton from '@/components/CreateTicketButton'
 import { ensureProtocol } from '@/lib/utils'
@@ -702,43 +701,40 @@ export default function DeliberationDetailClient({
           </div>
         </div>
 
-        {/* Right Column - Meeting Notes */}
+        {/* Right Column - Meeting Notes Link */}
         <div className="lg:col-span-2">
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                  />
-                </svg>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                  <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                    />
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">Meeting Notes</h2>
+                  <p className="text-sm text-gray-500">View and edit notes on the company page</p>
+                </div>
               </div>
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900">Meeting Notes</h2>
-                <p className="text-sm text-gray-500">Collaborate with your team in real-time</p>
-              </div>
+              {application.company_id ? (
+                <Link
+                  href={`/companies/${application.company_id}`}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  View Notes & Company
+                </Link>
+              ) : (
+                <span className="text-sm text-gray-500">No company linked</span>
+              )}
             </div>
-
-            {application.company_id ? (
-              <CompanyNotes
-                companyId={application.company_id}
-                companyName={application.company_name}
-                userId={userId}
-                userName={userName}
-                contextType="deal"
-                contextId={application.id}
-                deliberationNotes={application.deliberation?.thoughts}
-                placeholder="Type your meeting notes here... Changes auto-save and sync in real-time with other users."
-              />
-            ) : (
-              <div className="text-gray-500 text-center py-8">
-                <p>Notes require a linked company.</p>
-                <p className="text-sm">Please link this application to a company first.</p>
-              </div>
-            )}
           </div>
         </div>
       </div>

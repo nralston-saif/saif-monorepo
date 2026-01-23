@@ -2,8 +2,8 @@
 
 import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import ApplicationDetailModal from '@/components/ApplicationDetailModal'
-import InvestmentMeetingNotes from '@/components/InvestmentMeetingNotes'
 import CreateTicketButton from '@/components/CreateTicketButton'
 import { ensureProtocol } from '@/lib/utils'
 
@@ -53,7 +53,6 @@ export default function PortfolioClient({
   userName: string
 }) {
   const [selectedInvestment, setSelectedInvestment] = useState<Investment | null>(null)
-  const [meetingNotesInvestment, setMeetingNotesInvestment] = useState<Investment | null>(null)
 
   // Search and sort state
   const [searchQuery, setSearchQuery] = useState('')
@@ -469,18 +468,18 @@ export default function PortfolioClient({
                       <span>🌐</span> Website
                     </a>
                   )}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setMeetingNotesInvestment(investment)
-                    }}
-                    className="inline-flex items-center gap-1.5 text-sm text-[#1a1a1a] bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-lg transition-colors"
-                  >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    Notes
-                  </button>
+                  {investment.company_id && (
+                    <Link
+                      href={`/companies/${investment.company_id}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="inline-flex items-center gap-1.5 text-sm text-[#1a1a1a] bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-lg transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      Notes
+                    </Link>
+                  )}
                 </div>
               </div>
             </div>
@@ -530,18 +529,6 @@ export default function PortfolioClient({
       )}
 
       {/* Add/Edit Investment Modal - Disabled (investments managed via saif_investments table) */}
-
-      {/* Meeting Notes Modal with Liveblocks */}
-      {meetingNotesInvestment && (
-        <InvestmentMeetingNotes
-          investmentId={meetingNotesInvestment.id}
-          companyId={meetingNotesInvestment.company_id}
-          companyName={meetingNotesInvestment.company_name}
-          userId={userId}
-          userName={userName}
-          onClose={() => setMeetingNotesInvestment(null)}
-        />
-      )}
     </div>
   )
 }

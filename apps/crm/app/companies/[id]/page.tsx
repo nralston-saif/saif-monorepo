@@ -117,7 +117,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
     notFound()
   }
 
-  // Fetch active deal (application in interview stage) for this company
+  // Fetch application for this company (any stage - to show application info)
   let activeDeal: ActiveDeal | null = null
 
   const { data: application } = await supabase
@@ -137,7 +137,8 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
       stage
     `)
     .eq('company_id', id)
-    .eq('stage', 'interview')
+    .order('submitted_at', { ascending: false })
+    .limit(1)
     .single()
 
   if (application) {

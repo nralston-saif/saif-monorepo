@@ -119,6 +119,9 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
   // Rejection field
   const [rejectionEmailSender, setRejectionEmailSender] = useState('')
 
+  // Application section collapsed state
+  const [applicationExpanded, setApplicationExpanded] = useState(false)
+
   // Founder management state
   const [showAddFounder, setShowAddFounder] = useState(false)
   const [addingFounder, setAddingFounder] = useState(false)
@@ -1596,7 +1599,7 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
 
           {/* Application Section */}
           {isPartner && activeDeal && (
-            <div className={`border rounded-lg p-6 ${
+            <div className={`border rounded-lg overflow-hidden ${
               activeDeal.stage === 'interview'
                 ? 'bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200'
                 : activeDeal.stage === 'portfolio'
@@ -1605,7 +1608,11 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
                 ? 'bg-gradient-to-br from-gray-50 to-slate-50 border-gray-200'
                 : 'bg-gradient-to-br from-amber-50 to-yellow-50 border-amber-200'
             }`}>
-              <div className="flex items-center justify-between mb-4">
+              {/* Collapsible Header */}
+              <button
+                onClick={() => setApplicationExpanded(!applicationExpanded)}
+                className="w-full p-4 flex items-center justify-between hover:bg-white/30 transition-colors"
+              >
                 <div className="flex items-center gap-3">
                   <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
                     activeDeal.stage === 'interview' ? 'bg-blue-100' :
@@ -1620,17 +1627,18 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
                   </div>
-                  <div>
+                  <div className="text-left">
                     <h2 className="text-lg font-semibold text-gray-900">Application</h2>
                     <p className="text-sm text-gray-500 capitalize">{activeDeal.stage} stage</p>
                   </div>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex items-center gap-3">
                   {activeDeal.deck_link && (
                     <a
                       href={activeDeal.deck_link}
                       target="_blank"
                       rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
                       className="px-3 py-2 bg-purple-100 text-purple-700 text-sm font-medium rounded-lg hover:bg-purple-200 transition-colors"
                     >
                       📊 Deck
@@ -1638,30 +1646,39 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
                   )}
                   {activeDeal.stage === 'interview' && (
                     <button
-                      onClick={() => setShowDecisionModal(true)}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setShowDecisionModal(true)
+                      }}
                       className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
                     >
                       Make Decision
                     </button>
                   )}
+                  <svg className={`w-5 h-5 text-gray-500 transition-transform ${applicationExpanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
                 </div>
-              </div>
+              </button>
 
-              {/* Company Description from Application */}
-              {activeDeal.company_description && (
-                <div className="mb-4">
-                  <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">Description</h3>
-                  <p className="text-gray-700">{activeDeal.company_description}</p>
-                </div>
-              )}
+              {/* Expandable Content */}
+              {applicationExpanded && (
+                <div className="px-6 pb-6 pt-2 border-t border-white/50">
+                  {/* Company Description from Application */}
+                  {activeDeal.company_description && (
+                    <div className="mb-4">
+                      <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">Description</h3>
+                      <p className="text-gray-700">{activeDeal.company_description}</p>
+                    </div>
+                  )}
 
-              {/* Founder Bios */}
-              {activeDeal.founder_bios && (
-                <div className="mb-4">
-                  <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">Founder Bios</h3>
-                  <p className="text-gray-700 whitespace-pre-wrap">{activeDeal.founder_bios}</p>
-                </div>
-              )}
+                  {/* Founder Bios */}
+                  {activeDeal.founder_bios && (
+                    <div className="mb-4">
+                      <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">Founder Bios</h3>
+                      <p className="text-gray-700 whitespace-pre-wrap">{activeDeal.founder_bios}</p>
+                    </div>
+                  )}
 
               {/* Founder LinkedIn Profiles */}
               {activeDeal.founder_linkedins && (() => {
@@ -1781,21 +1798,23 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
               )}
             </div>
           )}
+            </div>
+          )}
 
           {/* Notes Section */}
           {isPartner && (
             <div className="bg-white border border-gray-200 rounded-lg p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">
-                {activeDeal ? 'Deal Notes' : company.stage === 'portfolio' ? 'Portfolio Notes' : 'Notes'}
+                {activeDeal?.stage === 'interview' ? 'Deal Notes' : company.stage === 'portfolio' ? 'Portfolio Notes' : 'Notes'}
               </h2>
               <CompanyNotes
                 companyId={company.id}
                 companyName={company.name}
                 userId={currentPersonId}
                 userName={userName}
-                contextType={activeDeal ? 'deal' : company.stage === 'portfolio' ? 'portfolio' : 'company'}
-                contextId={activeDeal?.id || (company.stage === 'portfolio' && company.investments?.[0]?.id) || undefined}
-                deliberationNotes={activeDeal?.deliberation?.thoughts}
+                contextType={activeDeal?.stage === 'interview' ? 'deal' : company.stage === 'portfolio' ? 'portfolio' : 'company'}
+                contextId={activeDeal?.stage === 'interview' ? activeDeal.id : (company.stage === 'portfolio' && company.investments?.[0]?.id) || undefined}
+                deliberationNotes={activeDeal?.stage === 'interview' ? activeDeal?.deliberation?.thoughts : undefined}
               />
             </div>
           )}
