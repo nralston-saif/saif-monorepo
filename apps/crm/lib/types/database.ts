@@ -402,6 +402,7 @@ export type Database = {
       saif_tags: {
         Row: {
           color: string | null
+          category: string | null
           created_at: string | null
           created_by: string | null
           id: string
@@ -410,6 +411,7 @@ export type Database = {
         }
         Insert: {
           color?: string | null
+          category?: string | null
           created_at?: string | null
           created_by?: string | null
           id?: string
@@ -418,6 +420,7 @@ export type Database = {
         }
         Update: {
           color?: string | null
+          category?: string | null
           created_at?: string | null
           created_by?: string | null
           id?: string

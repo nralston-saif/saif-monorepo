@@ -8,6 +8,7 @@ import type { Database } from '@/lib/types/database'
 import CreateTicketButton from '@/components/CreateTicketButton'
 import PersonModal from '@/components/PersonModal'
 import TagSelector from '@/app/tickets/TagSelector'
+import FocusTagSelector from '@/components/FocusTagSelector'
 import CompanyNotes from '@/components/CompanyNotes'
 import { ensureProtocol } from '@/lib/utils'
 
@@ -774,6 +775,21 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
                   onChange={(tags) => setFormData({ ...formData, tags })}
                   currentUserId={currentPersonId}
                 />
+              </div>
+
+              {/* Biomap Focus Tags */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Biomap Focus Areas
+                </label>
+                <FocusTagSelector
+                  selectedTags={formData.tags}
+                  onChange={(tags) => setFormData({ ...formData, tags })}
+                  currentUserId={currentPersonId}
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  Focus areas for the biomap (prevention, detection, treatment, etc.)
+                </p>
               </div>
             </div>
           </div>

@@ -763,6 +763,7 @@ export interface Database {
           id: string
           name: string
           color: string
+          category: string
           created_at: string
           created_by: string | null
           usage_count: number
@@ -771,6 +772,7 @@ export interface Database {
           id?: string
           name: string
           color?: string
+          category?: string
           created_at?: string
           created_by?: string | null
           usage_count?: number
@@ -779,6 +781,7 @@ export interface Database {
           id?: string
           name?: string
           color?: string
+          category?: string
           created_at?: string
           created_by?: string | null
           usage_count?: number

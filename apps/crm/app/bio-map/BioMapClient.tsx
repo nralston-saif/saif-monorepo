@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import type { BioMapPerson, BioMapOrganization } from './page'
+import type { BioMapPerson, BioMapOrganization, FocusTag } from './page'
 import BioMapDetailModal from './BioMapDetailModal'
 
 type ViewMode = 'people' | 'organizations'
@@ -39,11 +39,13 @@ export default function BioMapClient({
   people,
   organizations,
   bioTags,
+  focusTags,
   userId,
 }: {
   people: BioMapPerson[]
   organizations: BioMapOrganization[]
   bioTags: string[]
+  focusTags: FocusTag[]
   userId: string
 }) {
   const [viewMode, setViewMode] = useState<ViewMode>('organizations')
@@ -55,6 +57,7 @@ export default function BioMapClient({
 
   // Organization filters
   const [typeFilter, setTypeFilter] = useState<string>('all')
+  const [focusFilter, setFocusFilter] = useState<string>('all')
 
   // People filters
   const [roleFilter, setRoleFilter] = useState<string>('all')
@@ -100,10 +103,17 @@ export default function BioMapClient({
   const filteredPeople = useMemo(() => {
     let filtered = people
 
-    // Apply tag filter
+    // Apply bio tag filter
     if (selectedTag !== 'all') {
       filtered = filtered.filter(p =>
         p.tags.some(t => t.toLowerCase() === selectedTag.toLowerCase())
+      )
+    }
+
+    // Apply focus tag filter
+    if (focusFilter !== 'all') {
+      filtered = filtered.filter(p =>
+        p.tags.some(t => t.toLowerCase() === focusFilter.toLowerCase())
       )
     }
 
@@ -155,16 +165,23 @@ export default function BioMapClient({
     })
 
     return filtered
-  }, [people, searchQuery, selectedTag, sortOption, roleFilter, orgFilter, locationFilter])
+  }, [people, searchQuery, selectedTag, focusFilter, sortOption, roleFilter, orgFilter, locationFilter])
 
   // Filter organizations
   const filteredOrganizations = useMemo(() => {
     let filtered = organizations
 
-    // Apply tag filter
+    // Apply bio tag filter
     if (selectedTag !== 'all') {
       filtered = filtered.filter(o =>
         o.tags.some(t => t.toLowerCase() === selectedTag.toLowerCase())
+      )
+    }
+
+    // Apply focus tag filter
+    if (focusFilter !== 'all') {
+      filtered = filtered.filter(o =>
+        o.tags.some(t => t.toLowerCase() === focusFilter.toLowerCase())
       )
     }
 
@@ -204,7 +221,7 @@ export default function BioMapClient({
     })
 
     return filtered
-  }, [organizations, searchQuery, selectedTag, sortOption, typeFilter])
+  }, [organizations, searchQuery, selectedTag, sortOption, typeFilter, focusFilter])
 
   // Get primary company for a person
   const getPrimaryCompany = (person: BioMapPerson): string | null => {
@@ -212,9 +229,25 @@ export default function BioMapClient({
     return person.company_associations[0].company?.name || null
   }
 
-  // Get bio tags for a person/org
+  // Get bio tags for a person/org (tags that contain 'bio')
   const getBioTags = (tags: string[]): string[] => {
     return tags.filter(t => t.toLowerCase().includes('bio'))
+  }
+
+  // Get focus tags for a person/org with their colors
+  const focusTagNames = useMemo(() => focusTags.map(t => t.name.toLowerCase()), [focusTags])
+
+  const getFocusTags = (tags: string[]): { name: string; color: string }[] => {
+    return tags
+      .filter(t => focusTagNames.includes(t.toLowerCase()))
+      .map(t => {
+        const focusTag = focusTags.find(ft => ft.name.toLowerCase() === t.toLowerCase())
+        return {
+          name: t,
+          color: focusTag?.color || '#6B7280',
+        }
+      })
+      .sort((a, b) => a.name.localeCompare(b.name))
   }
 
   return (
@@ -293,13 +326,27 @@ export default function BioMapClient({
                   </option>
                 ))}
               </select>
+              {focusTags.length > 0 && (
+                <select
+                  value={focusFilter}
+                  onChange={(e) => setFocusFilter(e.target.value)}
+                  className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-gray-900 focus:border-gray-900"
+                >
+                  <option value="all">All Focus</option>
+                  {focusTags.map(tag => (
+                    <option key={tag.id} value={tag.name}>
+                      {tag.name}
+                    </option>
+                  ))}
+                </select>
+              )}
               {bioTags.length > 0 && (
                 <select
                   value={selectedTag}
                   onChange={(e) => setSelectedTag(e.target.value)}
                   className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-gray-900 focus:border-gray-900"
                 >
-                  <option value="all">All Focus</option>
+                  <option value="all">All Bio Tags</option>
                   {bioTags.map(tag => (
                     <option key={tag} value={tag}>
                       {tag}
@@ -347,13 +394,27 @@ export default function BioMapClient({
                   </option>
                 ))}
               </select>
+              {focusTags.length > 0 && (
+                <select
+                  value={focusFilter}
+                  onChange={(e) => setFocusFilter(e.target.value)}
+                  className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-gray-900 focus:border-gray-900"
+                >
+                  <option value="all">All Focus</option>
+                  {focusTags.map(tag => (
+                    <option key={tag.id} value={tag.name}>
+                      {tag.name}
+                    </option>
+                  ))}
+                </select>
+              )}
               {bioTags.length > 0 && (
                 <select
                   value={selectedTag}
                   onChange={(e) => setSelectedTag(e.target.value)}
                   className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-gray-900 focus:border-gray-900"
                 >
-                  <option value="all">All Tags</option>
+                  <option value="all">All Bio Tags</option>
                   {bioTags.map(tag => (
                     <option key={tag} value={tag}>
                       {tag}
@@ -404,15 +465,16 @@ export default function BioMapClient({
                       </td>
                       <td className="px-4 py-3 hidden md:table-cell">
                         <div className="flex flex-wrap gap-1">
-                          {getBioTags(org.tags).map(tag => (
+                          {getFocusTags(org.tags).map(tag => (
                             <span
-                              key={tag}
-                              className="px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-800"
+                              key={tag.name}
+                              className="px-2 py-0.5 text-xs rounded-full text-white"
+                              style={{ backgroundColor: tag.color }}
                             >
-                              {tag}
+                              {tag.name}
                             </span>
                           ))}
-                          {getBioTags(org.tags).length === 0 && <span className="text-sm text-gray-400">-</span>}
+                          {getFocusTags(org.tags).length === 0 && <span className="text-sm text-gray-400">-</span>}
                         </div>
                       </td>
                       <td className="px-4 py-3 hidden lg:table-cell text-sm text-gray-600 max-w-xs">
@@ -497,7 +559,21 @@ export default function BioMapClient({
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex flex-wrap gap-1">
-                          {getBioTags(person.tags).slice(0, 2).map(tag => (
+                          {getFocusTags(person.tags).slice(0, 2).map(tag => (
+                            <span
+                              key={tag.name}
+                              className="px-2 py-0.5 text-xs rounded-full text-white"
+                              style={{ backgroundColor: tag.color }}
+                            >
+                              {tag.name}
+                            </span>
+                          ))}
+                          {getFocusTags(person.tags).length > 2 && (
+                            <span className="px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-600">
+                              +{getFocusTags(person.tags).length - 2}
+                            </span>
+                          )}
+                          {getFocusTags(person.tags).length === 0 && getBioTags(person.tags).slice(0, 2).map(tag => (
                             <span
                               key={tag}
                               className="px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-800"
@@ -505,11 +581,6 @@ export default function BioMapClient({
                               {tag}
                             </span>
                           ))}
-                          {getBioTags(person.tags).length > 2 && (
-                            <span className="px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-600">
-                              +{getBioTags(person.tags).length - 2}
-                            </span>
-                          )}
                         </div>
                       </td>
                     </tr>
@@ -526,9 +597,15 @@ export default function BioMapClient({
         <BioMapDetailModal
           organization={selectedOrganization}
           person={selectedPerson}
+          focusTags={focusTags}
+          userId={userId}
           onClose={() => {
             setSelectedOrganization(null)
             setSelectedPerson(null)
+          }}
+          onUpdate={() => {
+            // Refresh the page to get updated data
+            window.location.reload()
           }}
         />
       )}

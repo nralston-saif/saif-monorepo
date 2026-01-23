@@ -15,6 +15,19 @@ const hasBioTag = (tags: string[] | null): boolean => {
   return tags.some(tag => tag.toLowerCase().includes('bio'))
 }
 
+// Helper to check if tags include any focus tag
+const hasFocusTag = (tags: string[] | null, focusTagNames: string[]): boolean => {
+  if (!tags || tags.length === 0 || focusTagNames.length === 0) return false
+  return tags.some(tag => focusTagNames.includes(tag.toLowerCase()))
+}
+
+// Type for focus tags
+export type FocusTag = {
+  id: string
+  name: string
+  color: string
+}
+
 // Type for people in Bio-Map
 export type BioMapPerson = {
   id: string
@@ -89,6 +102,20 @@ export default async function BioMapPage() {
     redirect('/access-denied')
   }
 
+  // Fetch focus tags from saif_tags where category = 'biomap_focus'
+  const { data: focusTagsData } = await supabase
+    .from('saif_tags')
+    .select('id, name, color')
+    .eq('category', 'biomap_focus')
+    .order('name', { ascending: true })
+
+  const focusTags: FocusTag[] = (focusTagsData || []).map(t => ({
+    id: t.id,
+    name: t.name,
+    color: t.color || '#6B7280',
+  }))
+  const focusTagNames = focusTags.map(t => t.name.toLowerCase())
+
   // Fetch all people with tags
   const { data: allPeople } = await supabase
     .from('saif_people')
@@ -96,8 +123,10 @@ export default async function BioMapPage() {
     .not('tags', 'is', null)
     .order('first_name', { ascending: true })
 
-  // Filter for people with bio-related tags
-  const bioPeople = (allPeople || []).filter(p => hasBioTag(p.tags))
+  // Filter for people with bio-related tags OR focus tags (backward compatible)
+  const bioPeople = (allPeople || []).filter(p =>
+    hasBioTag(p.tags) || hasFocusTag(p.tags, focusTagNames)
+  )
 
   // Get company associations for bio people
   const bioPersonIds = bioPeople.map(p => p.id)
@@ -170,8 +199,10 @@ export default async function BioMapPage() {
     .not('tags', 'is', null)
     .order('name', { ascending: true })
 
-  // Filter for organizations with bio-related tags
-  const bioOrganizations = (allCompanies || []).filter(c => hasBioTag(c.tags))
+  // Filter for organizations with bio-related tags OR focus tags (backward compatible)
+  const bioOrganizations = (allCompanies || []).filter(c =>
+    hasBioTag(c.tags) || hasFocusTag(c.tags, focusTagNames)
+  )
 
   // Get founders for these organizations
   const bioOrgIds = bioOrganizations.map(c => c.id)
@@ -253,6 +284,7 @@ export default async function BioMapPage() {
           people={transformedPeople}
           organizations={transformedOrganizations}
           bioTags={Array.from(allBioTags).sort()}
+          focusTags={focusTags}
           userId={profile?.id || ''}
         />
       </Suspense>

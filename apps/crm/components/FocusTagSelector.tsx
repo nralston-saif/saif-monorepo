@@ -3,32 +3,38 @@
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
-type TagData = {
+export type FocusTag = {
   id: string
   name: string
-  color: string | null
-  category: string | null
+  color: string
 }
 
-type TagSelectorProps = {
+type FocusTagSelectorProps = {
   selectedTags: string[]
   onChange: (tags: string[]) => void
   currentUserId: string
+  availableFocusTags?: FocusTag[]
 }
 
-export default function TagSelector({ selectedTags, onChange, currentUserId }: TagSelectorProps) {
-  const [availableTags, setAvailableTags] = useState<TagData[]>([])
+export default function FocusTagSelector({
+  selectedTags,
+  onChange,
+  currentUserId,
+  availableFocusTags: initialTags,
+}: FocusTagSelectorProps) {
+  const [availableTags, setAvailableTags] = useState<FocusTag[]>(initialTags || [])
   const [isOpen, setIsOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [isCreating, setIsCreating] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
   const supabase = createClient()
 
-  // Fetch available tags from database
+  // Fetch focus tags from database if not provided
   useEffect(() => {
-    fetchTags()
-  }, [])
+    if (!initialTags) {
+      fetchFocusTags()
+    }
+  }, [initialTags])
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -43,17 +49,19 @@ export default function TagSelector({ selectedTags, onChange, currentUserId }: T
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  const fetchTags = async () => {
+  const fetchFocusTags = async () => {
     const { data, error } = await supabase
       .from('saif_tags')
-      .select('id, name, color, category')
-      .order('usage_count', { ascending: false, nullsFirst: false })
+      .select('id, name, color')
+      .eq('category', 'biomap_focus')
       .order('name', { ascending: true })
 
     if (!error && data) {
-      // Filter out biomap focus tags - they have their own selector
-      const generalTags = data.filter(t => t.category !== 'biomap_focus')
-      setAvailableTags(generalTags)
+      setAvailableTags(data.map(t => ({
+        id: t.id,
+        name: t.name,
+        color: t.color || '#6B7280',
+      })))
     }
   }
 
@@ -62,10 +70,10 @@ export default function TagSelector({ selectedTags, onChange, currentUserId }: T
     if (!tagName) return
 
     // Check if tag already exists
-    if (availableTags.some(t => t.name.toLowerCase() === tagName)) {
-      // Just add existing tag
-      if (!selectedTags.includes(tagName)) {
-        onChange([...selectedTags, tagName])
+    const existingTag = availableTags.find(t => t.name.toLowerCase() === tagName)
+    if (existingTag) {
+      if (!selectedTags.includes(existingTag.name)) {
+        onChange([...selectedTags, existingTag.name])
       }
       setSearchQuery('')
       setIsOpen(false)
@@ -74,26 +82,38 @@ export default function TagSelector({ selectedTags, onChange, currentUserId }: T
 
     setIsCreating(true)
 
+    // Generate a color for the new tag
+    const colors = ['#10B981', '#3B82F6', '#8B5CF6', '#F59E0B', '#EC4899', '#EF4444', '#14B8A6', '#6366F1']
+    const randomColor = colors[Math.floor(Math.random() * colors.length)]
+
     const { data, error } = await supabase
       .from('saif_tags')
       .insert({
         name: tagName,
+        color: randomColor,
+        category: 'biomap_focus',
         created_by: currentUserId,
         usage_count: 1,
-        category: 'general',
       })
-      .select('id, name, color, category')
+      .select('id, name, color')
       .single()
 
     setIsCreating(false)
 
     if (!error && data) {
-      setAvailableTags([...availableTags, { ...data, category: data.category || 'general' }])
+      const newTag = { id: data.id, name: data.name, color: data.color || randomColor }
+      setAvailableTags([...availableTags, newTag])
       onChange([...selectedTags, data.name])
       setSearchQuery('')
       setIsOpen(false)
     }
   }
+
+  // Get only the focus tags from selected tags, sorted alphabetically
+  const focusTagNamesLower = availableTags.map(t => t.name.toLowerCase())
+  const selectedFocusTags = selectedTags
+    .filter(t => focusTagNamesLower.includes(t.toLowerCase()))
+    .sort((a, b) => a.localeCompare(b))
 
   const toggleTag = (tagName: string) => {
     if (selectedTags.includes(tagName)) {
@@ -109,11 +129,11 @@ export default function TagSelector({ selectedTags, onChange, currentUserId }: T
 
   const filteredTags = availableTags.filter(tag =>
     tag.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
-    !selectedTags.includes(tag.name)
+    !selectedTags.map(t => t.toLowerCase()).includes(tag.name.toLowerCase())
   )
 
-  const getTagColor = (tagName: string) => {
-    const tag = availableTags.find(t => t.name === tagName)
+  const getTagColor = (tagName: string): string => {
+    const tag = availableTags.find(t => t.name.toLowerCase() === tagName.toLowerCase())
     return tag?.color || '#6B7280'
   }
 
@@ -122,9 +142,9 @@ export default function TagSelector({ selectedTags, onChange, currentUserId }: T
 
   return (
     <div className="relative" ref={dropdownRef}>
-      {/* Selected Tags Display */}
+      {/* Selected Focus Tags Display */}
       <div className="flex flex-wrap gap-2 mb-2">
-        {selectedTags.map(tag => (
+        {selectedFocusTags.map(tag => (
           <span
             key={tag}
             className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium text-white"
@@ -147,7 +167,6 @@ export default function TagSelector({ selectedTags, onChange, currentUserId }: T
       {/* Input Field */}
       <div className="relative">
         <input
-          ref={inputRef}
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
@@ -159,7 +178,7 @@ export default function TagSelector({ selectedTags, onChange, currentUserId }: T
             }
           }}
           className="w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-gray-900 focus:border-gray-900"
-          placeholder={selectedTags.length > 0 ? "Add more tags..." : "Select or create tags..."}
+          placeholder={selectedTags.length > 0 ? "Add more focus areas..." : "Select or create focus areas..."}
         />
         <button
           type="button"
@@ -193,7 +212,7 @@ export default function TagSelector({ selectedTags, onChange, currentUserId }: T
           {/* Existing Tags */}
           {filteredTags.length === 0 && !showCreateOption ? (
             <div className="px-4 py-3 text-gray-500 text-sm text-center">
-              No tags found
+              No focus areas found
             </div>
           ) : (
             filteredTags.map(tag => (
@@ -208,7 +227,7 @@ export default function TagSelector({ selectedTags, onChange, currentUserId }: T
               >
                 <span
                   className="w-3 h-3 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: tag.color || '#6B7280' }}
+                  style={{ backgroundColor: tag.color }}
                 />
                 <span className="flex-1">{tag.name}</span>
               </button>
@@ -218,7 +237,7 @@ export default function TagSelector({ selectedTags, onChange, currentUserId }: T
       )}
 
       <p className="text-xs text-gray-500 mt-1">
-        Select existing tags or type to create new ones
+        Select existing focus areas or type to create new ones
       </p>
     </div>
   )

@@ -1,7 +1,10 @@
 'use client'
 
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import type { BioMapPerson, BioMapOrganization } from './page'
+import { createClient } from '@/lib/supabase/client'
+import FocusTagSelector from '@/components/FocusTagSelector'
+import type { BioMapPerson, BioMapOrganization, FocusTag } from './page'
 
 const ENTITY_TYPE_LABELS: Record<string, string> = {
   for_profit: 'For-Profit',
@@ -24,21 +27,89 @@ const ROLE_LABELS: Record<string, string> = {
 type Props = {
   organization?: BioMapOrganization | null
   person?: BioMapPerson | null
+  focusTags: FocusTag[]
+  userId: string
   onClose: () => void
+  onUpdate?: () => void
 }
 
-export default function BioMapDetailModal({ organization, person, onClose }: Props) {
+export default function BioMapDetailModal({ organization, person, focusTags, userId, onClose, onUpdate }: Props) {
   const router = useRouter()
+  const supabase = createClient()
+
+  // Get initial tags
+  const initialTags = organization?.tags || person?.tags || []
+  const [tags, setTags] = useState<string[]>(initialTags)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [hasChanges, setHasChanges] = useState(false)
+
+  // Handle close - refresh if changes were made
+  const handleClose = () => {
+    if (hasChanges && onUpdate) {
+      onUpdate()
+    }
+    onClose()
+  }
 
   if (!organization && !person) return null
 
-  const getBioTags = (tags: string[]): string[] => {
-    return tags.filter(t => t.toLowerCase().includes('bio'))
+  const getBioTags = (tagList: string[]): string[] => {
+    return tagList.filter(t => t.toLowerCase().includes('bio'))
+  }
+
+  const focusTagNames = focusTags.map(t => t.name.toLowerCase())
+
+  const getFocusTags = (tagList: string[]): { name: string; color: string }[] => {
+    return tagList
+      .filter(t => focusTagNames.includes(t.toLowerCase()))
+      .map(t => {
+        const focusTag = focusTags.find(ft => ft.name.toLowerCase() === t.toLowerCase())
+        return {
+          name: t,
+          color: focusTag?.color || '#6B7280',
+        }
+      })
+      .sort((a, b) => a.name.localeCompare(b.name))
+  }
+
+  const handleTagsChange = async (newTags: string[]) => {
+    setTags(newTags)
+    setSaving(true)
+    setError(null)
+
+    try {
+      if (organization) {
+        const { error: updateError } = await supabase
+          .from('saif_companies')
+          .update({ tags: newTags, updated_at: new Date().toISOString() })
+          .eq('id', organization.id)
+
+        if (updateError) throw updateError
+      } else if (person) {
+        const { error: updateError } = await supabase
+          .from('saif_people')
+          .update({ tags: newTags, updated_at: new Date().toISOString() })
+          .eq('id', person.id)
+
+        if (updateError) throw updateError
+      }
+
+      // Mark that changes were made (will refresh on close)
+      setHasChanges(true)
+    } catch (err: any) {
+      console.error('Error saving tags:', err)
+      setError(err?.message || 'Failed to save tags')
+      // Revert to previous tags on error
+      setTags(tags)
+    } finally {
+      setSaving(false)
+    }
   }
 
   if (organization) {
     return (
-      <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-backdrop" onClick={handleClose}>
         <div className="modal-content max-w-2xl" onClick={(e) => e.stopPropagation()}>
           {/* Header */}
           <div className="p-6 border-b border-gray-100">
@@ -52,7 +123,7 @@ export default function BioMapDetailModal({ organization, person, onClose }: Pro
                 )}
               </div>
               <button
-                onClick={onClose}
+                onClick={handleClose}
                 className="text-gray-400 hover:text-gray-600 p-2 -m-2 ml-4"
               >
                 <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -60,32 +131,31 @@ export default function BioMapDetailModal({ organization, person, onClose }: Pro
                 </svg>
               </button>
             </div>
+            {/* Focus/Tags - Always visible in header */}
+            <div className="mt-4">
+              <div className="flex items-center gap-2 mb-2">
+                <h3 className="text-sm font-medium text-gray-500">Focus</h3>
+                {saving && <span className="text-xs text-gray-400">(saving...)</span>}
+              </div>
+              {error && (
+                <p className="text-xs text-red-600 mb-2">{error}</p>
+              )}
+              <FocusTagSelector
+                selectedTags={tags}
+                onChange={handleTagsChange}
+                currentUserId={userId}
+                availableFocusTags={focusTags}
+              />
+            </div>
           </div>
 
           {/* Content */}
-          <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+          <div className="p-6 space-y-6 max-h-[50vh] overflow-y-auto">
             {/* Description */}
             {organization.short_description && (
               <div>
                 <h3 className="text-sm font-medium text-gray-500 mb-2">Description</h3>
                 <p className="text-gray-900">{organization.short_description}</p>
-              </div>
-            )}
-
-            {/* Focus/Tags */}
-            {getBioTags(organization.tags).length > 0 && (
-              <div>
-                <h3 className="text-sm font-medium text-gray-500 mb-2">Focus</h3>
-                <div className="flex flex-wrap gap-2">
-                  {getBioTags(organization.tags).map(tag => (
-                    <span
-                      key={tag}
-                      className="px-3 py-1 text-sm rounded-full bg-green-100 text-green-800"
-                    >
-                      {tag}
-                    </span>
-                  ))}
-                </div>
               </div>
             )}
 
@@ -161,7 +231,7 @@ export default function BioMapDetailModal({ organization, person, onClose }: Pro
               View Full Profile
             </button>
             <button
-              onClick={onClose}
+              onClick={handleClose}
               className="px-4 py-2 text-sm font-medium text-white bg-gray-900 hover:bg-gray-800 rounded-lg transition-colors"
             >
               Close
@@ -174,7 +244,7 @@ export default function BioMapDetailModal({ organization, person, onClose }: Pro
 
   if (person) {
     return (
-      <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-backdrop" onClick={handleClose}>
         <div className="modal-content max-w-2xl" onClick={(e) => e.stopPropagation()}>
           {/* Header */}
           <div className="p-6 border-b border-gray-100">
@@ -193,7 +263,7 @@ export default function BioMapDetailModal({ organization, person, onClose }: Pro
                 </div>
               </div>
               <button
-                onClick={onClose}
+                onClick={handleClose}
                 className="text-gray-400 hover:text-gray-600 p-2 -m-2 ml-4"
               >
                 <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -201,10 +271,26 @@ export default function BioMapDetailModal({ organization, person, onClose }: Pro
                 </svg>
               </button>
             </div>
+            {/* Focus/Tags - Always visible in header */}
+            <div className="mt-4">
+              <div className="flex items-center gap-2 mb-2">
+                <h3 className="text-sm font-medium text-gray-500">Focus</h3>
+                {saving && <span className="text-xs text-gray-400">(saving...)</span>}
+              </div>
+              {error && (
+                <p className="text-xs text-red-600 mb-2">{error}</p>
+              )}
+              <FocusTagSelector
+                selectedTags={tags}
+                onChange={handleTagsChange}
+                currentUserId={userId}
+                availableFocusTags={focusTags}
+              />
+            </div>
           </div>
 
           {/* Content */}
-          <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+          <div className="p-6 space-y-6 max-h-[50vh] overflow-y-auto">
             {/* Role */}
             <div>
               <h3 className="text-sm font-medium text-gray-500 mb-2">Role</h3>
@@ -218,23 +304,6 @@ export default function BioMapDetailModal({ organization, person, onClose }: Pro
               <div>
                 <h3 className="text-sm font-medium text-gray-500 mb-2">Bio</h3>
                 <p className="text-gray-900">{person.bio}</p>
-              </div>
-            )}
-
-            {/* Focus/Tags */}
-            {getBioTags(person.tags).length > 0 && (
-              <div>
-                <h3 className="text-sm font-medium text-gray-500 mb-2">Focus</h3>
-                <div className="flex flex-wrap gap-2">
-                  {getBioTags(person.tags).map(tag => (
-                    <span
-                      key={tag}
-                      className="px-3 py-1 text-sm rounded-full bg-green-100 text-green-800"
-                    >
-                      {tag}
-                    </span>
-                  ))}
-                </div>
               </div>
             )}
 
@@ -310,7 +379,7 @@ export default function BioMapDetailModal({ organization, person, onClose }: Pro
               View Full Profile
             </button>
             <button
-              onClick={onClose}
+              onClick={handleClose}
               className="px-4 py-2 text-sm font-medium text-white bg-gray-900 hover:bg-gray-800 rounded-lg transition-colors"
             >
               Close
