@@ -8,6 +8,7 @@ import type { Database } from '@/lib/types/database'
 import CreateTicketButton from '@/components/CreateTicketButton'
 import PersonModal from '@/components/PersonModal'
 import AddPersonToCompanyModal from '@/components/AddPersonToCompanyModal'
+import EditPersonRelationshipModal from '@/components/EditPersonRelationshipModal'
 import TagSelector from '@/app/tickets/TagSelector'
 import FocusTagSelector from '@/components/FocusTagSelector'
 import CompanyNotes from '@/components/CompanyNotes'
@@ -88,6 +89,15 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
 
   // Add person to company modal state
   const [showAddPersonModal, setShowAddPersonModal] = useState(false)
+
+  // Edit person relationship modal state
+  const [editingRelationship, setEditingRelationship] = useState<{
+    id: string
+    personId: string
+    personName: string
+    relationshipType: string
+    title: string | null
+  } | null>(null)
 
   // Delete confirmation state
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
@@ -1321,13 +1331,27 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
                               </p>
                             )}
                           </div>
-                          {canEdit && !isEditing && (
-                            <button
-                              onClick={() => handleRemoveFounder(founder.id, `${person.first_name} ${person.last_name}`)}
-                              className="text-xs text-red-600 hover:text-red-800"
-                            >
-                              Remove
-                            </button>
+                          {isPartner && !isEditing && (
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => setEditingRelationship({
+                                  id: founder.id,
+                                  personId: person.id,
+                                  personName: `${person.first_name} ${person.last_name}`,
+                                  relationshipType: founder.relationship_type || 'founder',
+                                  title: founder.title,
+                                })}
+                                className="text-xs text-gray-500 hover:text-gray-700"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => handleRemoveFounder(founder.id, `${person.first_name} ${person.last_name}`)}
+                                className="text-xs text-red-600 hover:text-red-800"
+                              >
+                                Remove
+                              </button>
+                            </div>
                           )}
                         </div>
                         {person.bio && (
@@ -1456,7 +1480,7 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
                             </div>
                           )}
                         </button>
-                        <div>
+                        <div className="flex-1">
                           <button
                             onClick={() => setSelectedPersonId(person.id)}
                             className="text-sm font-medium text-gray-900 hover:underline text-left"
@@ -1467,6 +1491,20 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
                             {member.title || member.relationship_type}
                           </p>
                         </div>
+                        {isPartner && (
+                          <button
+                            onClick={() => setEditingRelationship({
+                              id: member.id,
+                              personId: person.id,
+                              personName: `${person.first_name} ${person.last_name}`,
+                              relationshipType: member.relationship_type || 'employee',
+                              title: member.title,
+                            })}
+                            className="text-xs text-gray-500 hover:text-gray-700"
+                          >
+                            Edit
+                          </button>
+                        )}
                       </div>
                     )
                   })}
@@ -1556,32 +1594,123 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
             </div>
           )}
 
-          {/* Active Deal Section */}
+          {/* Application Section */}
           {isPartner && activeDeal && (
-            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-6">
+            <div className={`border rounded-lg p-6 ${
+              activeDeal.stage === 'interview'
+                ? 'bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200'
+                : activeDeal.stage === 'portfolio'
+                ? 'bg-gradient-to-br from-emerald-50 to-green-50 border-emerald-200'
+                : activeDeal.stage === 'rejected'
+                ? 'bg-gradient-to-br from-gray-50 to-slate-50 border-gray-200'
+                : 'bg-gradient-to-br from-amber-50 to-yellow-50 border-amber-200'
+            }`}>
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                    <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                    activeDeal.stage === 'interview' ? 'bg-blue-100' :
+                    activeDeal.stage === 'portfolio' ? 'bg-emerald-100' :
+                    activeDeal.stage === 'rejected' ? 'bg-gray-100' : 'bg-amber-100'
+                  }`}>
+                    <svg className={`w-5 h-5 ${
+                      activeDeal.stage === 'interview' ? 'text-blue-600' :
+                      activeDeal.stage === 'portfolio' ? 'text-emerald-600' :
+                      activeDeal.stage === 'rejected' ? 'text-gray-600' : 'text-amber-600'
+                    }`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
                   </div>
                   <div>
-                    <h2 className="text-lg font-semibold text-gray-900">Active Deal</h2>
-                    <p className="text-sm text-gray-500">Interview stage</p>
+                    <h2 className="text-lg font-semibold text-gray-900">Application</h2>
+                    <p className="text-sm text-gray-500 capitalize">{activeDeal.stage} stage</p>
                   </div>
                 </div>
-                <button
-                  onClick={() => setShowDecisionModal(true)}
-                  className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  Make Decision
-                </button>
+                <div className="flex gap-2">
+                  {activeDeal.deck_link && (
+                    <a
+                      href={activeDeal.deck_link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-2 bg-purple-100 text-purple-700 text-sm font-medium rounded-lg hover:bg-purple-200 transition-colors"
+                    >
+                      📊 Deck
+                    </a>
+                  )}
+                  {activeDeal.stage === 'interview' && (
+                    <button
+                      onClick={() => setShowDecisionModal(true)}
+                      className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      Make Decision
+                    </button>
+                  )}
+                </div>
               </div>
 
-              {/* Vote Summary */}
-              {activeDeal.votes.length > 0 && (
+              {/* Company Description from Application */}
+              {activeDeal.company_description && (
                 <div className="mb-4">
+                  <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">Description</h3>
+                  <p className="text-gray-700">{activeDeal.company_description}</p>
+                </div>
+              )}
+
+              {/* Founder Bios */}
+              {activeDeal.founder_bios && (
+                <div className="mb-4">
+                  <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">Founder Bios</h3>
+                  <p className="text-gray-700 whitespace-pre-wrap">{activeDeal.founder_bios}</p>
+                </div>
+              )}
+
+              {/* Founder LinkedIn Profiles */}
+              {activeDeal.founder_linkedins && (() => {
+                const validLinkedInLinks = activeDeal.founder_linkedins
+                  .split(/[\n,]+/)
+                  .filter(Boolean)
+                  .map(link => link.trim())
+                  .filter(url => url.toLowerCase().includes('linkedin.com'))
+
+                if (validLinkedInLinks.length === 0) return null
+
+                return (
+                  <div className="mb-4">
+                    <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">Founder LinkedIn</h3>
+                    <div className="flex flex-wrap gap-2">
+                      {validLinkedInLinks.map((url, i) => {
+                        const fullUrl = url.startsWith('http') ? url : `https://${url}`
+                        return (
+                          <a
+                            key={i}
+                            href={fullUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 text-sm text-[#0077B5] hover:text-[#005582] bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors"
+                          >
+                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                              <path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z" />
+                            </svg>
+                            LinkedIn {validLinkedInLinks.length > 1 ? i + 1 : ''}
+                          </a>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })()}
+
+              {/* Previous Funding */}
+              {activeDeal.previous_funding && (
+                <div className="mb-4">
+                  <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">Previous Funding</h3>
+                  <p className="text-gray-700 whitespace-pre-wrap">{activeDeal.previous_funding}</p>
+                </div>
+              )}
+
+              {/* Vote Summary - only for interview stage */}
+              {activeDeal.stage === 'interview' && activeDeal.votes.length > 0 && (
+                <div className="mb-4 pt-4 border-t border-blue-200">
+                  <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-3">Partner Votes</h3>
                   <div className="flex gap-3 items-center mb-3">
                     <div className="flex items-center gap-2 bg-emerald-100 px-3 py-1.5 rounded-lg">
                       <span className="text-emerald-700 font-semibold">{activeDeal.votes.filter(v => v.vote === 'yes').length}</span>
@@ -1640,25 +1769,16 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
                 </div>
               )}
 
-              {/* Links */}
-              <div className="flex flex-wrap gap-2 mt-4">
-                {activeDeal.deck_link && (
-                  <a
-                    href={activeDeal.deck_link}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-sm text-purple-600 hover:text-purple-700 bg-purple-50 hover:bg-purple-100 px-3 py-1.5 rounded-lg transition-colors"
-                  >
-                    <span>📊</span> Deck
-                  </a>
-                )}
-                <Link
-                  href={`/deals/${activeDeal.id}`}
-                  className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors"
-                >
-                  View Full Details →
-                </Link>
-              </div>
+              {/* Submission Date */}
+              {activeDeal.submitted_at && (
+                <div className="mt-4 text-sm text-gray-500">
+                  Applied: {new Date(activeDeal.submitted_at).toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                  })}
+                </div>
+              )}
             </div>
           )}
 
@@ -1704,6 +1824,24 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
         }}
         currentUserId={currentPersonId}
       />
+
+      {/* Edit Person Relationship Modal */}
+      {editingRelationship && (
+        <EditPersonRelationshipModal
+          relationshipId={editingRelationship.id}
+          personId={editingRelationship.personId}
+          personName={editingRelationship.personName}
+          companyName={company.name}
+          currentRelationshipType={editingRelationship.relationshipType}
+          currentTitle={editingRelationship.title}
+          isOpen={true}
+          onClose={() => setEditingRelationship(null)}
+          onSuccess={() => {
+            setEditingRelationship(null)
+            router.refresh()
+          }}
+        />
+      )}
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
