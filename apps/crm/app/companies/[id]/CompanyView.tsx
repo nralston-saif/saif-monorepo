@@ -7,14 +7,22 @@ import { createClient } from '@/lib/supabase/client'
 import type { Database } from '@/lib/types/database'
 import CreateTicketButton from '@/components/CreateTicketButton'
 import PersonModal from '@/components/PersonModal'
+import AddPersonToCompanyModal from '@/components/AddPersonToCompanyModal'
 import TagSelector from '@/app/tickets/TagSelector'
 import FocusTagSelector from '@/components/FocusTagSelector'
 import CompanyNotes from '@/components/CompanyNotes'
 import { ensureProtocol } from '@/lib/utils'
+import { useToast } from '@saif/ui'
+import type { ActiveDeal } from './page'
 
 type Company = Database['public']['Tables']['saif_companies']['Row']
 type Person = Database['public']['Tables']['saif_people']['Row']
 type CompanyPerson = Database['public']['Tables']['saif_company_people']['Row']
+
+type Partner = {
+  id: string
+  name: string
+}
 
 // Database stores lowercase values for type
 const INVESTMENT_TYPES = [
@@ -58,12 +66,15 @@ interface CompanyViewProps {
   isPartner: boolean
   currentPersonId: string
   userName: string
+  activeDeal?: ActiveDeal | null
+  partners?: Partner[]
 }
 
-export default function CompanyView({ company, canEdit, isPartner, currentPersonId, userName }: CompanyViewProps) {
+export default function CompanyView({ company, canEdit, isPartner, currentPersonId, userName, activeDeal, partners = [] }: CompanyViewProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const supabase = createClient()
+  const { showToast } = useToast()
 
   // Start in edit mode if ?edit=true is in URL
   const [isEditing, setIsEditing] = useState(searchParams.get('edit') === 'true' && canEdit)
@@ -75,9 +86,28 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
   // Person modal state
   const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null)
 
+  // Add person to company modal state
+  const [showAddPersonModal, setShowAddPersonModal] = useState(false)
+
   // Delete confirmation state
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
+
+  // Active deal decision state
+  const [showDecisionModal, setShowDecisionModal] = useState(false)
+  const [decisionLoading, setDecisionLoading] = useState(false)
+  const [ideaSummary, setIdeaSummary] = useState(activeDeal?.deliberation?.idea_summary || '')
+  const [thoughts, setThoughts] = useState(activeDeal?.deliberation?.thoughts || '')
+  const [decision, setDecision] = useState(activeDeal?.deliberation?.decision || 'pending')
+  const [meetingDate, setMeetingDate] = useState(activeDeal?.deliberation?.meeting_date || '')
+  const [status, setStatus] = useState(activeDeal?.deliberation?.status || 'scheduled')
+  // Investment fields (for yes decision)
+  const [investmentAmount, setInvestmentAmount] = useState<number | null>(null)
+  const [investmentTerms, setInvestmentTerms] = useState('10mm cap safe')
+  const [investmentDate, setInvestmentDate] = useState(new Date().toISOString().split('T')[0])
+  const [otherFunders, setOtherFunders] = useState('')
+  // Rejection field
+  const [rejectionEmailSender, setRejectionEmailSender] = useState('')
 
   // Founder management state
   const [showAddFounder, setShowAddFounder] = useState(false)
@@ -356,6 +386,134 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
     }
   }
 
+  const handleSaveDecision = async () => {
+    if (!activeDeal) return
+
+    // Validate investment fields if decision is 'yes'
+    if (decision === 'yes') {
+      if (!investmentAmount || investmentAmount <= 0) {
+        showToast('Please enter an investment amount', 'warning')
+        return
+      }
+      if (!investmentTerms) {
+        showToast('Please enter investment terms', 'warning')
+        return
+      }
+    }
+
+    // Validate email sender if decision is 'no'
+    if (decision === 'no' && !rejectionEmailSender) {
+      showToast('Please select who will send the rejection email', 'warning')
+      return
+    }
+
+    setDecisionLoading(true)
+    try {
+      // Upsert deliberation
+      const { error: deliberationError } = await supabase.from('saifcrm_deliberations').upsert(
+        {
+          application_id: activeDeal.id,
+          idea_summary: ideaSummary || null,
+          thoughts: thoughts || null,
+          decision: decision as 'pending' | 'maybe' | 'yes' | 'no',
+          status: decision === 'yes' ? 'portfolio' : status,
+          meeting_date: meetingDate || null,
+        },
+        { onConflict: 'application_id' }
+      )
+
+      if (deliberationError) {
+        showToast('Error saving deliberation: ' + deliberationError.message, 'error')
+        setDecisionLoading(false)
+        return
+      }
+
+      // Handle 'yes' decision - create investment
+      if (decision === 'yes') {
+        const { error: investmentError } = await supabase
+          .from('saifcrm_investments')
+          .insert({
+            company_name: activeDeal.company_name,
+            investment_date: investmentDate,
+            amount: investmentAmount,
+            terms: investmentTerms,
+            other_funders: otherFunders || null,
+            founders: activeDeal.founder_names,
+            description: ideaSummary || activeDeal.company_description,
+            website: activeDeal.website,
+            contact_email: activeDeal.primary_email,
+            stealthy: false,
+            notes: thoughts || null,
+          })
+
+        if (investmentError) {
+          showToast('Error creating investment: ' + investmentError.message, 'error')
+          setDecisionLoading(false)
+          return
+        }
+
+        // Update application and company stages
+        await supabase
+          .from('saifcrm_applications')
+          .update({ stage: 'portfolio', previous_stage: 'interview' })
+          .eq('id', activeDeal.id)
+
+        await supabase
+          .from('saif_companies')
+          .update({ stage: 'portfolio' })
+          .eq('id', company.id)
+
+        showToast('Investment recorded and added to portfolio!', 'success')
+      } else if (decision === 'no') {
+        // Handle rejection
+        await supabase
+          .from('saifcrm_applications')
+          .update({
+            stage: 'rejected',
+            previous_stage: 'interview',
+            email_sender_id: rejectionEmailSender,
+            email_sent: false,
+          })
+          .eq('id', activeDeal.id)
+
+        await supabase
+          .from('saif_companies')
+          .update({ stage: 'passed' })
+          .eq('id', company.id)
+
+        // Create rejection email ticket
+        const ticketTitle = `Send rejection email: ${activeDeal.company_name}`
+        await supabase.from('saif_tickets').insert({
+          title: ticketTitle,
+          description: `Send rejection email to ${activeDeal.company_name} (rejected from interviews).`,
+          status: 'open',
+          priority: 'medium',
+          assigned_to: rejectionEmailSender,
+          created_by: currentPersonId,
+          tags: ['email-follow-up', 'rejected', 'interview'],
+          application_id: activeDeal.id,
+        })
+
+        // Trigger email generation
+        fetch('/api/generate-rejection-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ applicationId: activeDeal.id }),
+        }).catch(console.error)
+
+        showToast('Application rejected - email task assigned', 'success')
+      } else {
+        showToast('Deliberation saved', 'success')
+      }
+
+      setShowDecisionModal(false)
+      router.refresh()
+    } catch (err) {
+      showToast('An unexpected error occurred', 'error')
+    }
+    setDecisionLoading(false)
+  }
+
   const handleAddFounder = async (e: React.FormEvent) => {
     e.preventDefault()
     setAddingFounder(true)
@@ -388,6 +546,8 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
 
       // Create new person if doesn't exist
       if (!personId) {
+        // Portfolio company founders get 'pending' status (awaiting signup), others get 'tracked'
+        const founderStatus = company.stage === 'portfolio' ? 'pending' : 'tracked'
         const { data: createdPerson, error: createError } = await supabase
           .from('saif_people')
           .insert({
@@ -395,7 +555,7 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
             last_name: newFounder.last_name,
             email: newFounder.email || null,
             role: 'founder',
-            status: 'tracked', // Tracked until they sign up
+            status: founderStatus,
           })
           .select()
           .single()
@@ -1257,49 +1417,63 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
           )}
 
           {/* Other Team Members */}
-          {otherTeam.length > 0 && (
+          {(otherTeam.length > 0 || isPartner) && (
             <div className="bg-white border border-gray-200 rounded-lg p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Team</h2>
-              <div className="space-y-3">
-                {otherTeam.map((member) => {
-                  const person = member.person
-                  if (!person) return null
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-gray-900">Team</h2>
+                {isPartner && (
+                  <button
+                    onClick={() => setShowAddPersonModal(true)}
+                    className="text-sm text-gray-600 hover:text-gray-900 underline"
+                  >
+                    + Add Person
+                  </button>
+                )}
+              </div>
+              {otherTeam.length > 0 ? (
+                <div className="space-y-3">
+                  {otherTeam.map((member) => {
+                    const person = member.person
+                    if (!person) return null
 
-                  return (
-                    <div key={member.id} className="flex items-center space-x-3">
-                      <button
-                        onClick={() => setSelectedPersonId(person.id)}
-                        className="flex-shrink-0 hover:opacity-80 transition-opacity"
-                      >
-                        {person.avatar_url ? (
-                          <img
-                            src={person.avatar_url}
-                            alt={`${person.first_name} ${person.last_name}`}
-                            className="h-10 w-10 rounded-full object-cover"
-                          />
-                        ) : (
-                          <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
-                            <span className="text-sm text-gray-600">
-                              {person.first_name?.[0] || '?'}
-                            </span>
-                          </div>
-                        )}
-                      </button>
-                      <div>
+                    return (
+                      <div key={member.id} className="flex items-center space-x-3">
                         <button
                           onClick={() => setSelectedPersonId(person.id)}
-                          className="text-sm font-medium text-gray-900 hover:underline text-left"
+                          className="flex-shrink-0 hover:opacity-80 transition-opacity"
                         >
-                          {person.first_name} {person.last_name}
+                          {person.avatar_url ? (
+                            <img
+                              src={person.avatar_url}
+                              alt={`${person.first_name} ${person.last_name}`}
+                              className="h-10 w-10 rounded-full object-cover"
+                            />
+                          ) : (
+                            <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
+                              <span className="text-sm text-gray-600">
+                                {person.first_name?.[0] || '?'}
+                              </span>
+                            </div>
+                          )}
                         </button>
-                        <p className="text-xs text-gray-500">
-                          {member.title || member.relationship_type}
-                        </p>
+                        <div>
+                          <button
+                            onClick={() => setSelectedPersonId(person.id)}
+                            className="text-sm font-medium text-gray-900 hover:underline text-left"
+                          >
+                            {person.first_name} {person.last_name}
+                          </button>
+                          <p className="text-xs text-gray-500">
+                            {member.title || member.relationship_type}
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                  )
-                })}
-              </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500 italic">No team members yet. Click "Add Person" to add someone.</p>
+              )}
             </div>
           )}
 
@@ -1382,16 +1556,126 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
             </div>
           )}
 
+          {/* Active Deal Section */}
+          {isPartner && activeDeal && (
+            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                    <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-semibold text-gray-900">Active Deal</h2>
+                    <p className="text-sm text-gray-500">Interview stage</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowDecisionModal(true)}
+                  className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Make Decision
+                </button>
+              </div>
+
+              {/* Vote Summary */}
+              {activeDeal.votes.length > 0 && (
+                <div className="mb-4">
+                  <div className="flex gap-3 items-center mb-3">
+                    <div className="flex items-center gap-2 bg-emerald-100 px-3 py-1.5 rounded-lg">
+                      <span className="text-emerald-700 font-semibold">{activeDeal.votes.filter(v => v.vote === 'yes').length}</span>
+                      <span className="text-emerald-600 text-sm">Yes</span>
+                    </div>
+                    <div className="flex items-center gap-2 bg-amber-100 px-3 py-1.5 rounded-lg">
+                      <span className="text-amber-700 font-semibold">{activeDeal.votes.filter(v => v.vote === 'maybe').length}</span>
+                      <span className="text-amber-600 text-sm">Maybe</span>
+                    </div>
+                    <div className="flex items-center gap-2 bg-red-100 px-3 py-1.5 rounded-lg">
+                      <span className="text-red-700 font-semibold">{activeDeal.votes.filter(v => v.vote === 'no').length}</span>
+                      <span className="text-red-600 text-sm">No</span>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    {activeDeal.votes.map((vote) => (
+                      <div key={vote.oduserId} className="flex items-center gap-3 bg-white/60 rounded-lg p-3">
+                        <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center text-sm font-medium text-gray-600">
+                          {vote.userName.charAt(0)}
+                        </div>
+                        <div className="flex-1">
+                          <span className="text-sm font-medium text-gray-900">{vote.userName}</span>
+                          {vote.notes && <p className="text-xs text-gray-500 mt-0.5">{vote.notes}</p>}
+                        </div>
+                        <span className={`text-xs font-medium px-2 py-1 rounded-full ${
+                          vote.vote === 'yes' ? 'bg-emerald-100 text-emerald-700' :
+                          vote.vote === 'maybe' ? 'bg-amber-100 text-amber-700' :
+                          vote.vote === 'no' ? 'bg-red-100 text-red-700' :
+                          'bg-gray-100 text-gray-700'
+                        }`}>
+                          {vote.vote}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Deliberation Summary */}
+              {activeDeal.deliberation && (
+                <div className="bg-white/60 rounded-lg p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-sm font-medium text-gray-700">Decision:</span>
+                    <span className={`text-xs font-medium px-2 py-1 rounded-full ${
+                      activeDeal.deliberation.decision === 'yes' ? 'bg-emerald-500 text-white' :
+                      activeDeal.deliberation.decision === 'maybe' ? 'bg-amber-500 text-white' :
+                      activeDeal.deliberation.decision === 'no' ? 'bg-red-500 text-white' :
+                      'bg-gray-200 text-gray-700'
+                    }`}>
+                      {activeDeal.deliberation.decision.toUpperCase()}
+                    </span>
+                  </div>
+                  {activeDeal.deliberation.idea_summary && (
+                    <p className="text-sm text-gray-600">{activeDeal.deliberation.idea_summary}</p>
+                  )}
+                </div>
+              )}
+
+              {/* Links */}
+              <div className="flex flex-wrap gap-2 mt-4">
+                {activeDeal.deck_link && (
+                  <a
+                    href={activeDeal.deck_link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-sm text-purple-600 hover:text-purple-700 bg-purple-50 hover:bg-purple-100 px-3 py-1.5 rounded-lg transition-colors"
+                  >
+                    <span>📊</span> Deck
+                  </a>
+                )}
+                <Link
+                  href={`/deals/${activeDeal.id}`}
+                  className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors"
+                >
+                  View Full Details →
+                </Link>
+              </div>
+            </div>
+          )}
+
           {/* Notes Section */}
           {isPartner && (
             <div className="bg-white border border-gray-200 rounded-lg p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Notes</h2>
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">
+                {activeDeal ? 'Deal Notes' : 'Notes'}
+              </h2>
               <CompanyNotes
                 companyId={company.id}
                 companyName={company.name}
                 userId={currentPersonId}
                 userName={userName}
-                contextType="company"
+                contextType={activeDeal ? 'deal' : 'company'}
+                contextId={activeDeal?.id}
+                deliberationNotes={activeDeal?.deliberation?.thoughts}
               />
             </div>
           )}
@@ -1406,6 +1690,20 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
           onClose={() => setSelectedPersonId(null)}
         />
       )}
+
+      {/* Add Person to Company Modal */}
+      <AddPersonToCompanyModal
+        companyId={company.id}
+        companyName={company.name}
+        existingPeopleIds={company.people?.map(p => p.person?.id).filter((id): id is string => Boolean(id)) || []}
+        isOpen={showAddPersonModal}
+        onClose={() => setShowAddPersonModal(false)}
+        onSuccess={() => {
+          setShowAddPersonModal(false)
+          router.refresh()
+        }}
+        currentUserId={currentPersonId}
+      />
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
@@ -1429,6 +1727,125 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
                 className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700 disabled:opacity-50"
               >
                 {deleting ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Decision Modal */}
+      {showDecisionModal && activeDeal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => !decisionLoading && setShowDecisionModal(false)}>
+          <div className="bg-white rounded-xl shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6 border-b border-gray-100">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900">{company.name}</h2>
+                  <p className="text-gray-500 mt-1">Add deliberation notes and final decision</p>
+                </div>
+                <button onClick={() => !decisionLoading && setShowDecisionModal(false)} className="text-gray-400 hover:text-gray-600 p-2 -m-2">
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <div className="p-6 space-y-6">
+              <div className="grid gap-6 sm:grid-cols-2">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Meeting Date</label>
+                  <input type="date" value={meetingDate} onChange={(e) => setMeetingDate(e.target.value)} className="input" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Status</label>
+                  <select value={status} onChange={(e) => setStatus(e.target.value)} className="input">
+                    <option value="scheduled">Scheduled</option>
+                    <option value="met">Met</option>
+                    <option value="emailed">Emailed</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Idea Summary</label>
+                <textarea value={ideaSummary} onChange={(e) => setIdeaSummary(e.target.value)} rows={3} className="input resize-none" placeholder="Brief summary of the company's idea..." />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Thoughts & Notes</label>
+                <textarea value={thoughts} onChange={(e) => setThoughts(e.target.value)} rows={4} className="input resize-none" placeholder="Discussion notes, concerns, opportunities..." />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-3">Final Decision</label>
+                <div className="flex gap-3">
+                  {[
+                    { value: 'pending', label: 'Pending', icon: '⏳', color: 'gray' },
+                    { value: 'yes', label: 'Yes', icon: '✅', color: 'emerald' },
+                    { value: 'maybe', label: 'Maybe', icon: '🤔', color: 'amber' },
+                    { value: 'no', label: 'No', icon: '❌', color: 'red' },
+                  ].map((option) => (
+                    <button
+                      key={option.value}
+                      onClick={() => setDecision(option.value)}
+                      className={`flex-1 py-3 px-4 rounded-xl border-2 font-semibold text-center transition-all ${
+                        decision === option.value
+                          ? option.color === 'emerald' ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                            : option.color === 'amber' ? 'border-amber-500 bg-amber-50 text-amber-700'
+                            : option.color === 'red' ? 'border-red-500 bg-red-50 text-red-700'
+                            : 'border-gray-400 bg-gray-50 text-gray-700'
+                          : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      <div className="text-xl mb-1">{option.icon}</div>
+                      <div>{option.label}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {decision === 'yes' && (
+                <div className="bg-emerald-50 rounded-xl p-6 border-2 border-emerald-200">
+                  <h3 className="text-lg font-semibold text-emerald-800 mb-4">💰 Investment Details</h3>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <label className="block text-sm font-medium text-emerald-800 mb-1.5">Investment Amount *</label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                        <input type="number" value={investmentAmount || ''} onChange={(e) => setInvestmentAmount(e.target.value ? parseFloat(e.target.value) : null)} className="input pl-7" placeholder="100000" />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-emerald-800 mb-1.5">Investment Date *</label>
+                      <input type="date" value={investmentDate} onChange={(e) => setInvestmentDate(e.target.value)} className="input" />
+                    </div>
+                  </div>
+                  <div className="mt-4">
+                    <label className="block text-sm font-medium text-emerald-800 mb-1.5">Terms *</label>
+                    <input type="text" value={investmentTerms} onChange={(e) => setInvestmentTerms(e.target.value)} className="input" />
+                  </div>
+                  <div className="mt-4">
+                    <label className="block text-sm font-medium text-emerald-800 mb-1.5">Co-Investors (optional)</label>
+                    <input type="text" value={otherFunders} onChange={(e) => setOtherFunders(e.target.value)} className="input" />
+                  </div>
+                </div>
+              )}
+              {decision === 'no' && (
+                <div className="bg-red-50 rounded-xl p-6 border-2 border-red-200">
+                  <h3 className="text-lg font-semibold text-red-800 mb-4">✉️ Rejection Email</h3>
+                  <p className="text-sm text-red-700 mb-4">Select who will send the rejection email to the founders.</p>
+                  <div>
+                    <label className="block text-sm font-medium text-red-800 mb-1.5">Email Sender *</label>
+                    <select value={rejectionEmailSender} onChange={(e) => setRejectionEmailSender(e.target.value)} className="input">
+                      <option value="">Select a partner...</option>
+                      {partners.map((partner) => (
+                        <option key={partner.id} value={partner.id}>{partner.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex gap-3">
+              <button onClick={() => setShowDecisionModal(false)} className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50" disabled={decisionLoading}>Cancel</button>
+              <button onClick={handleSaveDecision} disabled={decisionLoading} className="flex-1 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                {decisionLoading ? 'Saving...' : 'Save Decision'}
               </button>
             </div>
           </div>
