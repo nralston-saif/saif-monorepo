@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
@@ -12,6 +12,7 @@ import EditPersonRelationshipModal from '@/components/EditPersonRelationshipModa
 import TagSelector from '@/app/tickets/TagSelector'
 import FocusTagSelector from '@/components/FocusTagSelector'
 import CompanyNotes from '@/components/CompanyNotes'
+import Toggle from '@/components/Toggle'
 import { ensureProtocol, isValidUrl } from '@/lib/utils'
 import { useToast } from '@saif/ui'
 import type { ActiveDeal } from './page'
@@ -69,9 +70,11 @@ interface CompanyViewProps {
   userName: string
   activeDeal?: ActiveDeal | null
   partners?: Partner[]
+  isPortfolioCompany?: boolean
+  isPublishedToWebsite?: boolean
 }
 
-export default function CompanyView({ company, canEdit, isPartner, currentPersonId, userName, activeDeal, partners = [] }: CompanyViewProps) {
+export default function CompanyView({ company, canEdit, isPartner, currentPersonId, userName, activeDeal, partners = [], isPortfolioCompany = false, isPublishedToWebsite = false }: CompanyViewProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const supabase = createClient()
@@ -83,6 +86,52 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
   const [uploadingLogo, setUploadingLogo] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+
+  // Website publish state
+  const [publishedToWebsite, setPublishedToWebsite] = useState(isPublishedToWebsite)
+  const [publishing, setPublishing] = useState(false)
+
+  // Sync state when server-provided prop changes (e.g., after page refresh)
+  useEffect(() => {
+    setPublishedToWebsite(isPublishedToWebsite)
+  }, [isPublishedToWebsite])
+
+  const togglePublishToWebsite = async (newValue: boolean) => {
+    // Optimistically update UI
+    const previousValue = publishedToWebsite
+    setPublishedToWebsite(newValue)
+    setPublishing(true)
+
+    try {
+      const response = await fetch('/api/website/publish-company', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          company_id: company.id,
+          action: newValue ? 'publish' : 'unpublish'
+        }),
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        // Confirm the state from server
+        setPublishedToWebsite(data.published)
+        showToast(data.message, 'success')
+      } else {
+        // Rollback on error
+        setPublishedToWebsite(previousValue)
+        showToast(data.error || 'Failed to update publish status', 'error')
+      }
+    } catch (error) {
+      // Rollback on error
+      setPublishedToWebsite(previousValue)
+      console.error('Error toggling publish:', error)
+      showToast('Failed to update publish status', 'error')
+    } finally {
+      setPublishing(false)
+    }
+  }
 
   // Person modal state
   const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null)
@@ -763,6 +812,21 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
         {/* Action Buttons */}
         <div className="flex gap-3">
           <CreateTicketButton currentUserId={currentPersonId} />
+          {/* Publish to Website Toggle - only for portfolio companies and partners */}
+          {isPortfolioCompany && isPartner && (
+            <div className="flex items-center gap-3 px-3 py-1.5 bg-gray-50 rounded-lg border border-gray-200">
+              <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span className="text-sm text-gray-600">On Website</span>
+              <Toggle
+                checked={publishedToWebsite}
+                onChange={togglePublishToWebsite}
+                disabled={publishing}
+                size="sm"
+              />
+            </div>
+          )}
           {canEdit && !isEditing && (
             <button
               onClick={() => setIsEditing(true)}
@@ -1609,9 +1673,12 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
                 : 'bg-gradient-to-br from-amber-50 to-yellow-50 border-amber-200'
             }`}>
               {/* Collapsible Header */}
-              <button
+              <div
+                role="button"
+                tabIndex={0}
                 onClick={() => setApplicationExpanded(!applicationExpanded)}
-                className="w-full p-4 flex items-center justify-between hover:bg-white/30 transition-colors"
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setApplicationExpanded(!applicationExpanded) }}
+                className="w-full p-4 flex items-center justify-between hover:bg-white/30 transition-colors cursor-pointer"
               >
                 <div className="flex items-center gap-3">
                   <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
@@ -1659,7 +1726,7 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                   </svg>
                 </div>
-              </button>
+              </div>
 
               {/* Expandable Content */}
               {applicationExpanded && (

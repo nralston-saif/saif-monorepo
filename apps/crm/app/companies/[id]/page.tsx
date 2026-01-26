@@ -199,6 +199,20 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
 
   const canEdit = isPartner || isFounder
 
+  // Check if company is published to website (only for portfolio companies)
+  const isPortfolioCompany = company.stage === 'portfolio' || (company.investments && company.investments.length > 0)
+  let isPublishedToWebsite = false
+
+  if (isPortfolioCompany) {
+    const { data: publishedData } = await supabase
+      .from('website_portfolio_companies')
+      .select('id')
+      .eq('company_id', id)
+      .single()
+
+    isPublishedToWebsite = !!publishedData
+  }
+
   const typedCompany = company as Company & {
     people?: (CompanyPerson & {
       person: Person | null
@@ -219,6 +233,8 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
         userName={userName}
         activeDeal={activeDeal}
         partners={partnersList}
+        isPortfolioCompany={isPortfolioCompany}
+        isPublishedToWebsite={isPublishedToWebsite}
       />
     </div>
   )
