@@ -12,7 +12,7 @@ import EditPersonRelationshipModal from '@/components/EditPersonRelationshipModa
 import TagSelector from '@/app/tickets/TagSelector'
 import FocusTagSelector from '@/components/FocusTagSelector'
 import CompanyNotes from '@/components/CompanyNotes'
-import { ensureProtocol } from '@/lib/utils'
+import { ensureProtocol, isValidUrl } from '@/lib/utils'
 import { useToast } from '@saif/ui'
 import type { ActiveDeal } from './page'
 
@@ -1633,9 +1633,9 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  {activeDeal.deck_link && (
+                  {activeDeal.deck_link && isValidUrl(activeDeal.deck_link) && (
                     <a
-                      href={activeDeal.deck_link}
+                      href={ensureProtocol(activeDeal.deck_link)}
                       target="_blank"
                       rel="noopener noreferrer"
                       onClick={(e) => e.stopPropagation()}

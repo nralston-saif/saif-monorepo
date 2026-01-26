@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { useToast } from '@saif/ui'
 import CreateTicketButton from '@/components/CreateTicketButton'
-import { ensureProtocol } from '@/lib/utils'
+import { ensureProtocol, isValidUrl } from '@/lib/utils'
 
 type Vote = {
   oduserId: string
@@ -727,14 +727,18 @@ export default function PipelineClient({
             <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">
               Pitch Deck / Additional Documents
             </h3>
-            <a
-              href={app.deck_link}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 text-purple-600 hover:text-purple-700 font-medium"
-            >
-              <span>📊</span> View Deck
-            </a>
+            {isValidUrl(app.deck_link) ? (
+              <a
+                href={ensureProtocol(app.deck_link)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 text-purple-600 hover:text-purple-700 font-medium"
+              >
+                <span>📊</span> View Deck
+              </a>
+            ) : (
+              <p className="text-gray-700 whitespace-pre-wrap">{app.deck_link}</p>
+            )}
           </div>
         )}
 
@@ -839,9 +843,9 @@ export default function PipelineClient({
                 <span>🌐</span> Website
               </a>
             )}
-            {app.deck_link && (
+            {app.deck_link && isValidUrl(app.deck_link) && (
               <a
-                href={app.deck_link}
+                href={ensureProtocol(app.deck_link)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 text-sm text-purple-600 hover:text-purple-700 bg-purple-50 hover:bg-purple-100 px-3 py-1.5 rounded-lg transition-colors"

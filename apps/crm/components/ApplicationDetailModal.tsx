@@ -1,6 +1,6 @@
 'use client'
 
-import { ensureProtocol } from '@/lib/utils'
+import { ensureProtocol, isValidUrl } from '@/lib/utils'
 
 type ApplicationData = {
   id: string
@@ -304,14 +304,18 @@ export default function ApplicationDetailModal({ application, investment, onClos
               <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">
                 Pitch Deck / Additional Documents
               </h3>
-              <a
-                href={application.deck_link}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 text-purple-600 hover:text-purple-700 font-medium"
-              >
-                <span>📊</span> View Deck
-              </a>
+              {isValidUrl(application.deck_link) ? (
+                <a
+                  href={ensureProtocol(application.deck_link)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 text-purple-600 hover:text-purple-700 font-medium"
+                >
+                  <span>📊</span> View Deck
+                </a>
+              ) : (
+                <p className="text-gray-700 whitespace-pre-wrap">{application.deck_link}</p>
+              )}
             </div>
           )}
 

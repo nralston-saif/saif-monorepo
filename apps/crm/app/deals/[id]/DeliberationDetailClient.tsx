@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useToast } from '@saif/ui'
 import CreateTicketButton from '@/components/CreateTicketButton'
-import { ensureProtocol } from '@/lib/utils'
+import { ensureProtocol, isValidUrl } from '@/lib/utils'
 
 type Vote = {
   oduserId: string
@@ -548,9 +548,9 @@ export default function DeliberationDetailClient({
               <span>🌐</span> Website
             </a>
           )}
-          {application.deck_link && (
+          {application.deck_link && isValidUrl(application.deck_link) && (
             <a
-              href={application.deck_link}
+              href={ensureProtocol(application.deck_link)}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1 text-sm text-purple-600 hover:text-purple-700 bg-purple-50 hover:bg-purple-100 px-3 py-1.5 rounded-lg transition-colors"

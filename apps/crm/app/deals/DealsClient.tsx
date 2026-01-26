@@ -7,7 +7,7 @@ import Link from 'next/link'
 import { useToast } from '@saif/ui'
 import CreateTicketButton from '@/components/CreateTicketButton'
 import ApplicationDetailModal from '@/components/ApplicationDetailModal'
-import { ensureProtocol } from '@/lib/utils'
+import { ensureProtocol, isValidUrl } from '@/lib/utils'
 
 // ============================================
 // Types
@@ -1370,14 +1370,18 @@ export default function DealsClient({
             <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">
               Pitch Deck / Additional Documents
             </h3>
-            <a
-              href={app.deck_link}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 text-purple-600 hover:text-purple-700 font-medium"
-            >
-              View Deck
-            </a>
+            {isValidUrl(app.deck_link) ? (
+              <a
+                href={ensureProtocol(app.deck_link)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 text-purple-600 hover:text-purple-700 font-medium"
+              >
+                View Deck
+              </a>
+            ) : (
+              <p className="text-gray-700 whitespace-pre-wrap">{app.deck_link}</p>
+            )}
           </div>
         )}
 
@@ -1581,9 +1585,9 @@ export default function DealsClient({
                                 Web
                               </a>
                             )}
-                            {app.deck_link && (
+                            {app.deck_link && isValidUrl(app.deck_link) && (
                               <a
-                                href={app.deck_link}
+                                href={ensureProtocol(app.deck_link)}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="text-xs text-purple-600 hover:text-purple-700 bg-purple-50 hover:bg-purple-100 px-2 py-1 rounded transition-colors"
@@ -1662,9 +1666,9 @@ export default function DealsClient({
                                   Website
                                 </a>
                               )}
-                              {app.deck_link && (
+                              {app.deck_link && isValidUrl(app.deck_link) && (
                                 <a
-                                  href={app.deck_link}
+                                  href={ensureProtocol(app.deck_link)}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="inline-flex items-center gap-1 text-sm text-purple-600 hover:text-purple-700 bg-purple-50 hover:bg-purple-100 px-3 py-1.5 rounded-lg transition-colors"
@@ -1878,9 +1882,9 @@ export default function DealsClient({
                                 Web
                               </a>
                             )}
-                            {app.deck_link && (
+                            {app.deck_link && isValidUrl(app.deck_link) && (
                               <a
-                                href={app.deck_link}
+                                href={ensureProtocol(app.deck_link)}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="text-xs text-purple-600 hover:text-purple-700 bg-purple-50 hover:bg-purple-100 px-2 py-1 rounded transition-colors"
