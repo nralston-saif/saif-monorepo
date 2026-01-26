@@ -660,7 +660,7 @@ export default function PeopleClient({
             onClick={openAddModal}
             className="px-4 py-1.5 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800"
           >
-            + Add
+            + Add Person
           </button>
         </div>
       </div>

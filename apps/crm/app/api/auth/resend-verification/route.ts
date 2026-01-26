@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
       type: 'signup',
       email,
       options: {
-        emailRedirectTo: `${request.nextUrl.origin}/auth/verify`,
+        emailRedirectTo: `${request.nextUrl.origin}/auth/callback`,
       },
     })
 
