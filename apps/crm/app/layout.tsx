@@ -22,11 +22,14 @@ export const metadata: Metadata = {
   },
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  // Get nonce from middleware for CSP - can be used for inline scripts
+  // Access via: const headersList = await headers(); headersList.get('x-nonce')
+
   return (
     <html lang="en">
       <head>

@@ -160,6 +160,14 @@ export default async function PortfolioPage() {
     }
   })
 
+  // Get which companies are published to the website
+  const { data: publishedCompanies } = await supabase
+    .from('website_portfolio_companies')
+    .select('company_id')
+    .in('company_id', companyIds)
+
+  const publishedSet = new Set(publishedCompanies?.map(p => p.company_id) || [])
+
   // Transform investments for the client
   const portfolioCompanies = investments?.map(inv => {
     const company = Array.isArray(inv.company) ? inv.company[0] : inv.company
@@ -182,6 +190,7 @@ export default async function PortfolioPage() {
       founders: foundersMap[companyId] || [],
       deliberationNotes: appData?.deliberationNotes || null,
       meetingNotes: appData?.meetingNotes || [],
+      isPublishedToWebsite: publishedSet.has(companyId),
     }
   }) || []
 

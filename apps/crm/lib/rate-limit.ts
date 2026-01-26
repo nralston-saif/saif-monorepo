@@ -1,6 +1,5 @@
 /**
  * In-memory rate limiter for API routes
- * In production, consider using Redis/Upstash for distributed rate limiting
  */
 
 interface RateLimitRecord {
@@ -17,11 +16,11 @@ const rateLimitMap = new Map<string, RateLimitRecord>()
  * @param windowMs - Time window in milliseconds
  * @returns Object with allowed status and remaining requests
  */
-export function checkRateLimit(
+export async function checkRateLimit(
   key: string,
   maxRequests: number,
   windowMs: number
-): { allowed: boolean; remaining: number } {
+): Promise<{ allowed: boolean; remaining: number }> {
   const now = Date.now()
   const record = rateLimitMap.get(key)
 

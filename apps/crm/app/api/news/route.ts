@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import type { AINewsTopic } from '@/lib/types/database'
+import { parsePagination } from '@/lib/pagination'
 
 const VALID_TOPICS: AINewsTopic[] = ['llm', 'robotics', 'regulation', 'business', 'research', 'healthcare', 'ai_safety', 'general']
 
@@ -17,10 +18,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Get query params
+    // Get query params with bounded pagination
     const url = new URL(request.url)
-    const limit = parseInt(url.searchParams.get('limit') || '5', 10)
-    const offset = parseInt(url.searchParams.get('offset') || '0', 10)
+    const { limit, offset } = parsePagination(url.searchParams, {
+      defaultLimit: 5,
+      maxLimit: 50,
+      maxOffset: 5000,
+    })
     const topicParam = url.searchParams.get('topic')
 
     // Build query

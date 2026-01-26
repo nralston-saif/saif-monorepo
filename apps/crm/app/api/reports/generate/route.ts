@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { requirePartnerApi } from '@/lib/auth/requirePartnerApi'
+import { parsePagination } from '@/lib/pagination'
 
 // Initialize Supabase with service role key
 const supabase = createClient(
@@ -269,7 +270,11 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const reportType = searchParams.get('type') || 'all'
-    const limit = parseInt(searchParams.get('limit') || '20')
+    const { limit } = parsePagination(searchParams, {
+      defaultLimit: 20,
+      maxLimit: 100,
+      maxOffset: 10000,
+    })
 
     let query = supabase
       .from('saif_ticket_reports')

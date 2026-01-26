@@ -93,7 +93,7 @@ const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET
 export async function POST(request: NextRequest) {
   // Rate limiting
   const ip = getClientIP(request.headers)
-  const rateLimit = checkRateLimit(`webhook:${ip}`, RATE_LIMIT_MAX, RATE_LIMIT_WINDOW)
+  const rateLimit = await checkRateLimit(`webhook:${ip}`, RATE_LIMIT_MAX, RATE_LIMIT_WINDOW)
 
   if (!rateLimit.allowed) {
     return NextResponse.json(

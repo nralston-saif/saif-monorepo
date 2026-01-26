@@ -39,6 +39,7 @@ type Investment = {
   founders: Founder[]
   deliberationNotes: string | null
   meetingNotes: MeetingNote[]
+  isPublishedToWebsite: boolean
 }
 
 type SortOption = 'date-newest' | 'date-oldest' | 'name-az' | 'name-za' | 'amount-high' | 'amount-low'
@@ -57,6 +58,15 @@ export default function PortfolioClient({
   // Search and sort state
   const [searchQuery, setSearchQuery] = useState('')
   const [sortOption, setSortOption] = useState<SortOption>('date-newest')
+
+  // Track published status (for display only - editing happens on company page)
+  const publishedStatus = useMemo(() => {
+    const status: Record<string, boolean> = {}
+    investments.forEach(inv => {
+      status[inv.company_id] = inv.isPublishedToWebsite
+    })
+    return status
+  }, [investments])
 
   const router = useRouter()
 
@@ -456,7 +466,7 @@ export default function PortfolioClient({
                 </div>
 
                 {/* Links and Notes */}
-                <div className="flex items-center gap-3 mt-4">
+                <div className="flex items-center gap-3 mt-4 flex-wrap">
                   {investment.website && (
                     <a
                       href={ensureProtocol(investment.website)}
@@ -479,6 +489,15 @@ export default function PortfolioClient({
                       </svg>
                       Notes
                     </Link>
+                  )}
+                  {/* Published indicator */}
+                  {publishedStatus[investment.company_id] && (
+                    <span className="inline-flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg bg-emerald-100 text-emerald-700">
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      On Website
+                    </span>
                   )}
                 </div>
               </div>

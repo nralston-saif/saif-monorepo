@@ -1,5 +1,6 @@
 import type { NextConfig } from 'next'
 
+// Security headers - CSP is now set dynamically in middleware with per-request nonce
 const securityHeaders = [
   {
     key: 'X-DNS-Prefetch-Control',
@@ -29,20 +30,7 @@ const securityHeaders = [
     key: 'Permissions-Policy',
     value: 'camera=(), microphone=(), geolocation=()'
   },
-  {
-    key: 'Content-Security-Policy',
-    value: [
-      "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-      "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: blob: https://dxllkeajdtbtvsjjoaxr.supabase.co",
-      "font-src 'self'",
-      "connect-src 'self' https://dxllkeajdtbtvsjjoaxr.supabase.co wss://dxllkeajdtbtvsjjoaxr.supabase.co",
-      "frame-ancestors 'self'",
-      "base-uri 'self'",
-      "form-action 'self'",
-    ].join('; ')
-  }
+  // Note: Content-Security-Policy is now set in middleware.ts with a per-request nonce
 ]
 
 const nextConfig: NextConfig = {

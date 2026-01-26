@@ -8,7 +8,7 @@ const RATE_LIMIT_MAX = 30 // 30 requests per minute
 export async function GET(request: NextRequest) {
   // Rate limiting
   const ip = getClientIP(request.headers)
-  const rateLimit = checkRateLimit(`search:${ip}`, RATE_LIMIT_MAX, RATE_LIMIT_WINDOW)
+  const rateLimit = await checkRateLimit(`search:${ip}`, RATE_LIMIT_MAX, RATE_LIMIT_WINDOW)
 
   if (!rateLimit.allowed) {
     return NextResponse.json(

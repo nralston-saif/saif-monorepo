@@ -12,6 +12,9 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  // CSP nonce is available via headers() if needed for inline scripts
+  // Access via: const headersList = await headers(); headersList.get('x-nonce')
+
   return (
     <html lang="en">
       <body className="antialiased">
