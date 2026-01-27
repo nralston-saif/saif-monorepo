@@ -4,13 +4,11 @@ import Anthropic from '@anthropic-ai/sdk'
 import { requirePartnerApi } from '@/lib/auth/requirePartnerApi'
 import { parsePagination } from '@/lib/pagination'
 
-// Initialize Supabase with service role key
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-// Initialize Anthropic client
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY!,
 })
@@ -50,8 +48,8 @@ Guidelines:
 export async function POST(request: NextRequest) {
   // Verify user is a partner
   const authResult = await requirePartnerApi()
-  if (authResult instanceof NextResponse) {
-    return authResult
+  if (!authResult.success) {
+    return authResult.response
   }
 
   try {
@@ -263,8 +261,8 @@ Generate a JSON report summarizing the completed work. Include ticket titles and
 export async function GET(request: NextRequest) {
   // Verify user is a partner
   const authResult = await requirePartnerApi()
-  if (authResult instanceof NextResponse) {
-    return authResult
+  if (!authResult.success) {
+    return authResult.response
   }
 
   try {

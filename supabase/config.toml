@@ -67,4 +67,7 @@ enable_signup = true
 # If enabled, a user will be required to confirm any email change on both the old and new email addresses.
 double_confirm_changes = true
 # If enabled, users need to confirm their email address before signing in.
+# SECURITY WARNING: This MUST be set to true in production!
+# When false, attackers can sign up with any email and claim profiles.
+# The claim-profile API has a secondary check, but defense-in-depth requires this to be true in prod.
 enable_confirmations = false

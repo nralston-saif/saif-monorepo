@@ -1,18 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 
-export async function GET() {
-  return handler()
-}
-
-export async function POST() {
-  return handler()
-}
-
-async function handler() {
+export async function POST(): Promise<NextResponse> {
   const supabase = await createClient()
 
-  // Check if user is authenticated and is a partner
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
@@ -29,7 +20,6 @@ async function handler() {
   }
 
   try {
-    // Create the company
     const { data: company, error: companyError } = await supabase
       .from('saif_companies')
       .insert({
@@ -51,7 +41,6 @@ async function handler() {
       return NextResponse.json({ error: 'Failed to create company', details: companyError }, { status: 500 })
     }
 
-    // Create founder 1 - Geoff (the one user will log in as)
     const { data: founder1, error: founder1Error } = await supabase
       .from('saif_people')
       .insert({
@@ -71,7 +60,6 @@ async function handler() {
       return NextResponse.json({ error: 'Failed to create founder 1', details: founder1Error }, { status: 500 })
     }
 
-    // Create founder 2
     const { data: founder2, error: founder2Error } = await supabase
       .from('saif_people')
       .insert({
@@ -92,7 +80,6 @@ async function handler() {
       return NextResponse.json({ error: 'Failed to create founder 2', details: founder2Error }, { status: 500 })
     }
 
-    // Link founders to company
     const { error: link1Error } = await supabase
       .from('saif_company_people')
       .insert({
