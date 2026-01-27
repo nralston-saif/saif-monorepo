@@ -1724,7 +1724,7 @@ export default function DealsClient({
                                         </span>
                                       </div>
                                       {v.notes && (
-                                        <p className="text-sm text-gray-600 mt-2 ml-11">
+                                        <p className="text-sm text-gray-600 mt-2 ml-11 break-words">
                                           {v.notes}
                                         </p>
                                       )}
@@ -2912,7 +2912,7 @@ export default function DealsClient({
                           <span className={`badge ${getVoteBadgeStyle(v.vote)}`}>{v.vote}</span>
                         </div>
                         {v.notes && (
-                          <p className="text-sm text-gray-600 mt-2 ml-11">{v.notes}</p>
+                          <p className="text-sm text-gray-600 mt-2 ml-11 break-words">{v.notes}</p>
                         )}
                       </div>
                     ))}

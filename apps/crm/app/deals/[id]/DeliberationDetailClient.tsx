@@ -601,7 +601,7 @@ export default function DeliberationDetailClient({
                       </div>
                       <span className={`badge ${getVoteBadgeStyle(vote.vote)}`}>{vote.vote}</span>
                     </div>
-                    {vote.notes && <p className="text-sm text-gray-600 mt-2">{vote.notes}</p>}
+                    {vote.notes && <p className="text-sm text-gray-600 mt-2 break-words">{vote.notes}</p>}
                   </div>
                 ))}
               </div>
