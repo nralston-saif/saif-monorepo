@@ -4,10 +4,32 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import SearchModal from './SearchModal'
+import { createClient } from '@/lib/supabase/client'
 
 export default function Navigation() {
   const [showSearch, setShowSearch] = useState(false)
+  const [isPartner, setIsPartner] = useState(false)
   const pathname = usePathname()
+  const supabase = createClient()
+
+  // Check if current user is a partner
+  useEffect(() => {
+    const checkPartner = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      const { data: person } = await supabase
+        .from('saif_people')
+        .select('role')
+        .eq('user_id', user.id)
+        .single()
+
+      if (person?.role === 'partner') {
+        setIsPartner(true)
+      }
+    }
+    checkPartner()
+  }, [])
 
   // Cmd+K / Ctrl+K keyboard shortcut
   useEffect(() => {
@@ -35,7 +57,7 @@ export default function Navigation() {
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-8">
               <Link href="/dashboard" className="text-xl font-bold text-gray-900">
-                SAIFface
+                SAIF Community
               </Link>
               {navItems.map((item) => {
                 const isActive = pathname === item.href ||
@@ -86,6 +108,14 @@ export default function Navigation() {
               >
                 Profile
               </Link>
+              {isPartner && (
+                <a
+                  href={`${process.env.NEXT_PUBLIC_CRM_APP_URL || 'http://localhost:3001'}/dashboard`}
+                  className="text-sm text-gray-600 hover:text-gray-900"
+                >
+                  Partner View
+                </a>
+              )}
               <form action="/auth/signout" method="post">
                 <button
                   type="submit"

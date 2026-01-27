@@ -3,7 +3,7 @@ import Providers from '@saif/ui/providers'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'SAIFface - SAIF Ventures Community',
+  title: 'SAIF Community',
   description: 'Connect with founders in the SAIF Ventures portfolio',
 }
 

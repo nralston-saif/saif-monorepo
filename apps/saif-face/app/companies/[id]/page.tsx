@@ -119,8 +119,14 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
     notFound()
   }
 
+  // Cast company to include the joined data
+  const companyData = company as unknown as Company & {
+    people?: (CompanyPerson & { person: Person | null })[]
+    investments?: any[]
+  }
+
   // Check if current user can edit this company
-  const isFounder = company.people?.some(
+  const isFounder = companyData.people?.some(
     (cp: any) =>
       cp.user_id === currentPerson.id &&
       cp.relationship_type === 'founder' &&
@@ -132,18 +138,13 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
   // For non-partners, filter out former founder info (end_date) from the response
   // This prevents information disclosure about who left companies
   const sanitizedPeople = isPartner
-    ? company.people
-    : company.people?.filter((cp: any) => !cp.end_date) // Only show current team members
+    ? companyData.people
+    : companyData.people?.filter((cp: any) => !cp.end_date) // Only show current team members
 
   const typedCompany = {
-    ...company,
+    ...companyData,
     people: sanitizedPeople,
     // investments is only present for partners due to conditional select
-  } as Company & {
-    people?: (CompanyPerson & {
-      person: Person | null
-    })[]
-    investments?: any[]
   }
 
   return (
@@ -154,7 +155,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-8">
               <Link href="/dashboard" className="text-xl font-bold text-gray-900">
-                SAIFface
+                SAIF Community
               </Link>
               <Link
                 href="/companies"
