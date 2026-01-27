@@ -10,7 +10,7 @@ function sanitizeSearchInput(input: string): string {
     .replace(/[\\]/g, '\\\\')
     .replace(/[%]/g, '\\%')
     .replace(/[_]/g, '\\_')
-    .replace(/[()\[\],.*]/g, '')
+    .replace(/[(),]/g, '')  // Only remove chars that break PostgREST filter syntax
     .replace(/['"]/g, '')
     .trim()
 }
