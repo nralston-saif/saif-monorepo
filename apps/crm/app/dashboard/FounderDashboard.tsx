@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import FounderNavigation from '@/components/FounderNavigation'
+import PartnerViewBanner from '@/components/PartnerViewBanner'
 import PeopleGrid from '@/app/people/PeopleGrid'
 import type { Database } from '@/lib/types/database'
 
@@ -54,12 +55,12 @@ type AINewsArticle = {
 
 interface FounderDashboardProps {
   person: Person
-  userEmail: string
   company: Company | null
   founders: Founder[]
   founderTitle?: string | null
   community: PersonWithCompanies[]
   newsArticles?: AINewsArticle[]
+  isPartnerViewingAsCommunity?: boolean
 }
 
 const getTopicLabel = (topic: string): string => {
@@ -76,10 +77,12 @@ const getTopicLabel = (topic: string): string => {
   return labels[topic] || topic
 }
 
-export default function FounderDashboard({ person, userEmail, company, founders, founderTitle, community, newsArticles = [] }: FounderDashboardProps) {
+export default function FounderDashboard({ person, company, founders, founderTitle, community, newsArticles = [], isPartnerViewingAsCommunity = false }: FounderDashboardProps) {
   return (
     <div className="min-h-screen bg-white">
-      <FounderNavigation />
+      <FounderNavigation isPartnerViewingAsCommunity={isPartnerViewingAsCommunity} />
+
+      {isPartnerViewingAsCommunity && <PartnerViewBanner returnPath="/dashboard" />}
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -159,8 +162,8 @@ export default function FounderDashboard({ person, userEmail, company, founders,
           </div>
         )}
 
-        {/* Profile Completion Prompt */}
-        {(!person.bio || !person.avatar_url) && (
+        {/* Profile Completion Prompt - hidden for partners viewing as community */}
+        {!isPartnerViewingAsCommunity && (!person.bio || !person.avatar_url) && (
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-8">
             <h3 className="text-lg font-semibold text-blue-900">Complete your profile</h3>
             <p className="mt-2 text-sm text-blue-700">

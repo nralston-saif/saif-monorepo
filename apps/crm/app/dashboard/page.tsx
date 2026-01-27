@@ -7,7 +7,12 @@ import type { Database } from '@/lib/types/database'
 
 type Person = Database['public']['Tables']['saif_people']['Row']
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams
+}: {
+  searchParams: Promise<{ view?: string }>
+}) {
+  const { view } = await searchParams
   const supabase = await createClient()
 
   const {
@@ -32,8 +37,11 @@ export default async function DashboardPage() {
 
   const typedProfile = profile as Person
 
-  // Non-partners (founders, advisors, etc.) see the founder dashboard
-  if (typedProfile.role !== 'partner') {
+  const isPartner = typedProfile.role === 'partner'
+  const wantsCommunityView = view === 'community'
+
+  // Non-partners see the founder dashboard, partners can view it with ?view=community
+  if (!isPartner || wantsCommunityView) {
     // Fetch the founder's company
     const { data: companyRelation } = await supabase
       .from('saif_company_people')
@@ -115,7 +123,7 @@ export default async function DashboardPage() {
         .limit(3)
     ])
 
-    return <FounderDashboard person={typedProfile} userEmail={user.email || ''} company={company} founders={founders} founderTitle={companyRelation?.title} community={communityPeople || []} newsArticles={newsArticles || []} />
+    return <FounderDashboard person={typedProfile} company={company} founders={founders} founderTitle={companyRelation?.title} community={communityPeople || []} newsArticles={newsArticles || []} isPartnerViewingAsCommunity={isPartner && wantsCommunityView} />
   }
 
   // Partners see the CRM dashboard

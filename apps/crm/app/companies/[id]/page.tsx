@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/lib/types/database'
 import FounderNavigation from '@/components/FounderNavigation'
 import Navigation from '@/components/Navigation'
+import PartnerViewBanner from '@/components/PartnerViewBanner'
 import CompanyView from './CompanyView'
 
 type Company = Database['public']['Tables']['saif_companies']['Row']
@@ -38,9 +39,15 @@ export type ActiveDeal = {
   } | null
 }
 
-export default async function CompanyPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function CompanyPage({
+  params,
+  searchParams
+}: {
+  params: Promise<{ id: string }>
+  searchParams: Promise<{ view?: string }>
+}) {
+  const [{ id }, { view }] = await Promise.all([params, searchParams])
   const supabase = await createClient()
-  const { id } = await params
 
   // Check authentication
   const { data: { user }, error: authError } = await supabase.auth.getUser()
@@ -189,6 +196,9 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
 
   // Check if current user can edit this company
   const isPartner = currentPerson.role === 'partner'
+  const wantsCommunityView = view === 'community'
+  const isPartnerViewingAsCommunity = isPartner && wantsCommunityView
+  const showPartnerView = isPartner && !wantsCommunityView
   const userName = currentPerson.first_name || 'User'
   const isFounder = company.people?.some(
     (cp: any) =>
@@ -197,7 +207,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
       !cp.end_date
   ) || false
 
-  const canEdit = isPartner || isFounder
+  const canEdit = showPartnerView || isFounder
 
   // Check if company is published to website (only for portfolio companies)
   const isPortfolioCompany = company.stage === 'portfolio' || (company.investments && company.investments.length > 0)
@@ -222,13 +232,15 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
 
   return (
     <div className="min-h-screen bg-white">
-      {isPartner ? <Navigation userName={userName} personId={currentPerson.id} /> : <FounderNavigation />}
+      {showPartnerView ? <Navigation userName={userName} personId={currentPerson.id} /> : <FounderNavigation isPartnerViewingAsCommunity={isPartnerViewingAsCommunity} />}
+
+      {isPartnerViewingAsCommunity && <PartnerViewBanner returnPath={`/companies/${id}`} />}
 
       {/* Main Content */}
       <CompanyView
         company={typedCompany}
         canEdit={canEdit}
-        isPartner={isPartner}
+        isPartner={showPartnerView}
         currentPersonId={currentPerson.id}
         userName={userName}
         activeDeal={activeDeal}

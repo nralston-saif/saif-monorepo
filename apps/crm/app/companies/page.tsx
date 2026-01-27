@@ -3,11 +3,17 @@ import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/lib/types/database'
 import FounderNavigation from '@/components/FounderNavigation'
 import Navigation from '@/components/Navigation'
+import PartnerViewBanner from '@/components/PartnerViewBanner'
 import CompanyGrid from './CompanyGrid'
 
 type Company = Database['public']['Tables']['saif_companies']['Row']
 
-export default async function CompaniesPage() {
+export default async function CompaniesPage({
+  searchParams
+}: {
+  searchParams: Promise<{ view?: string }>
+}) {
+  const { view } = await searchParams
   const supabase = await createClient()
 
   // Check authentication
@@ -29,15 +35,16 @@ export default async function CompaniesPage() {
   }
 
   const isPartner = person.role === 'partner'
+  const wantsCommunityView = view === 'community'
   const userName = person.first_name || 'User'
 
   // Fetch companies based on role:
-  // - Partners see ALL companies (for CRM management)
-  // - Founders see portfolio + SAIF company
+  // - Partners (not viewing community) see ALL companies (for CRM management)
+  // - Founders (and partners in community view) see portfolio + SAIF company
   let companies: any[] | null = null
   let companiesError: any = null
 
-  if (isPartner) {
+  if (isPartner && !wantsCommunityView) {
     const result = await supabase
       .from('saif_companies')
       .select(`
@@ -139,14 +146,19 @@ export default async function CompaniesPage() {
     }>
   })[]
 
+  const isPartnerViewingAsCommunity = isPartner && wantsCommunityView
+  const showPartnerView = isPartner && !wantsCommunityView
+
   return (
     <div className="min-h-screen bg-white">
-      {isPartner ? <Navigation userName={userName} personId={person.id} /> : <FounderNavigation />}
+      {showPartnerView ? <Navigation userName={userName} personId={person.id} /> : <FounderNavigation isPartnerViewingAsCommunity={isPartnerViewingAsCommunity} />}
+
+      {isPartnerViewingAsCommunity && <PartnerViewBanner returnPath="/companies" />}
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Show header for founders only - partners get header in CompanyGrid with count */}
-        {!isPartner && (
+        {!showPartnerView && (
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-gray-900">SAIF Companies</h1>
             <p className="mt-2 text-sm text-gray-600">
@@ -160,7 +172,7 @@ export default async function CompaniesPage() {
             <p className="text-gray-500">No companies found</p>
           </div>
         ) : (
-          <CompanyGrid companies={typedCompanies} isPartner={isPartner} userId={person.id} />
+          <CompanyGrid companies={typedCompanies} isPartner={showPartnerView} userId={person.id} />
         )}
       </main>
     </div>

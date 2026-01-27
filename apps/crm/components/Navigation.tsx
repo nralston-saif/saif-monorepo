@@ -266,12 +266,12 @@ export default function Navigation({ userName, personId }: { userName: string; p
                   >
                     Settings
                   </Link>
-                  <a
-                    href={`${process.env.NEXT_PUBLIC_FOUNDER_APP_URL || 'http://localhost:3002'}/dashboard`}
+                  <Link
+                    href="/dashboard?view=community"
                     className="block px-4 py-3 text-base md:py-2 md:text-sm text-[#666666] hover:bg-[#f5f5f5] hover:text-[#1a1a1a]"
                   >
                     Community View
-                  </a>
+                  </Link>
                   <div className="h-px bg-gray-200 my-2 md:my-1" />
                   <button
                     onClick={handleLogout}

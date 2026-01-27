@@ -2,11 +2,18 @@ import { redirect, notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import FounderNavigation from '@/components/FounderNavigation'
 import Navigation from '@/components/Navigation'
+import PartnerViewBanner from '@/components/PartnerViewBanner'
 import PersonView from './PersonView'
 
-export default async function PersonPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function PersonPage({
+  params,
+  searchParams
+}: {
+  params: Promise<{ id: string }>
+  searchParams: Promise<{ view?: string }>
+}) {
+  const [{ id }, { view }] = await Promise.all([params, searchParams])
   const supabase = await createClient()
-  const { id } = await params
 
   // Check authentication
   const { data: { user }, error: authError } = await supabase.auth.getUser()
@@ -73,14 +80,19 @@ export default async function PersonPage({ params }: { params: Promise<{ id: str
   ) || []
 
   const isPartner = currentPerson.role === 'partner'
+  const wantsCommunityView = view === 'community'
+  const isPartnerViewingAsCommunity = isPartner && wantsCommunityView
+  const showPartnerView = isPartner && !wantsCommunityView
   const userName = currentPerson.first_name || 'User'
 
-  // Can edit if partner or viewing own profile
-  const canEdit = isPartner || currentPerson.id === person.id
+  // Can edit if partner (in partner view) or viewing own profile
+  const canEdit = showPartnerView || currentPerson.id === person.id
 
   return (
     <div className="min-h-screen bg-white">
-      {isPartner ? <Navigation userName={userName} personId={currentPerson.id} /> : <FounderNavigation />}
+      {showPartnerView ? <Navigation userName={userName} personId={currentPerson.id} /> : <FounderNavigation isPartnerViewingAsCommunity={isPartnerViewingAsCommunity} />}
+
+      {isPartnerViewingAsCommunity && <PartnerViewBanner returnPath={`/people/${id}`} />}
 
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <PersonView
@@ -88,7 +100,7 @@ export default async function PersonPage({ params }: { params: Promise<{ id: str
           introducerName={introducerName}
           activeCompanies={activeCompanies as any}
           canEdit={canEdit}
-          isPartner={isPartner}
+          isPartner={showPartnerView}
           currentUserId={currentPerson.id}
           currentUserName={currentPerson.first_name || 'User'}
         />

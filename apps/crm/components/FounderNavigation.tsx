@@ -8,13 +8,17 @@ import SearchModal from './SearchModal'
 
 interface FounderNavigationProps {
   userName?: string
+  isPartnerViewingAsCommunity?: boolean
 }
 
-export default function FounderNavigation({ userName }: FounderNavigationProps) {
+export default function FounderNavigation({ userName, isPartnerViewingAsCommunity = false }: FounderNavigationProps) {
   const [showSearch, setShowSearch] = useState(false)
   const [personId, setPersonId] = useState<string | null>(null)
   const pathname = usePathname()
   const supabase = createClient()
+
+  // Helper to add view=community query param for partners viewing community
+  const getHref = (path: string) => isPartnerViewingAsCommunity ? `${path}?view=community` : path
 
   // Fetch the current user's person ID for profile link
   useEffect(() => {
@@ -48,9 +52,9 @@ export default function FounderNavigation({ userName }: FounderNavigationProps) 
   }, [])
 
   const navItems = [
-    { name: 'Dashboard', href: '/dashboard' },
-    { name: 'Companies', href: '/companies' },
-    { name: 'People', href: '/people' },
+    { name: 'Dashboard', href: getHref('/dashboard') },
+    { name: 'Companies', href: getHref('/companies') },
+    { name: 'People', href: getHref('/people') },
   ]
 
   return (
@@ -59,7 +63,7 @@ export default function FounderNavigation({ userName }: FounderNavigationProps) 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-8">
-              <Link href="/dashboard" className="text-xl font-bold text-gray-900">
+              <Link href={getHref('/dashboard')} className="text-xl font-bold text-gray-900">
                 SAIF Community
               </Link>
               {navItems.map((item) => {
@@ -106,7 +110,7 @@ export default function FounderNavigation({ userName }: FounderNavigationProps) 
               </button>
               <div className="w-px h-6 bg-gray-200 hidden sm:block" />
               <Link
-                href={personId ? `/people/${personId}` : '/dashboard'}
+                href={personId ? getHref(`/people/${personId}`) : getHref('/dashboard')}
                 className="text-sm text-gray-600 hover:text-gray-900"
               >
                 Profile

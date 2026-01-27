@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { Suspense } from 'react'
 import Navigation from '@/components/Navigation'
 import FounderNavigation from '@/components/FounderNavigation'
+import PartnerViewBanner from '@/components/PartnerViewBanner'
 import PeopleClient from './PeopleClient'
 import PeopleGrid from './PeopleGrid'
 import type { Database } from '@/lib/types/database'
@@ -50,9 +51,9 @@ export const dynamic = 'force-dynamic'
 export default async function PeoplePage({
   searchParams,
 }: {
-  searchParams: Promise<{ search?: string }>
+  searchParams: Promise<{ search?: string; view?: string }>
 }) {
-  const { search: initialSearch } = await searchParams
+  const { search: initialSearch, view } = await searchParams
   const supabase = await createClient()
 
   const {
@@ -75,9 +76,10 @@ export default async function PeoplePage({
   }
 
   const isPartner = profile.role === 'partner'
+  const wantsCommunityView = view === 'community'
 
-  // For partners, show the full CRM people view with notes
-  if (isPartner) {
+  // For partners (not viewing community), show the full CRM people view with notes
+  if (isPartner && !wantsCommunityView) {
     // Run independent queries in parallel for better performance
     const [
       { data: people },
@@ -282,9 +284,13 @@ export default async function PeoplePage({
     person.status === 'active' || person.status === 'pending'
   )
 
+  const isPartnerViewingAsCommunity = isPartner && wantsCommunityView
+
   return (
     <div className="min-h-screen bg-white">
-      <FounderNavigation />
+      <FounderNavigation isPartnerViewingAsCommunity={isPartnerViewingAsCommunity} />
+
+      {isPartnerViewingAsCommunity && <PartnerViewBanner returnPath="/people" />}
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
