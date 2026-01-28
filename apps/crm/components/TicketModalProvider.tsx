@@ -56,6 +56,7 @@ type Ticket = {
   application_id: string | null
   tags: string[] | null
   was_unassigned_at_creation: boolean | null
+  is_flagged: boolean
   assigned_partner?: Partner | null
   creator?: Partner | null
   company?: Company | null

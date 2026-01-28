@@ -83,10 +83,6 @@ export default function TicketDetailModal({
   const [isEditing, setIsEditing] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [showArchiveModal, setShowArchiveModal] = useState(false)
-  const [showTestingModal, setShowTestingModal] = useState(false)
-  const [testingComment, setTestingComment] = useState('')
-  const [showReopenModal, setShowReopenModal] = useState(false)
-  const [reopenComment, setReopenComment] = useState('')
   const [formData, setFormData] = useState<FormData>({
     title: ticket.title,
     description: ticket.description || '',
@@ -699,98 +695,21 @@ export default function TicketDetailModal({
     }
   }
 
-  const handleTestingSubmit = async () => {
+  const handleFlagToggle = async () => {
     setLoading(true)
 
-    // Add comment marked as testing
-    if (testingComment.trim()) {
-      await supabase.from('saif_ticket_comments').insert({
-        ticket_id: ticket.id,
-        author_id: currentUserId,
-        content: testingComment.trim(),
-        is_testing_comment: true,
-      })
-    }
-
-    // Update status to testing
     const { error } = await supabase
       .from('saif_tickets')
-      .update({ status: 'testing' })
+      .update({ is_flagged: !ticket.is_flagged })
       .eq('id', ticket.id)
 
     setLoading(false)
-    setShowTestingModal(false)
-    setTestingComment('')
 
     if (error) {
-      showToast('Failed to move to testing', 'error')
+      showToast('Failed to update flag', 'error')
       console.error(error)
     } else {
-      showToast('Moved to testing', 'success')
-
-      // Send status change notification
-      fetch('/api/notifications/ticket', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'status_changed',
-          ticketId: ticket.id,
-          ticketTitle: ticket.title,
-          creatorId: ticket.created_by,
-          actorId: currentUserId,
-          actorName: currentUserName,
-          newStatus: 'testing',
-        }),
-      }).catch(console.error)
-
-      onUpdate()
-    }
-  }
-
-  const handleReopenSubmit = async () => {
-    setLoading(true)
-
-    // Add comment marked as reactivated
-    if (reopenComment.trim()) {
-      await supabase.from('saif_ticket_comments').insert({
-        ticket_id: ticket.id,
-        author_id: currentUserId,
-        content: reopenComment.trim(),
-        is_reactivated_comment: true,
-      })
-    }
-
-    // Update status to in_progress
-    const { error } = await supabase
-      .from('saif_tickets')
-      .update({ status: 'in_progress' })
-      .eq('id', ticket.id)
-
-    setLoading(false)
-    setShowReopenModal(false)
-    setReopenComment('')
-
-    if (error) {
-      showToast('Failed to reopen ticket', 'error')
-      console.error(error)
-    } else {
-      showToast('Ticket reopened', 'success')
-
-      // Send status change notification
-      fetch('/api/notifications/ticket', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'status_changed',
-          ticketId: ticket.id,
-          ticketTitle: ticket.title,
-          creatorId: ticket.created_by,
-          actorId: currentUserId,
-          actorName: currentUserName,
-          newStatus: 'in_progress',
-        }),
-      }).catch(console.error)
-
+      showToast(ticket.is_flagged ? 'Flag removed' : 'Ticket flagged', 'success')
       onUpdate()
     }
   }
@@ -878,7 +797,6 @@ export default function TicketDetailModal({
                 >
                   <option value="open">Open</option>
                   <option value="in_progress">In Progress</option>
-                  <option value="testing">Testing</option>
                   <option value="archived">Archived</option>
                 </select>
               </div>
@@ -983,7 +901,7 @@ export default function TicketDetailModal({
               <div>
                 <h3 className="text-sm font-medium text-gray-700 mb-2">Quick Actions</h3>
                 <div className="flex flex-wrap gap-2">
-                  {ticket.status !== 'in_progress' && ticket.status !== 'testing' && (
+                  {ticket.status !== 'in_progress' && (
                     <button
                       onClick={() => handleQuickStatusChange('in_progress')}
                       className="px-3 py-1.5 bg-amber-100 text-amber-700 rounded-lg text-sm font-medium hover:bg-amber-200 transition-colors"
@@ -992,30 +910,26 @@ export default function TicketDetailModal({
                       Mark In Progress
                     </button>
                   )}
-                  {(ticket.status === 'open' || ticket.status === 'in_progress') && (
-                    <button
-                      onClick={() => setShowTestingModal(true)}
-                      className="px-3 py-1.5 bg-purple-100 text-purple-700 rounded-lg text-sm font-medium hover:bg-purple-200 transition-colors"
-                      disabled={loading}
-                    >
-                      Testing
-                    </button>
-                  )}
-                  {ticket.status === 'testing' && (
-                    <button
-                      onClick={() => setShowReopenModal(true)}
-                      className="px-3 py-1.5 bg-amber-100 text-amber-700 rounded-lg text-sm font-medium hover:bg-amber-200 transition-colors"
-                      disabled={loading}
-                    >
-                      Reopen
-                    </button>
-                  )}
                   <button
                     onClick={() => setShowArchiveModal(true)}
                     className="px-3 py-1.5 bg-emerald-100 text-emerald-700 rounded-lg text-sm font-medium hover:bg-emerald-200 transition-colors"
                     disabled={loading}
                   >
                     Resolve
+                  </button>
+                  <button
+                    onClick={handleFlagToggle}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 ${
+                      ticket.is_flagged
+                        ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                    disabled={loading}
+                  >
+                    <svg className="w-4 h-4" fill={ticket.is_flagged ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9" />
+                    </svg>
+                    {ticket.is_flagged ? 'Flagged' : 'Flag'}
                   </button>
                 </div>
               </div>
@@ -1446,100 +1360,6 @@ export default function TicketDetailModal({
                   disabled={loading}
                 >
                   {loading ? 'Resolving...' : 'Resolve & Close'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Testing Modal */}
-        {showTestingModal && (
-          <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center rounded-2xl">
-            <div className="bg-white rounded-xl p-6 max-w-lg mx-4 w-full">
-              <h3 className="text-lg font-bold text-gray-900 mb-2">
-                Move to Testing
-              </h3>
-              <p className="text-gray-600 mb-4">
-                Add a comment about what's being tested (optional).
-              </p>
-              <textarea
-                value={testingComment}
-                onChange={(e) => setTestingComment(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                    e.preventDefault()
-                    handleTestingSubmit()
-                  }
-                }}
-                placeholder="Notes about what's being tested... (Cmd/Ctrl+Enter to submit)"
-                rows={4}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-purple-500 focus:border-purple-500 mb-4"
-                autoFocus
-              />
-              <div className="flex gap-3">
-                <button
-                  onClick={() => {
-                    setShowTestingModal(false)
-                    setTestingComment('')
-                  }}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-medium transition-colors"
-                  disabled={loading}
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleTestingSubmit}
-                  className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium transition-colors disabled:opacity-50"
-                  disabled={loading}
-                >
-                  {loading ? 'Moving...' : 'Move to Testing'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Reopen Modal */}
-        {showReopenModal && (
-          <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center rounded-2xl">
-            <div className="bg-white rounded-xl p-6 max-w-lg mx-4 w-full">
-              <h3 className="text-lg font-bold text-gray-900 mb-2">
-                Reopen Ticket
-              </h3>
-              <p className="text-gray-600 mb-4">
-                Add a comment about why this is being reactivated (optional).
-              </p>
-              <textarea
-                value={reopenComment}
-                onChange={(e) => setReopenComment(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                    e.preventDefault()
-                    handleReopenSubmit()
-                  }
-                }}
-                placeholder="Notes about why this is being reactivated... (Cmd/Ctrl+Enter to submit)"
-                rows={4}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-amber-500 focus:border-amber-500 mb-4"
-                autoFocus
-              />
-              <div className="flex gap-3">
-                <button
-                  onClick={() => {
-                    setShowReopenModal(false)
-                    setReopenComment('')
-                  }}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-medium transition-colors"
-                  disabled={loading}
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleReopenSubmit}
-                  className="flex-1 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 font-medium transition-colors disabled:opacity-50"
-                  disabled={loading}
-                >
-                  {loading ? 'Reopening...' : 'Reopen Ticket'}
                 </button>
               </div>
             </div>

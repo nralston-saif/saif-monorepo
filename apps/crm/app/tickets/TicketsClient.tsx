@@ -44,9 +44,9 @@ type TicketWithRelations = BaseTicket & {
   comments?: TicketCommentWithAuthor[]
 }
 
-type StatusFilter = 'active' | 'testing' | 'archived' | 'unassigned' | 'all'
+type StatusFilter = 'active' | 'archived' | 'unassigned' | 'all'
 type StageFilter = 'all' | 'open' | 'in_progress'
-type SortOption = 'date-newest' | 'date-oldest' | 'priority' | 'due-date' | 'title'
+type SortOption = 'date-newest' | 'date-oldest' | 'priority' | 'due-date' | 'title' | 'flagged'
 
 export default function TicketsClient({
   tickets,
@@ -84,12 +84,6 @@ export default function TicketsClient({
   const [resolvingTicket, setResolvingTicket] = useState<{ id: string; title: string } | null>(null)
   const [resolveComment, setResolveComment] = useState('')
   const [isResolving, setIsResolving] = useState(false)
-  const [testingTicket, setTestingTicket] = useState<{ id: string; title: string } | null>(null)
-  const [testingComment, setTestingComment] = useState('')
-  const [isTesting, setIsTesting] = useState(false)
-  const [reopenTicket, setReopenTicket] = useState<{ id: string; title: string } | null>(null)
-  const [reopenComment, setReopenComment] = useState('')
-  const [isReopening, setIsReopening] = useState(false)
 
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -131,13 +125,11 @@ export default function TicketsClient({
 
     // Status filter
     if (statusFilter === 'active') {
-      filtered = filtered.filter(t => t.status !== 'archived' && t.status !== 'testing')
-    } else if (statusFilter === 'testing') {
-      filtered = filtered.filter(t => t.status === 'testing')
+      filtered = filtered.filter(t => t.status !== 'archived')
     } else if (statusFilter === 'archived') {
       filtered = filtered.filter(t => t.status === 'archived')
     } else if (statusFilter === 'unassigned') {
-      filtered = filtered.filter(t => !t.assigned_to && t.status !== 'archived' && t.status !== 'testing')
+      filtered = filtered.filter(t => !t.assigned_to && t.status !== 'archived')
     }
 
     // Stage filter (open vs in_progress)
@@ -171,6 +163,11 @@ export default function TicketsClient({
     // Sort
     filtered = [...filtered].sort((a, b) => {
       switch (sortOption) {
+        case 'flagged':
+          // Flagged tickets first, then by created date
+          if (a.is_flagged && !b.is_flagged) return -1
+          if (!a.is_flagged && b.is_flagged) return 1
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
         case 'date-newest':
           // For archived tickets, sort by archived_at (resolve date); otherwise by created_at
           if (statusFilter === 'archived') {
@@ -208,9 +205,9 @@ export default function TicketsClient({
     total: localTickets.length,
     open: localTickets.filter(t => t.status === 'open').length,
     inProgress: localTickets.filter(t => t.status === 'in_progress').length,
-    testing: localTickets.filter(t => t.status === 'testing').length,
     archived: localTickets.filter(t => t.status === 'archived').length,
-    unassigned: localTickets.filter(t => !t.assigned_to && t.status !== 'archived' && t.status !== 'testing').length,
+    unassigned: localTickets.filter(t => !t.assigned_to && t.status !== 'archived').length,
+    flagged: localTickets.filter(t => t.is_flagged && t.status !== 'archived').length,
     overdue: localTickets.filter(t =>
       t.due_date &&
       new Date(t.due_date) < new Date() &&
@@ -300,77 +297,21 @@ export default function TicketsClient({
     }
   }
 
-  const handleTestingClick = (ticketId: string, ticketTitle: string, e: React.MouseEvent) => {
+  // Toggle flag on ticket
+  const handleFlagToggle = async (ticketId: string, currentFlagged: boolean, e: React.MouseEvent) => {
     e.stopPropagation()
-    setTestingTicket({ id: ticketId, title: ticketTitle })
-    setTestingComment('')
-  }
-
-  const handleTestingSubmit = async () => {
-    if (!testingTicket) return
-
-    setIsTesting(true)
     const supabase = createClient()
 
-    // Add comment marked as testing
-    if (testingComment.trim()) {
-      await supabase.from('saif_ticket_comments').insert({
-        ticket_id: testingTicket.id,
-        author_id: currentUserId,
-        content: testingComment.trim(),
-        is_testing_comment: true,
-      })
-    }
-
-    // Update status to testing
     const { error } = await supabase
       .from('saif_tickets')
-      .update({ status: 'testing' })
-      .eq('id', testingTicket.id)
-
-    setIsTesting(false)
-    setTestingTicket(null)
-    setTestingComment('')
+      .update({ is_flagged: !currentFlagged })
+      .eq('id', ticketId)
 
     if (!error) {
-      router.refresh()
-    }
-  }
-
-  const handleReopenClick = (ticketId: string, ticketTitle: string, e: React.MouseEvent) => {
-    e.stopPropagation()
-    setReopenTicket({ id: ticketId, title: ticketTitle })
-    setReopenComment('')
-  }
-
-  const handleReopenSubmit = async () => {
-    if (!reopenTicket) return
-
-    setIsReopening(true)
-    const supabase = createClient()
-
-    // Add comment marked as reactivated
-    if (reopenComment.trim()) {
-      await supabase.from('saif_ticket_comments').insert({
-        ticket_id: reopenTicket.id,
-        author_id: currentUserId,
-        content: reopenComment.trim(),
-        is_reactivated_comment: true,
-      })
-    }
-
-    // Update status to in_progress
-    const { error } = await supabase
-      .from('saif_tickets')
-      .update({ status: 'in_progress' })
-      .eq('id', reopenTicket.id)
-
-    setIsReopening(false)
-    setReopenTicket(null)
-    setReopenComment('')
-
-    if (!error) {
-      router.refresh()
+      // Update local state for immediate feedback
+      setLocalTickets(prev => prev.map(t =>
+        t.id === ticketId ? { ...t, is_flagged: !currentFlagged } : t
+      ))
     }
   }
 
@@ -507,30 +448,25 @@ export default function TicketsClient({
             {/* Quick status change buttons */}
             {ticket.status !== 'archived' && (
               <>
-                {(ticket.status === 'open' || ticket.status === 'in_progress') && (
-                  <button
-                    onClick={(e) => handleTestingClick(ticket.id, ticket.title, e)}
-                    className="px-3 py-1.5 text-xs font-medium text-purple-700 bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors"
-                    title="Move to testing"
-                  >
-                    Testing
-                  </button>
-                )}
-                {ticket.status === 'testing' && (
-                  <button
-                    onClick={(e) => handleReopenClick(ticket.id, ticket.title, e)}
-                    className="px-3 py-1.5 text-xs font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-lg transition-colors"
-                    title="Move back to in progress"
-                  >
-                    Reopen
-                  </button>
-                )}
                 <button
                   onClick={(e) => handleResolveClick(ticket.id, ticket.title, e)}
                   className="px-3 py-1.5 text-xs font-medium text-green-700 bg-green-50 hover:bg-green-100 rounded-lg transition-colors"
                   title="Resolve ticket"
                 >
                   Resolve
+                </button>
+                <button
+                  onClick={(e) => handleFlagToggle(ticket.id, ticket.is_flagged, e)}
+                  className={`p-1.5 rounded-lg transition-colors ${
+                    ticket.is_flagged
+                      ? 'text-red-600 bg-red-50 hover:bg-red-100'
+                      : 'text-gray-400 bg-gray-50 hover:bg-gray-100 hover:text-gray-600'
+                  }`}
+                  title={ticket.is_flagged ? 'Remove flag' : 'Flag ticket'}
+                >
+                  <svg className="w-4 h-4" fill={ticket.is_flagged ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9" />
+                  </svg>
                 </button>
               </>
             )}
@@ -587,19 +523,6 @@ export default function TicketsClient({
               }`}
             >
               Active ({stats.open + stats.inProgress})
-            </button>
-            <button
-              onClick={() => {
-                setStatusFilter('testing')
-                setAssignedFilter(currentUserId)
-              }}
-              className={`px-3 sm:px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap flex-shrink-0 ${
-                statusFilter === 'testing'
-                  ? 'bg-gray-900 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              Testing ({stats.testing})
             </button>
             <button
               onClick={() => {
@@ -687,6 +610,7 @@ export default function TicketsClient({
               >
                 <option value="date-newest">Newest First</option>
                 <option value="date-oldest">Oldest First</option>
+                <option value="flagged">Flagged First</option>
                 <option value="priority">Priority</option>
                 <option value="due-date">Due Date</option>
                 <option value="title">Title (A-Z)</option>
@@ -729,9 +653,9 @@ export default function TicketsClient({
               <StatCard label="Total" value={stats.total} color="gray" />
               <StatCard label="Open" value={stats.open} color="blue" />
               <StatCard label="In Progress" value={stats.inProgress} color="amber" />
-              <StatCard label="Testing" value={stats.testing} color="purple" />
+              <StatCard label="Flagged" value={stats.flagged} color="red" />
               <StatCard label="Archived" value={stats.archived} color="green" />
-              <StatCard label="Overdue" value={stats.overdue} color="red" />
+              <StatCard label="Overdue" value={stats.overdue} color="orange" />
             </div>
 
             {/* Action buttons - row on mobile, column on desktop */}
@@ -824,106 +748,6 @@ export default function TicketsClient({
         </>
       )}
 
-      {/* Testing Ticket Modal */}
-      {testingTicket && (
-        <>
-          {/* Backdrop */}
-          <div
-            className="fixed inset-0 bg-black/50 z-50"
-            onClick={() => setTestingTicket(null)}
-          />
-
-          {/* Modal */}
-          <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-white rounded-xl shadow-[0_0_50px_rgba(0,0,0,0.3)] z-[60] border-2 border-gray-200">
-            <div className="p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                Move to Testing
-              </h3>
-              <p className="text-sm text-gray-600 mb-4">
-                {testingTicket.title}
-              </p>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Testing Comment (Optional)
-              </label>
-              <textarea
-                value={testingComment}
-                onChange={(e) => setTestingComment(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
-                rows={4}
-                placeholder="Add notes about what's being tested..."
-                autoFocus
-              />
-              <div className="flex items-center justify-end gap-3 mt-6">
-                <button
-                  onClick={() => setTestingTicket(null)}
-                  disabled={isTesting}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleTestingSubmit}
-                  disabled={isTesting}
-                  className="px-4 py-2 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 rounded-lg transition-colors disabled:opacity-50"
-                >
-                  {isTesting ? 'Moving...' : 'Move to Testing'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </>
-      )}
-
-      {/* Reopen Ticket Modal */}
-      {reopenTicket && (
-        <>
-          {/* Backdrop */}
-          <div
-            className="fixed inset-0 bg-black/50 z-50"
-            onClick={() => setReopenTicket(null)}
-          />
-
-          {/* Modal */}
-          <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-white rounded-xl shadow-[0_0_50px_rgba(0,0,0,0.3)] z-[60] border-2 border-gray-200">
-            <div className="p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                Reopen Ticket
-              </h3>
-              <p className="text-sm text-gray-600 mb-4">
-                {reopenTicket.title}
-              </p>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Reactivation Comment (Optional)
-              </label>
-              <textarea
-                value={reopenComment}
-                onChange={(e) => setReopenComment(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-sm"
-                rows={4}
-                placeholder="Add notes about why this is being reactivated..."
-                autoFocus
-              />
-              <div className="flex items-center justify-end gap-3 mt-6">
-                <button
-                  onClick={() => setReopenTicket(null)}
-                  disabled={isReopening}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleReopenSubmit}
-                  disabled={isReopening}
-                  className="px-4 py-2 text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 rounded-lg transition-colors disabled:opacity-50"
-                >
-                  {isReopening ? 'Reopening...' : 'Reopen Ticket'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </>
-      )}
-
       {selectedTicket && (
         <TicketDetailModal
           ticket={selectedTicket as any}
@@ -962,9 +786,9 @@ function StatCard({ label, value, color }: { label: string; value: number; color
     gray: 'bg-gray-100 text-gray-900',
     blue: 'bg-blue-100 text-blue-900',
     amber: 'bg-amber-100 text-amber-900',
-    purple: 'bg-purple-100 text-purple-900',
     green: 'bg-emerald-100 text-emerald-900',
     red: 'bg-red-100 text-red-900',
+    orange: 'bg-orange-100 text-orange-900',
   }
 
   return (

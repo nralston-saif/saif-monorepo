@@ -498,6 +498,7 @@ export type Database = {
           description: string | null
           due_date: string | null
           id: string
+          is_flagged: boolean
           priority: Database["public"]["Enums"]["ticket_priority"]
           related_company: string | null
           related_person: string | null
@@ -516,6 +517,7 @@ export type Database = {
           description?: string | null
           due_date?: string | null
           id?: string
+          is_flagged?: boolean
           priority?: Database["public"]["Enums"]["ticket_priority"]
           related_company?: string | null
           related_person?: string | null
@@ -534,6 +536,7 @@ export type Database = {
           description?: string | null
           due_date?: string | null
           id?: string
+          is_flagged?: boolean
           priority?: Database["public"]["Enums"]["ticket_priority"]
           related_company?: string | null
           related_person?: string | null
