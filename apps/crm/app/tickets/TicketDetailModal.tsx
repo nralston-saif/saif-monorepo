@@ -544,15 +544,14 @@ export default function TicketDetailModal({
         if (formData.status === 'archived') {
           // If this ticket has an associated application, mark email as sent
           if (ticket.application_id) {
-            supabase
+            const { error: emailSentError } = await supabase
               .from('saifcrm_applications')
               .update({ email_sent: true, email_sent_at: new Date().toISOString() })
               .eq('id', ticket.application_id)
-              .then(({ error: emailSentError }) => {
-                if (emailSentError) {
-                  console.error('Failed to update email_sent status:', emailSentError)
-                }
-              })
+
+            if (emailSentError) {
+              console.error('Failed to update email_sent status:', emailSentError)
+            }
           }
 
           // Archived notification
@@ -640,15 +639,14 @@ export default function TicketDetailModal({
       if (newStatus === 'archived' && ticket.status !== 'archived') {
         // If this ticket has an associated application, mark email as sent
         if (ticket.application_id) {
-          supabase
+          const { error: emailSentError } = await supabase
             .from('saifcrm_applications')
             .update({ email_sent: true, email_sent_at: new Date().toISOString() })
             .eq('id', ticket.application_id)
-            .then(({ error: emailSentError }) => {
-              if (emailSentError) {
-                console.error('Failed to update email_sent status:', emailSentError)
-              }
-            })
+
+          if (emailSentError) {
+            console.error('Failed to update email_sent status:', emailSentError)
+          }
         }
 
         // Archived notification
