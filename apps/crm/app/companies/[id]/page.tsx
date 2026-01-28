@@ -59,7 +59,7 @@ export default async function CompanyPage({
   // Get current user's profile
   const { data: currentPerson } = await supabase
     .from('saif_people')
-    .select('*')
+    .select('id, first_name, role')
     .eq('auth_user_id', user.id)
     .single()
 

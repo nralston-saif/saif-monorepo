@@ -26,7 +26,7 @@ export default async function DashboardPage({
   // Get full user profile (using auth_user_id to link to auth.users)
   const { data: profile, error: profileError } = await supabase
     .from('saif_people')
-    .select('*')
+    .select('id, first_name, last_name, name, email, role, status')
     .eq('auth_user_id', user.id)
     .single()
 

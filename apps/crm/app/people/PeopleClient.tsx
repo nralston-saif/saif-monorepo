@@ -100,6 +100,7 @@ export default function PeopleClient({
   const urlSearch = searchParams.get('search') || ''
 
   const [searchQuery, setSearchQuery] = useState(initialSearch || urlSearch)
+  const [displayLimit, setDisplayLimit] = useState(50) // Initial render limit for performance
   const [roleFilter, setRoleFilter] = useState<RoleFilter>(() => {
     // Initialize from localStorage if available (client-side only)
     if (typeof window !== 'undefined') {
@@ -135,33 +136,30 @@ export default function PeopleClient({
   const supabase = createClient()
   const { showToast } = useToast()
 
-  // Fetch companies and tags for the dropdowns
+  // Fetch companies and tags for the dropdowns in parallel
   useEffect(() => {
-    const fetchCompanies = async () => {
-      const { data } = await supabase
-        .from('saif_companies')
-        .select('id, name')
-        .order('name')
+    const fetchData = async () => {
+      const [companiesResult, tagsResult] = await Promise.all([
+        supabase
+          .from('saif_companies')
+          .select('id, name')
+          .order('name'),
+        supabase
+          .from('saif_tags')
+          .select('id, name, color')
+          .order('usage_count', { ascending: false, nullsFirst: false })
+          .order('name', { ascending: true })
+      ])
 
-      if (data) {
-        setCompanies(data)
+      if (companiesResult.data) {
+        setCompanies(companiesResult.data)
+      }
+      if (tagsResult.data) {
+        setAvailableTags(tagsResult.data)
       }
     }
 
-    const fetchTags = async () => {
-      const { data } = await supabase
-        .from('saif_tags')
-        .select('id, name, color')
-        .order('usage_count', { ascending: false, nullsFirst: false })
-        .order('name', { ascending: true })
-
-      if (data) {
-        setAvailableTags(data)
-      }
-    }
-
-    fetchCompanies()
-    fetchTags()
+    fetchData()
   }, [supabase])
 
   // Sync URL search param to state (handles client-side navigation)
@@ -254,6 +252,18 @@ export default function PeopleClient({
 
     return filtered
   }, [people, searchQuery, roleFilter, statusFilter, sortOption])
+
+  // Slice filtered people for display (performance optimization)
+  const displayedPeople = useMemo(() => {
+    return filteredPeople.slice(0, displayLimit)
+  }, [filteredPeople, displayLimit])
+
+  const hasMorePeople = filteredPeople.length > displayLimit
+
+  // Reset display limit when filters change
+  useEffect(() => {
+    setDisplayLimit(50)
+  }, [searchQuery, roleFilter, statusFilter, sortOption])
 
   // Calculate role counts including portfolio
   const roleCounts = useMemo(() => {
@@ -687,7 +697,7 @@ export default function PeopleClient({
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredPeople.map((person) => {
+          {displayedPeople.map((person) => {
             const primaryCompany = person.company_associations[0]?.company
 
             return (
@@ -784,6 +794,18 @@ export default function PeopleClient({
               </div>
             )
           })}
+        </div>
+      )}
+
+      {/* Load More Button */}
+      {hasMorePeople && (
+        <div className="mt-8 text-center">
+          <button
+            onClick={() => setDisplayLimit(prev => prev + 50)}
+            className="px-6 py-2.5 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            Load More ({filteredPeople.length - displayLimit} remaining)
+          </button>
         </div>
       )}
 

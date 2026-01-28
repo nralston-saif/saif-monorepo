@@ -28,52 +28,85 @@ export default async function PortfolioPage() {
 
   const userName = profile.first_name || 'User'
 
-  // Get all investments with company data
-  const { data: investments } = await supabase
-    .from('saif_investments')
-    .select(`
-      id,
-      company_id,
-      investment_date,
-      type,
-      amount,
-      round,
-      post_money_valuation,
-      status,
-      company:saif_companies(
+  // STEP 1: Fetch investments and applications in parallel (no dependencies)
+  const [{ data: investments }, { data: applications }] = await Promise.all([
+    supabase
+      .from('saif_investments')
+      .select(`
         id,
-        name,
-        logo_url,
-        short_description,
-        website,
-        stage
-      )
-    `)
-    .order('investment_date', { ascending: false })
+        company_id,
+        investment_date,
+        type,
+        amount,
+        round,
+        post_money_valuation,
+        status,
+        company:saif_companies(
+          id,
+          name,
+          logo_url,
+          short_description,
+          website,
+          stage
+        )
+      `)
+      .order('investment_date', { ascending: false }),
+    supabase
+      .from('saifcrm_applications')
+      .select(`
+        id,
+        company_id,
+        company_name,
+        stage,
+        deliberation:saifcrm_deliberations(thoughts)
+      `)
+      .eq('stage', 'invested')
+  ])
 
-  // Get founders for portfolio companies
+  // Extract IDs for dependent queries
   const companyIds = [...new Set(investments?.map(inv => inv.company_id) || [])]
+  const applicationIds = applications?.map(app => app.id) || []
 
-  const { data: companyPeople } = await supabase
-    .from('saif_company_people')
-    .select(`
-      company_id,
-      relationship_type,
-      title,
-      end_date,
-      person:saif_people(
-        id,
-        first_name,
-        last_name,
-        email,
-        avatar_url
-      )
-    `)
-    .in('company_id', companyIds)
-    .eq('relationship_type', 'founder')
-    .is('end_date', null)
+  // STEP 2: Fetch companyPeople, meetingNotes, and publishedCompanies in parallel
+  const [{ data: companyPeople }, { data: meetingNotes }, { data: publishedCompanies }] = await Promise.all([
+    supabase
+      .from('saif_company_people')
+      .select(`
+        company_id,
+        relationship_type,
+        title,
+        end_date,
+        person:saif_people(
+          id,
+          first_name,
+          last_name,
+          email,
+          avatar_url
+        )
+      `)
+      .in('company_id', companyIds)
+      .eq('relationship_type', 'founder')
+      .is('end_date', null),
+    supabase
+      .from('saifcrm_meeting_notes')
+      .select('id, application_id, content, meeting_date, created_at, user_id')
+      .in('application_id', applicationIds),
+    supabase
+      .from('website_portfolio_companies')
+      .select('company_id')
+      .in('company_id', companyIds)
+  ])
 
-  // Create map of company_id -> founders
+  // STEP 3: Fetch notePeople (depends on meetingNotes)
+  const noteUserIds = [...new Set(meetingNotes?.map(note => note.user_id).filter(Boolean) || [])]
+  const { data: notePeople } = noteUserIds.length > 0
+    ? await supabase
+        .from('saif_people')
+        .select('id, first_name, last_name')
+        .in('id', noteUserIds as string[])
+    : { data: [] }
+
+  // Build maps for efficient lookups
   const foundersMap: Record<string, Array<{
     id: string
     name: string
@@ -96,32 +129,6 @@ export default async function PortfolioPage() {
       title: cp.title,
     })
   })
-
-  // Get applications with deliberation notes for these companies
-  const { data: applications } = await supabase
-    .from('saifcrm_applications')
-    .select(`
-      id,
-      company_id,
-      company_name,
-      stage,
-      deliberation:saifcrm_deliberations(thoughts)
-    `)
-    .eq('stage', 'invested')
-
-  // Get meeting notes for applications
-  const applicationIds = applications?.map(app => app.id) || []
-  const { data: meetingNotes } = await supabase
-    .from('saifcrm_meeting_notes')
-    .select('id, application_id, content, meeting_date, created_at, user_id')
-    .in('application_id', applicationIds)
-
-  // Get people for meeting notes
-  const noteUserIds = [...new Set(meetingNotes?.map(note => note.user_id).filter(Boolean) || [])]
-  const { data: notePeople } = await supabase
-    .from('saif_people')
-    .select('id, first_name, last_name')
-    .in('id', noteUserIds as string[])
 
   const peopleMap: Record<string, string> = {}
   notePeople?.forEach(person => {
@@ -159,12 +166,6 @@ export default async function PortfolioPage() {
       }
     }
   })
-
-  // Get which companies are published to the website
-  const { data: publishedCompanies } = await supabase
-    .from('website_portfolio_companies')
-    .select('company_id')
-    .in('company_id', companyIds)
 
   const publishedSet = new Set(publishedCompanies?.map(p => p.company_id) || [])
 

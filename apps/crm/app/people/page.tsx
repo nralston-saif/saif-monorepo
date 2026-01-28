@@ -89,14 +89,35 @@ export default async function PeoplePage({
       // Get all people (only fields we need)
       supabase
         .from('saif_people')
-        .select('*')
+        .select(`
+          id,
+          name,
+          first_name,
+          last_name,
+          email,
+          role,
+          status,
+          title,
+          bio,
+          avatar_url,
+          linkedin_url,
+          twitter_url,
+          mobile_phone,
+          location,
+          tags,
+          first_met_date,
+          introduced_by,
+          introduction_context,
+          relationship_notes,
+          created_at
+        `)
         .order('first_name', { ascending: true })
-        .limit(500),
+        .limit(300),
       // Get portfolio companies (investments)
       supabase
-        .from('saifcrm_investments')
-        .select('id, company_name')
-        .limit(500),
+        .from('saif_investments')
+        .select('id, company:saif_companies(name)')
+        .limit(300),
       // Get applications (pipeline and deliberation)
       supabase
         .from('saifcrm_applications')
@@ -173,8 +194,11 @@ export default async function PeoplePage({
     })
 
     investments?.forEach(inv => {
-      const key = inv.company_name.toLowerCase()
-      companyLocationMap[key] = { page: 'portfolio', id: inv.id }
+      const companyName = (inv.company as { name: string } | null)?.name
+      if (companyName) {
+        const key = companyName.toLowerCase()
+        companyLocationMap[key] = { page: 'portfolio', id: inv.id }
+      }
     })
 
     // Attach associations, note counts, and construct display name
@@ -257,7 +281,7 @@ export default async function PeoplePage({
       )
     `)
     .order('first_name')
-    .limit(500)
+    .limit(300)
 
   if (peopleError) {
     console.error('Error fetching people:', peopleError)
