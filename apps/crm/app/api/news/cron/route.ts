@@ -75,7 +75,21 @@ Avoid:
 
 For each article, provide:
 - topic: one of [llm, robotics, regulation, business, research, healthcare, ai_safety, general]
-- is_ai_safety: true if specifically about AI safety/alignment/ethics/governance
+- is_ai_safety: true ONLY if the article is specifically about AI/ML safety topics such as:
+  * AI alignment research (making AI systems behave as intended)
+  * AI existential risk or catastrophic risk from advanced AI
+  * AI interpretability/explainability research
+  * AI governance frameworks for safe AI development
+  * Responsible AI development practices at labs
+  * AI evaluation and benchmarking for safety
+  * AI regulation specifically about AI capabilities or risks
+
+  is_ai_safety should be FALSE for:
+  * Physical safety or workplace safety at AI companies (e.g., employee safety, building security)
+  * Immigration or employment issues at AI companies
+  * General tech industry HR or labor issues
+  * Cybersecurity (unless specifically about AI systems being manipulated)
+  * Generic "ethics" discussions not about AI behavior
 - importance_score: 1-10 (10 = must read, 1 = skip)
 
 Articles:
