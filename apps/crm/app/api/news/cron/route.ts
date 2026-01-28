@@ -2,6 +2,9 @@ import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 
+// Force dynamic to prevent caching - required for Vercel cron jobs
+export const dynamic = 'force-dynamic'
+
 // Initialize Supabase with service role key (bypasses RLS)
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
