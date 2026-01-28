@@ -329,18 +329,11 @@ export async function POST(request: NextRequest) {
 
 // GET: Manual trigger for testing (requires service role key)
 export async function GET(request: NextRequest) {
-  const authHeader = request.headers.get('authorization')
-  if (authHeader !== `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`) {
+  // Accept either CRON_SECRET (Vercel cron) or SUPABASE_SERVICE_ROLE_KEY (manual testing)
+  if (!verifyCronSecret(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  // Create a mock request with the cron secret
-  const mockRequest = new NextRequest(request.url, {
-    method: 'POST',
-    headers: {
-      authorization: `Bearer ${process.env.CRON_SECRET}`,
-    },
-  })
-
-  return POST(mockRequest)
+  // Forward to POST handler
+  return POST(request)
 }
