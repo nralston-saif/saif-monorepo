@@ -241,19 +241,20 @@ export default function DeliberationDetailClient({
 
       // If decision is 'yes', create investment record and update application stage
       if (decision === 'yes') {
+        if (!application.company_id) {
+          showToast('Error: Application is not linked to a company', 'error')
+          setLoading(false)
+          return
+        }
+
         const { error: investmentError } = await supabase
-          .from('saifcrm_investments')
+          .from('saif_investments')
           .insert({
-            company_name: application.company_name,
+            company_id: application.company_id,
             investment_date: investmentDate,
             amount: investmentAmount,
             terms: investmentTerms,
             other_funders: otherFunders || null,
-            founders: application.founder_names,
-            description: ideaSummary || application.company_description,
-            website: application.website,
-            contact_email: application.primary_email,
-            contact_name: null,
             stealthy: false,
             notes: thoughts || null,
           })

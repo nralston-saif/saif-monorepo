@@ -493,17 +493,13 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
       // Handle 'yes' decision - create investment
       if (decision === 'yes') {
         const { error: investmentError } = await supabase
-          .from('saifcrm_investments')
+          .from('saif_investments')
           .insert({
-            company_name: activeDeal.company_name,
+            company_id: company.id,
             investment_date: investmentDate,
             amount: investmentAmount,
             terms: investmentTerms,
             other_funders: otherFunders || null,
-            founders: activeDeal.founder_names,
-            description: ideaSummary || activeDeal.company_description,
-            website: activeDeal.website,
-            contact_email: activeDeal.primary_email,
             stealthy: false,
             notes: thoughts || null,
           })

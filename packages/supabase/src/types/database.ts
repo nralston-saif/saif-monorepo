@@ -245,7 +245,7 @@ export interface Database {
           company_id: string
           investment_date: string
           type: string | null
-          amount: number
+          amount: number | null
           round: string | null
           post_money_valuation: number | null
           discount: number | null
@@ -256,18 +256,22 @@ export interface Database {
           share_location: string | null
           share_cert_numbers: string[] | null
           lead_partner_id: string | null
-          status: string
+          status: string | null
           exit_date: string | null
           acquirer: string | null
-          created_at: string
-          updated_at: string
+          terms: string | null
+          other_funders: string | null
+          stealthy: boolean | null
+          notes: string | null
+          created_at: string | null
+          updated_at: string | null
         }
         Insert: {
           id?: string
           company_id: string
           investment_date: string
           type?: string | null
-          amount: number
+          amount?: number | null
           round?: string | null
           post_money_valuation?: number | null
           discount?: number | null
@@ -278,18 +282,22 @@ export interface Database {
           share_location?: string | null
           share_cert_numbers?: string[] | null
           lead_partner_id?: string | null
-          status?: string
+          status?: string | null
           exit_date?: string | null
           acquirer?: string | null
-          created_at?: string
-          updated_at?: string
+          terms?: string | null
+          other_funders?: string | null
+          stealthy?: boolean | null
+          notes?: string | null
+          created_at?: string | null
+          updated_at?: string | null
         }
         Update: {
           id?: string
           company_id?: string
           investment_date?: string
           type?: string | null
-          amount?: number
+          amount?: number | null
           round?: string | null
           post_money_valuation?: number | null
           discount?: number | null
@@ -300,11 +308,15 @@ export interface Database {
           share_location?: string | null
           share_cert_numbers?: string[] | null
           lead_partner_id?: string | null
-          status?: string
+          status?: string | null
           exit_date?: string | null
           acquirer?: string | null
-          created_at?: string
-          updated_at?: string
+          terms?: string | null
+          other_funders?: string | null
+          stealthy?: boolean | null
+          notes?: string | null
+          created_at?: string | null
+          updated_at?: string | null
         }
         Relationships: [
           {

@@ -156,13 +156,17 @@ export type Database = {
           id: string
           investment_date: string
           lead_partner_id: string | null
+          notes: string | null
+          other_funders: string | null
           post_money_valuation: number | null
           preferred_shares: number | null
           round: string | null
           share_cert_numbers: string[] | null
           share_location: string | null
           shares: number | null
+          stealthy: boolean | null
           status: string | null
+          terms: string | null
           type: string | null
           updated_at: string | null
         }
@@ -178,13 +182,17 @@ export type Database = {
           id?: string
           investment_date: string
           lead_partner_id?: string | null
+          notes?: string | null
+          other_funders?: string | null
           post_money_valuation?: number | null
           preferred_shares?: number | null
           round?: string | null
           share_cert_numbers?: string[] | null
           share_location?: string | null
           shares?: number | null
+          stealthy?: boolean | null
           status?: string | null
+          terms?: string | null
           type?: string | null
           updated_at?: string | null
         }
@@ -200,13 +208,17 @@ export type Database = {
           id?: string
           investment_date?: string
           lead_partner_id?: string | null
+          notes?: string | null
+          other_funders?: string | null
           post_money_valuation?: number | null
           preferred_shares?: number | null
           round?: string | null
           share_cert_numbers?: string[] | null
           share_location?: string | null
           shares?: number | null
+          stealthy?: boolean | null
           status?: string | null
+          terms?: string | null
           type?: string | null
           updated_at?: string | null
         }

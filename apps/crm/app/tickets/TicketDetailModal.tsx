@@ -260,7 +260,7 @@ export default function TicketDetailModal({
         )
       `)
       .eq('ticket_id', ticket.id)
-      .order('created_at', { ascending: true })
+      .order('created_at', { ascending: false })
 
     if (!error && data) {
       setComments(data)

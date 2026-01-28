@@ -70,11 +70,10 @@ export async function GET(request: NextRequest) {
         .order('submitted_at', { ascending: false })
         .limit(10),
       supabase
-        .from('saifcrm_investments')
-        .select('id, company_name, founders, description, amount, investment_date')
-        .or(`company_name.ilike.${searchPattern},founders.ilike.${searchPattern},description.ilike.${searchPattern}`)
+        .from('saif_investments')
+        .select('id, amount, investment_date, notes, company:saif_companies(name, short_description)')
         .order('investment_date', { ascending: false })
-        .limit(10),
+        .limit(50),
       supabase
         .from('saif_companies')
         .select('id, name, short_description, logo_url, industry, city, country, tags')
@@ -148,9 +147,32 @@ export async function GET(request: NextRequest) {
       })
       .slice(0, 10)
 
+    // Filter and transform investments to match expected shape
+    const filteredInvestments = (investments || [])
+      .filter(inv => {
+        const company = inv.company as { name: string; short_description: string | null } | null
+        const searchableText = [
+          company?.name,
+          company?.short_description,
+        ].filter(Boolean).join(' ').toLowerCase()
+        return searchWords.every(word => searchableText.includes(word))
+      })
+      .slice(0, 10)
+      .map(inv => {
+        const company = inv.company as { name: string; short_description: string | null } | null
+        return {
+          id: inv.id,
+          company_name: company?.name || '',
+          founders: '', // Founders are now in saif_people, not stored on investment
+          description: company?.short_description || '',
+          amount: inv.amount,
+          investment_date: inv.investment_date,
+        }
+      })
+
     return NextResponse.json({
       applications: deduplicatedApplications,
-      investments: investments || [],
+      investments: filteredInvestments,
       companies: filteredCompanies,
       people,
     })

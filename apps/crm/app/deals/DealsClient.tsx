@@ -979,17 +979,18 @@ export default function DealsClient({
       }
 
       if (decision === 'yes') {
-        const { error: investmentError } = await supabase.from('saifcrm_investments').insert({
-          company_name: selectedDelibApp.company_name,
+        if (!selectedDelibApp.company_id) {
+          showToast('Error: Application is not linked to a company', 'error')
+          setDelibLoading(false)
+          return
+        }
+
+        const { error: investmentError } = await supabase.from('saif_investments').insert({
+          company_id: selectedDelibApp.company_id,
           investment_date: investmentDate,
           amount: investmentAmount,
           terms: investmentTerms,
           other_funders: otherFunders || null,
-          founders: selectedDelibApp.founder_names,
-          description: ideaSummary || selectedDelibApp.company_description,
-          website: selectedDelibApp.website,
-          contact_email: selectedDelibApp.primary_email,
-          contact_name: null,
           stealthy: false,
           notes: thoughts || null,
         })
