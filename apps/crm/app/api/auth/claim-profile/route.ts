@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
+import { logAuditEventAsync } from '@/lib/audit'
 
 function getServiceClient() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -77,6 +78,13 @@ export async function POST(_request: NextRequest): Promise<NextResponse<ClaimPro
 
     if (updateError) {
       console.error('Claim error:', updateError)
+      // Check for unique constraint violation (profile already claimed by another user)
+      if (updateError.code === '23505') {
+        return NextResponse.json(
+          { success: false, error: 'This profile has already been claimed.' },
+          { status: 409 }
+        )
+      }
       return NextResponse.json(
         { success: false, error: 'An error occurred while claiming your profile.' },
         { status: 500 }
@@ -84,6 +92,21 @@ export async function POST(_request: NextRequest): Promise<NextResponse<ClaimPro
     }
 
     console.log('Profile claimed successfully:', { userId: user.id, profileId: emailMatch.id, email: user.email })
+
+    // Log audit event for profile claim
+    logAuditEventAsync({
+      actorId: user.id,
+      actorEmail: user.email,
+      action: 'profile_claim',
+      entityType: 'person',
+      entityId: emailMatch.id,
+      details: {
+        previousStatus: emailMatch.status,
+        newStatus: 'active',
+      },
+      request: _request,
+    })
+
     return NextResponse.json({ success: true, redirectTo: '/dashboard' })
   } catch (error) {
     console.error('Claim profile error:', error)

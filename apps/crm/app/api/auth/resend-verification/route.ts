@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
+import { checkRateLimit } from '@/lib/rate-limit'
 
 export async function POST(request: NextRequest) {
   try {
@@ -10,6 +11,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { success: false, message: 'Email is required' },
         { status: 400 }
+      )
+    }
+
+    // Rate limit: 3 requests per 5 minutes per email
+    const rateLimitKey = `resend-verification:${email}`
+    const { allowed, remaining } = await checkRateLimit(rateLimitKey, 3, 5 * 60 * 1000)
+
+    if (!allowed) {
+      return NextResponse.json(
+        { success: false, message: 'Too many requests. Please wait a few minutes before trying again.' },
+        { status: 429 }
       )
     }
 

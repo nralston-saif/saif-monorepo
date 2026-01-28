@@ -31,6 +31,13 @@ export default function ClaimProfilePage() {
 
         setUserEmail(user.email || null)
 
+        // Verify email is confirmed before allowing profile claim
+        if (!user.email_confirmed_at) {
+          setError('Please verify your email address before claiming a profile.')
+          setLoading(false)
+          return
+        }
+
         // Check if user already has a profile linked
         const { data: existingProfile } = await supabase
           .from('saif_people')
@@ -49,7 +56,7 @@ export default function ClaimProfilePage() {
           const { data: emailMatches, error: searchError } = await supabase
             .from('saif_people')
             .select('*')
-            .eq('email', user.email)
+            .ilike('email', user.email)
             .is('auth_user_id', null)
 
           if (searchError) {

@@ -40,11 +40,8 @@ function VerifyContent() {
           return
         }
 
-        // Success - redirect to profile claim
+        // Success - show continue button
         setStatus('success')
-        setTimeout(() => {
-          router.push('/profile/claim')
-        }, 2000)
         return
       }
 
@@ -52,9 +49,6 @@ function VerifyContent() {
       const hash = window.location.hash
       if (hash && hash.includes('access_token')) {
         setStatus('success')
-        setTimeout(() => {
-          router.push('/profile/claim')
-        }, 2000)
         return
       }
 
@@ -62,9 +56,6 @@ function VerifyContent() {
       const { data: { session } } = await supabase.auth.getSession()
       if (session) {
         setStatus('success')
-        setTimeout(() => {
-          router.push('/profile/claim')
-        }, 2000)
         return
       }
 
@@ -99,8 +90,16 @@ function VerifyContent() {
             Email verified!
           </h2>
           <p className="text-gray-600">
-            Your email has been verified successfully. Redirecting you to complete your profile...
+            Your email has been verified successfully. Click below to complete your profile.
           </p>
+          <div className="pt-4">
+            <button
+              onClick={() => router.push('/profile/claim')}
+              className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-gray-900 hover:bg-gray-800"
+            >
+              Continue to Profile
+            </button>
+          </div>
         </div>
       </div>
     )

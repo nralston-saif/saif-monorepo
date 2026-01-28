@@ -37,6 +37,7 @@ export type AuditAction =
   | 'ticket_create'
   | 'ticket_update'
   | 'ticket_archive'
+  | 'profile_claim'
 
 // Entity types that can be audited
 export type AuditEntityType =
