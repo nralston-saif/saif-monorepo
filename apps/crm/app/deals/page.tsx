@@ -12,6 +12,43 @@ type RawVote = {
   saif_people: { name: string } | null
 }
 
+// Type for the RPC response
+type DealsPageData = {
+  applications: Array<{
+    id: string
+    company_id: string | null
+    company_name: string
+    founder_names: string | null
+    founder_linkedins: string | null
+    founder_bios: string | null
+    primary_email: string | null
+    company_description: string | null
+    website: string | null
+    previous_funding: string | null
+    deck_link: string | null
+    submitted_at: string | null
+    votes_revealed: boolean | null
+    stage: string | null
+    email_sent: boolean | null
+    email_sent_at: string | null
+    draft_rejection_email: string | null
+    saifcrm_votes: RawVote[]
+    saifcrm_deliberations: Array<{
+      id: string
+      meeting_date: string | null
+      idea_summary: string | null
+      thoughts: string | null
+      decision: string | null
+      status: string | null
+      tags: string[] | null
+      created_at: string | null
+    }>
+    email_sender: { name: string } | null
+  }>
+  partners: Array<{ id: string; name: string | null }>
+  interviewTags: Array<{ name: string; color: string | null }>
+}
+
 type TransformedVote = {
   oduserId: string
   userName: string
@@ -53,56 +90,14 @@ export default async function DealsPage(): Promise<React.ReactElement> {
     redirect('/access-denied')
   }
 
-  // Parallel fetch: all applications + supporting data
-  // Removed redundant people query - vote names come from nested saif_people join
-  const [
-    { data: allApplications },
-    { data: partners },
-    { data: interviewTags }
-  ] = await Promise.all([
-    // Single query for ALL applications with all related data
-    supabase
-      .from('saifcrm_applications')
-      .select(`
-        id,
-        company_id,
-        company_name,
-        founder_names,
-        founder_linkedins,
-        founder_bios,
-        primary_email,
-        company_description,
-        website,
-        previous_funding,
-        deck_link,
-        submitted_at,
-        votes_revealed,
-        stage,
-        email_sent,
-        email_sent_at,
-        draft_rejection_email,
-        saifcrm_votes(id, vote, user_id, notes, vote_type, saif_people(name)),
-        saifcrm_deliberations(id, meeting_date, idea_summary, thoughts, decision, status, tags),
-        email_sender:saif_people!applications_email_sender_id_fkey(name)
-      `)
-      .in('stage', ['new', 'application', 'interview', 'portfolio', 'rejected'])
-      .order('submitted_at', { ascending: false }),
+  // Fetch all data in a single database call for maximum performance
+  // This reduces 3 network round-trips to 1
+  const { data: pageData } = await supabase.rpc('get_deals_page_data' as any) as { data: DealsPageData | null }
 
-    // Partners for assignment
-    supabase
-      .from('saif_people')
-      .select('id, name')
-      .eq('role', 'partner')
-      .eq('status', 'active')
-      .order('name'),
-
-    // Interview tags
-    supabase
-      .from('saif_tags')
-      .select('name, color')
-      .eq('category', 'interview')
-      .order('name')
-  ])
+  // Extract data from the consolidated response
+  const allApplications = pageData?.applications || []
+  const partners = pageData?.partners || []
+  const interviewTags = pageData?.interviewTags || []
 
   // Transform and filter applications by stage
   const votingAppsWithVotes = (allApplications || [])
@@ -159,7 +154,9 @@ export default async function DealsPage(): Promise<React.ReactElement> {
         allVotes: votes,
         deliberation: deliberation ? {
           ...deliberation,
+          decision: deliberation.decision || '',
           tags: deliberation.tags || [],
+          created_at: deliberation.created_at || null,
         } : null,
         email_sent: app.email_sent,
         email_sent_at: app.email_sent_at,

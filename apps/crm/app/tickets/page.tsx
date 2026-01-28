@@ -2,11 +2,49 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Navigation from '@/components/Navigation'
 import TicketsClient from './TicketsClient'
-import type { Database } from '@/lib/types/database'
 
-type Person = Database['public']['Tables']['saif_people']['Row']
-type Ticket = Database['public']['Tables']['saif_tickets']['Row']
-type Company = Database['public']['Tables']['saif_companies']['Row']
+// Types for the RPC response
+type TicketsPageData = {
+  tickets: Array<{
+    id: string
+    title: string
+    description: string | null
+    status: string
+    priority: string
+    due_date: string | null
+    assigned_to: string | null
+    created_by: string | null
+    related_company: string | null
+    related_person: string | null
+    tags: string[] | null
+    created_at: string
+    updated_at: string
+    archived_at: string | null
+    application_id: string | null
+    was_unassigned_at_creation: boolean | null
+    is_flagged: boolean | null
+    assigned_partner: { id: string; first_name: string | null; last_name: string | null; email: string | null; avatar_url: string | null } | null
+    creator: { id: string; first_name: string | null; last_name: string | null; email: string | null; avatar_url: string | null } | null
+    company: { id: string; name: string; logo_url: string | null } | null
+    person: { id: string; first_name: string | null; last_name: string | null; email: string | null } | null
+    application: { id: string; company_name: string; draft_rejection_email: string | null; primary_email: string | null } | null
+    comments: Array<{
+      id: string
+      ticket_id: string
+      author_id: string | null
+      content: string
+      is_final_comment: boolean | null
+      is_testing_comment: boolean | null
+      is_reactivated_comment: boolean | null
+      created_at: string
+      updated_at: string
+      author: { id: string; first_name: string | null; last_name: string | null; email: string | null; avatar_url: string | null } | null
+    }>
+  }>
+  partners: Array<{ id: string; first_name: string | null; last_name: string | null; email: string | null; avatar_url: string | null }>
+  companies: Array<{ id: string; name: string; logo_url: string | null }>
+  people: Array<{ id: string; first_name: string | null; last_name: string | null; email: string | null }>
+}
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic'
@@ -38,86 +76,24 @@ export default async function TicketsPage() {
     redirect('/access-denied')
   }
 
-  // Fetch all data in parallel for better performance
-  const [
-    { data: tickets },
-    { data: partners },
-    { data: companies },
-    { data: people }
-  ] = await Promise.all([
-    // Tickets with relationships
-    supabase
-      .from('saif_tickets')
-      .select(`
-        id,
-        title,
-        description,
-        status,
-        priority,
-        due_date,
-        assigned_to,
-        created_by,
-        related_company,
-        related_person,
-        tags,
-        created_at,
-        updated_at,
-        archived_at,
-        application_id,
-        was_unassigned_at_creation,
-        is_flagged,
-        assigned_partner:saif_people!saif_tickets_assigned_to_fkey(id, first_name, last_name, email, avatar_url),
-        creator:saif_people!saif_tickets_created_by_fkey(id, first_name, last_name, email, avatar_url),
-        company:saif_companies!saif_tickets_related_company_fkey(id, name, logo_url),
-        person:saif_people!saif_tickets_related_person_fkey(id, first_name, last_name, email),
-        application:saifcrm_applications!saif_tickets_application_id_fkey(id, company_name, draft_rejection_email, primary_email),
-        comments:saif_ticket_comments(
-          id,
-          ticket_id,
-          author_id,
-          content,
-          is_final_comment,
-          is_testing_comment,
-          is_reactivated_comment,
-          created_at,
-          updated_at,
-          author:saif_people!saif_ticket_comments_author_id_fkey(id, first_name, last_name, email, avatar_url)
-        )
-      `)
-      .order('created_at', { ascending: false })
-      .limit(500),
+  // Fetch all data in a single database call for maximum performance
+  // This reduces 4 network round-trips to 1
+  const { data: pageData } = await supabase.rpc('get_tickets_page_data' as any, { p_limit: 500 }) as { data: TicketsPageData | null }
 
-    // Partners for assignment dropdown
-    supabase
-      .from('saif_people')
-      .select('id, first_name, last_name, email, avatar_url')
-      .eq('role', 'partner')
-      .eq('status', 'active')
-      .order('first_name'),
-
-    // Companies for ticket creation
-    supabase
-      .from('saif_companies')
-      .select('id, name, logo_url')
-      .eq('is_active', true)
-      .order('name'),
-
-    // People for ticket creation
-    supabase
-      .from('saif_people')
-      .select('id, first_name, last_name, email')
-      .eq('status', 'active')
-      .order('first_name')
-  ])
+  // Extract data from the consolidated response
+  const tickets = pageData?.tickets || []
+  const partners = pageData?.partners || []
+  const companies = pageData?.companies || []
+  const people = pageData?.people || []
 
   return (
     <div className="min-h-screen bg-gray-50">
       <Navigation userName={profile.first_name || 'User'} personId={profile.id} />
       <TicketsClient
-        tickets={tickets || []}
-        partners={partners || []}
-        companies={companies || []}
-        people={people || []}
+        tickets={tickets as any}
+        partners={partners as any}
+        companies={companies as any}
+        people={people as any}
         currentUserId={profile.id}
         userName={profile?.first_name && profile?.last_name ? `${profile.first_name} ${profile.last_name}` : user.email || 'User'}
       />
