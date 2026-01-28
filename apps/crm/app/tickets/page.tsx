@@ -38,69 +38,77 @@ export default async function TicketsPage() {
     redirect('/access-denied')
   }
 
-  // Fetch all tickets with relationships
-  const { data: tickets } = await supabase
-    .from('saif_tickets')
-    .select(`
-      id,
-      title,
-      description,
-      status,
-      priority,
-      due_date,
-      assigned_to,
-      created_by,
-      related_company,
-      related_person,
-      tags,
-      created_at,
-      updated_at,
-      archived_at,
-      application_id,
-      was_unassigned_at_creation,
-      is_flagged,
-      assigned_partner:saif_people!saif_tickets_assigned_to_fkey(id, first_name, last_name, email, avatar_url),
-      creator:saif_people!saif_tickets_created_by_fkey(id, first_name, last_name, email, avatar_url),
-      company:saif_companies!saif_tickets_related_company_fkey(id, name, logo_url),
-      person:saif_people!saif_tickets_related_person_fkey(id, first_name, last_name, email),
-      application:saifcrm_applications!saif_tickets_application_id_fkey(id, company_name, draft_rejection_email, primary_email),
-      comments:saif_ticket_comments(
+  // Fetch all data in parallel for better performance
+  const [
+    { data: tickets },
+    { data: partners },
+    { data: companies },
+    { data: people }
+  ] = await Promise.all([
+    // Tickets with relationships
+    supabase
+      .from('saif_tickets')
+      .select(`
         id,
-        ticket_id,
-        author_id,
-        content,
-        is_final_comment,
-        is_testing_comment,
-        is_reactivated_comment,
+        title,
+        description,
+        status,
+        priority,
+        due_date,
+        assigned_to,
+        created_by,
+        related_company,
+        related_person,
+        tags,
         created_at,
         updated_at,
-        author:saif_people!saif_ticket_comments_author_id_fkey(id, first_name, last_name, email, avatar_url)
-      )
-    `)
-    .order('created_at', { ascending: false })
-    .limit(500)
+        archived_at,
+        application_id,
+        was_unassigned_at_creation,
+        is_flagged,
+        assigned_partner:saif_people!saif_tickets_assigned_to_fkey(id, first_name, last_name, email, avatar_url),
+        creator:saif_people!saif_tickets_created_by_fkey(id, first_name, last_name, email, avatar_url),
+        company:saif_companies!saif_tickets_related_company_fkey(id, name, logo_url),
+        person:saif_people!saif_tickets_related_person_fkey(id, first_name, last_name, email),
+        application:saifcrm_applications!saif_tickets_application_id_fkey(id, company_name, draft_rejection_email, primary_email),
+        comments:saif_ticket_comments(
+          id,
+          ticket_id,
+          author_id,
+          content,
+          is_final_comment,
+          is_testing_comment,
+          is_reactivated_comment,
+          created_at,
+          updated_at,
+          author:saif_people!saif_ticket_comments_author_id_fkey(id, first_name, last_name, email, avatar_url)
+        )
+      `)
+      .order('created_at', { ascending: false })
+      .limit(500),
 
-  // Get all active partners for assignment dropdown
-  const { data: partners } = await supabase
-    .from('saif_people')
-    .select('id, first_name, last_name, email, avatar_url')
-    .eq('role', 'partner')
-    .eq('status', 'active')
-    .order('first_name')
+    // Partners for assignment dropdown
+    supabase
+      .from('saif_people')
+      .select('id, first_name, last_name, email, avatar_url')
+      .eq('role', 'partner')
+      .eq('status', 'active')
+      .order('first_name'),
 
-  // Get companies for ticket creation
-  const { data: companies } = await supabase
-    .from('saif_companies')
-    .select('id, name, logo_url')
-    .eq('is_active', true)
-    .order('name')
+    // Companies for ticket creation
+    supabase
+      .from('saif_companies')
+      .select('id, name, logo_url')
+      .eq('is_active', true)
+      .order('name'),
 
-  // Get people for ticket creation
-  const { data: people } = await supabase
-    .from('saif_people')
-    .select('id, first_name, last_name, email')
-    .eq('status', 'active')
-    .order('first_name')
+    // People for ticket creation
+    supabase
+      .from('saif_people')
+      .select('id, first_name, last_name, email')
+      .eq('status', 'active')
+      .order('first_name')
+  ])
 
   return (
     <div className="min-h-screen bg-gray-50">

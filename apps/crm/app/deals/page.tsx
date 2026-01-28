@@ -64,9 +64,25 @@ export default async function DealsPage(): Promise<React.ReactElement> {
     supabase
       .from('saifcrm_applications')
       .select(`
-        *,
+        id,
+        company_id,
+        company_name,
+        founder_names,
+        founder_linkedins,
+        founder_bios,
+        primary_email,
+        company_description,
+        website,
+        previous_funding,
+        deck_link,
+        submitted_at,
+        votes_revealed,
+        stage,
+        email_sent,
+        email_sent_at,
+        draft_rejection_email,
         saifcrm_votes(id, vote, user_id, notes, vote_type, saif_people(name)),
-        saifcrm_deliberations(*),
+        saifcrm_deliberations(id, meeting_date, idea_summary, thoughts, decision, status, tags),
         email_sender:saif_people!applications_email_sender_id_fkey(name)
       `)
       .in('stage', ['new', 'application', 'interview', 'portfolio', 'rejected'])
