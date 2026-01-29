@@ -380,7 +380,7 @@ export default function DealsClient({
   interviewTags,
 }: DealsClientProps): React.ReactElement {
   const searchParams = useSearchParams()
-  const initialTab = (searchParams.get('tab') as Tab) || 'application'
+  const initialTab = (searchParams.get('tab') as Tab) || (votingApplications.length === 0 ? 'interview' : 'application')
 
   const [activeTab, setActiveTab] = useState<Tab>(initialTab)
   const [clientVotingApps, setClientVotingApps] =
