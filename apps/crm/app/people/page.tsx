@@ -303,10 +303,22 @@ export default async function PeoplePage({
     }[]
   })[]
 
-  // Filter to show active people
-  const activePeople = typedPeople.filter(person =>
-    person.status === 'active' || person.status === 'pending'
-  )
+  // Filter to show:
+  // 1. Partners (always shown as part of SAIF community)
+  // 2. People with an active relationship to a portfolio company (no end_date, stage='portfolio')
+  const activePeople = typedPeople.filter(person => {
+    // Partners are always shown
+    if (person.role === 'partner') {
+      return true
+    }
+
+    // For everyone else, check if they have an active relationship with a portfolio company
+    const hasActivePortfolioRelationship = person.companies?.some(
+      cp => !cp.end_date && cp.company?.stage === 'portfolio'
+    )
+
+    return hasActivePortfolioRelationship
+  })
 
   const isPartnerViewingAsCommunity = isPartner && wantsCommunityView
 

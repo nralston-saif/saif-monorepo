@@ -6,6 +6,8 @@ import Link from 'next/link'
 import ApplicationDetailModal from '@/components/ApplicationDetailModal'
 import CreateTicketButton from '@/components/CreateTicketButton'
 import { ensureProtocol } from '@/lib/utils'
+import { createClient } from '@/lib/supabase/client'
+import { useToast } from '@saif/ui'
 
 type MeetingNote = {
   id: string
@@ -44,20 +46,53 @@ type Investment = {
 
 type SortOption = 'date-newest' | 'date-oldest' | 'name-az' | 'name-za' | 'amount-high' | 'amount-low'
 
+type Partner = {
+  id: string
+  name: string
+}
+
+type Company = {
+  id: string
+  name: string
+  stage: string | null
+}
+
 export default function PortfolioClient({
   investments,
   userId,
   userName,
+  partners,
+  companies,
 }: {
   investments: Investment[]
   userId: string
   userName: string
+  partners: Partner[]
+  companies: Company[]
 }) {
   const [selectedInvestment, setSelectedInvestment] = useState<Investment | null>(null)
 
   // Search and sort state
   const [searchQuery, setSearchQuery] = useState('')
   const [sortOption, setSortOption] = useState<SortOption>('date-newest')
+
+  // Add Investment modal state
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [addLoading, setAddLoading] = useState(false)
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string>('')
+  const [investmentAmount, setInvestmentAmount] = useState<number | null>(null)
+  const [investmentDate, setInvestmentDate] = useState(new Date().toISOString().split('T')[0])
+  const [investmentType, setInvestmentType] = useState<string>('safe')
+  const [investmentRound, setInvestmentRound] = useState<string>('pre_seed')
+  const [postMoneyValuation, setPostMoneyValuation] = useState<number | null>(null)
+  const [discount, setDiscount] = useState<number | null>(null)
+  const [investmentTerms, setInvestmentTerms] = useState('')
+  const [leadPartnerId, setLeadPartnerId] = useState<string>(userId)
+  const [otherFunders, setOtherFunders] = useState('')
+  const [isStealthy, setIsStealthy] = useState(false)
+
+  const supabase = createClient()
+  const { showToast } = useToast()
 
   // Track published status (for display only - editing happens on company page)
   const publishedStatus = useMemo(() => {
@@ -113,6 +148,93 @@ export default function PortfolioClient({
 
   const openViewModal = (investment: Investment) => {
     setSelectedInvestment(investment)
+  }
+
+  const openAddModal = () => {
+    // Reset form fields
+    setSelectedCompanyId('')
+    setInvestmentAmount(null)
+    setInvestmentDate(new Date().toISOString().split('T')[0])
+    setInvestmentType('safe')
+    setInvestmentRound('pre_seed')
+    setPostMoneyValuation(null)
+    setDiscount(null)
+    setInvestmentTerms('')
+    setLeadPartnerId(userId)
+    setOtherFunders('')
+    setIsStealthy(false)
+    setShowAddModal(true)
+  }
+
+  const handleAddInvestment = async () => {
+    // Validation
+    if (!selectedCompanyId) {
+      showToast('Please select a company', 'warning')
+      return
+    }
+    if (!investmentAmount || investmentAmount <= 0) {
+      showToast('Please enter an investment amount', 'warning')
+      return
+    }
+    if (!investmentDate) {
+      showToast('Please enter an investment date', 'warning')
+      return
+    }
+    if (!investmentType) {
+      showToast('Please select an investment type', 'warning')
+      return
+    }
+
+    setAddLoading(true)
+    try {
+      const investmentRecord = {
+        company_id: selectedCompanyId,
+        investment_date: investmentDate,
+        type: investmentType,
+        amount: investmentAmount,
+        round: investmentRound || null,
+        post_money_valuation: postMoneyValuation || null,
+        discount: discount ? discount / 100 : null,
+        lead_partner_id: leadPartnerId || null,
+        status: 'active',
+        terms: investmentTerms || null,
+        other_funders: otherFunders || null,
+        stealthy: isStealthy,
+        notes: null,
+      }
+
+      console.log('Creating investment record:', investmentRecord)
+
+      const { data, error } = await supabase
+        .from('saif_investments')
+        .insert(investmentRecord)
+        .select()
+        .single()
+
+      if (error) {
+        console.error('Investment creation error:', error)
+        showToast('Error creating investment: ' + error.message, 'error')
+        setAddLoading(false)
+        return
+      }
+
+      console.log('Investment created successfully:', data)
+
+      // Update company stage to portfolio if not already
+      await supabase
+        .from('saif_companies')
+        .update({ stage: 'portfolio' })
+        .eq('id', selectedCompanyId)
+        .neq('stage', 'portfolio')
+
+      showToast('Investment added successfully!', 'success')
+      setShowAddModal(false)
+      router.refresh()
+    } catch (err) {
+      console.error('Unexpected error:', err)
+      showToast('An unexpected error occurred', 'error')
+    }
+    setAddLoading(false)
   }
 
   const formatCurrency = (amount: number | null) => {
@@ -198,7 +320,18 @@ export default function PortfolioClient({
               Track and manage your investments
             </p>
           </div>
-          <CreateTicketButton currentUserId={userId} />
+          <div className="flex gap-3">
+            <button
+              onClick={openAddModal}
+              className="btn btn-primary flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Add Investment
+            </button>
+            <CreateTicketButton currentUserId={userId} />
+          </div>
         </div>
       </div>
 
@@ -547,7 +680,225 @@ export default function PortfolioClient({
         />
       )}
 
-      {/* Add/Edit Investment Modal - Disabled (investments managed via saif_investments table) */}
+      {/* Add Investment Modal */}
+      {showAddModal && (
+        <div className="modal-backdrop" onClick={() => !addLoading && setShowAddModal(false)}>
+          <div className="modal-content max-w-2xl" onClick={(e) => e.stopPropagation()}>
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-gray-100">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">Add Investment</h2>
+                  <p className="text-gray-500 mt-1">Record a new investment in the portfolio</p>
+                </div>
+                <button
+                  onClick={() => !addLoading && setShowAddModal(false)}
+                  className="text-gray-400 hover:text-gray-600 p-2 -m-2"
+                >
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+              {/* Company Selector */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Company *</label>
+                <select
+                  value={selectedCompanyId}
+                  onChange={(e) => setSelectedCompanyId(e.target.value)}
+                  className="input"
+                >
+                  <option value="">Select a company...</option>
+                  {companies.map((company) => (
+                    <option key={company.id} value={company.id}>
+                      {company.name} {company.stage ? `(${company.stage})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Investment Details */}
+              <div className="bg-emerald-50 rounded-xl p-4 border-2 border-emerald-200">
+                <h3 className="text-sm font-semibold text-emerald-800 mb-3 flex items-center gap-2">
+                  <span>💰 Investment Details</span>
+                </h3>
+
+                {/* Row 1: Amount, Date, Type */}
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div>
+                    <label className="block text-sm font-medium text-emerald-800 mb-1">Amount *</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                      <input
+                        type="number"
+                        value={investmentAmount || ''}
+                        onChange={(e) => setInvestmentAmount(e.target.value ? parseFloat(e.target.value) : null)}
+                        className="input pl-7"
+                        placeholder="100000"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-emerald-800 mb-1">Date *</label>
+                    <input
+                      type="date"
+                      value={investmentDate}
+                      onChange={(e) => setInvestmentDate(e.target.value)}
+                      className="input"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-emerald-800 mb-1">Type *</label>
+                    <select
+                      value={investmentType}
+                      onChange={(e) => setInvestmentType(e.target.value)}
+                      className="input"
+                    >
+                      <option value="safe">SAFE</option>
+                      <option value="note">Convertible Note</option>
+                      <option value="equity">Equity</option>
+                      <option value="option">Option</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Row 2: Round, Valuation/Cap, Discount */}
+                <div className="grid gap-3 sm:grid-cols-3 mt-3">
+                  <div>
+                    <label className="block text-sm font-medium text-emerald-800 mb-1">Round</label>
+                    <select
+                      value={investmentRound}
+                      onChange={(e) => setInvestmentRound(e.target.value)}
+                      className="input"
+                    >
+                      <option value="pre_seed">Pre-Seed</option>
+                      <option value="seed">Seed</option>
+                      <option value="series_a">Series A</option>
+                      <option value="series_b">Series B</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-emerald-800 mb-1">
+                      {investmentType === 'safe' || investmentType === 'note' ? 'Valuation Cap' : 'Post-Money Valuation'}
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                      <input
+                        type="number"
+                        value={postMoneyValuation || ''}
+                        onChange={(e) => setPostMoneyValuation(e.target.value ? parseFloat(e.target.value) : null)}
+                        className="input pl-7"
+                        placeholder="10000000"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-emerald-800 mb-1">Discount %</label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        value={discount || ''}
+                        onChange={(e) => setDiscount(e.target.value ? parseFloat(e.target.value) : null)}
+                        className="input pr-7"
+                        placeholder="20"
+                        min="0"
+                        max="100"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">%</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Row 3: Terms, Lead Partner */}
+                <div className="grid gap-3 sm:grid-cols-2 mt-3">
+                  <div>
+                    <label className="block text-sm font-medium text-emerald-800 mb-1">Terms / Notes</label>
+                    <input
+                      type="text"
+                      value={investmentTerms}
+                      onChange={(e) => setInvestmentTerms(e.target.value)}
+                      className="input"
+                      placeholder="e.g., MFN, pro-rata rights"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-emerald-800 mb-1">Lead Partner</label>
+                    <select
+                      value={leadPartnerId}
+                      onChange={(e) => setLeadPartnerId(e.target.value)}
+                      className="input"
+                    >
+                      <option value="">Select partner...</option>
+                      {partners.map((partner) => (
+                        <option key={partner.id} value={partner.id}>{partner.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Row 4: Co-Investors */}
+                <div className="mt-3">
+                  <label className="block text-sm font-medium text-emerald-800 mb-1">Co-Investors</label>
+                  <input
+                    type="text"
+                    value={otherFunders}
+                    onChange={(e) => setOtherFunders(e.target.value)}
+                    className="input"
+                    placeholder="e.g., Y Combinator, Sequoia"
+                  />
+                </div>
+
+                {/* Row 5: Stealthy checkbox */}
+                <div className="mt-3">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={isStealthy}
+                      onChange={(e) => setIsStealthy(e.target.checked)}
+                      className="w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                    />
+                    <span className="text-sm font-medium text-emerald-800">
+                      Stealth investment (hide from public portfolio)
+                    </span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex gap-3">
+              <button
+                onClick={() => setShowAddModal(false)}
+                className="btn btn-secondary flex-1"
+                disabled={addLoading}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddInvestment}
+                disabled={addLoading}
+                className="btn btn-primary flex-1"
+              >
+                {addLoading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    Adding...
+                  </span>
+                ) : (
+                  'Add Investment'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

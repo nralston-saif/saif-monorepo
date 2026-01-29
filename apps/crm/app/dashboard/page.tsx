@@ -97,7 +97,7 @@ export default async function DashboardPage({
     }
 
     // Fetch community and news in parallel for performance
-    const [{ data: communityPeople }, { data: newsArticles }] = await Promise.all([
+    const [{ data: communityPeopleRaw }, { data: newsArticles }] = await Promise.all([
       supabase
         .from('saif_people')
         .select(`
@@ -111,9 +111,8 @@ export default async function DashboardPage({
             company:saif_companies(id, name, logo_url, stage)
           )
         `)
-        .in('status', ['active', 'pending'])
         .order('first_name')
-        .limit(100),
+        .limit(300),
       // AI News articles for founders (fewer than partners)
       supabase
         .from('saifcrm_ai_news_articles')
@@ -122,6 +121,23 @@ export default async function DashboardPage({
         .order('published_at', { ascending: false })
         .limit(3)
     ])
+
+    // Filter community to show:
+    // 1. Partners (always shown as part of SAIF community)
+    // 2. People with an active relationship to a portfolio company (no end_date, stage='portfolio')
+    const communityPeople = (communityPeopleRaw || []).filter((person: any) => {
+      // Partners are always shown
+      if (person.role === 'partner') {
+        return true
+      }
+
+      // For everyone else, check if they have an active relationship with a portfolio company
+      const hasActivePortfolioRelationship = person.companies?.some(
+        (cp: any) => !cp.end_date && cp.company?.stage === 'portfolio'
+      )
+
+      return hasActivePortfolioRelationship
+    })
 
     return <FounderDashboard person={typedProfile} company={company} founders={founders} founderTitle={companyRelation?.title} community={communityPeople || []} newsArticles={newsArticles || []} isPartnerViewingAsCommunity={isPartner && wantsCommunityView} />
   }

@@ -28,8 +28,8 @@ export default async function PortfolioPage() {
 
   const userName = profile.first_name || 'User'
 
-  // STEP 1: Fetch investments and applications in parallel (no dependencies)
-  const [{ data: investments }, { data: applications }] = await Promise.all([
+  // STEP 1: Fetch investments, applications, companies, and partners in parallel
+  const [{ data: investments }, { data: applications }, { data: allCompanies }, { data: partners }] = await Promise.all([
     supabase
       .from('saif_investments')
       .select(`
@@ -60,7 +60,19 @@ export default async function PortfolioPage() {
         stage,
         deliberation:saifcrm_deliberations(thoughts)
       `)
-      .eq('stage', 'invested')
+      .eq('stage', 'invested'),
+    // Fetch all companies for the "Add Investment" modal
+    supabase
+      .from('saif_companies')
+      .select('id, name, stage')
+      .eq('is_active', true)
+      .order('name'),
+    // Fetch partners for lead partner dropdown
+    supabase
+      .from('saif_people')
+      .select('id, first_name, last_name')
+      .eq('role', 'partner')
+      .order('first_name')
   ])
 
   // Extract IDs for dependent queries
@@ -169,6 +181,19 @@ export default async function PortfolioPage() {
 
   const publishedSet = new Set(publishedCompanies?.map(p => p.company_id) || [])
 
+  // Transform partners for dropdown
+  const partnersList = partners?.map(p => ({
+    id: p.id,
+    name: `${p.first_name || ''} ${p.last_name || ''}`.trim() || 'Unknown'
+  })) || []
+
+  // Transform companies for dropdown
+  const companiesList = allCompanies?.map(c => ({
+    id: c.id,
+    name: c.name,
+    stage: c.stage
+  })) || []
+
   // Transform investments for the client
   const portfolioCompanies = investments?.map(inv => {
     const company = Array.isArray(inv.company) ? inv.company[0] : inv.company
@@ -202,6 +227,8 @@ export default async function PortfolioPage() {
         investments={portfolioCompanies}
         userId={profile.id}
         userName={userName}
+        partners={partnersList}
+        companies={companiesList}
       />
     </div>
   )

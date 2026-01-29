@@ -177,6 +177,18 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
   // Application section collapsed state
   const [applicationExpanded, setApplicationExpanded] = useState(false)
 
+  // Investment edit modal state
+  const [showEditInvestmentModal, setShowEditInvestmentModal] = useState(false)
+  const [editingInvestment, setEditingInvestment] = useState<{
+    id: string
+    type: string
+    round: string
+    amount: string
+    post_money_valuation: string
+    investment_date: string
+  } | null>(null)
+  const [savingInvestment, setSavingInvestment] = useState(false)
+
   // Founder management state
   const [showAddFounder, setShowAddFounder] = useState(false)
   const [addingFounder, setAddingFounder] = useState(false)
@@ -731,6 +743,50 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
       console.error('Error removing founder:', err)
       const errorMessage = err?.message || err?.error?.message || 'Unknown error'
       setError(`Failed to remove founder: ${errorMessage}`)
+    }
+  }
+
+  // Open investment edit modal
+  const openEditInvestment = (investment: any) => {
+    setEditingInvestment({
+      id: investment.id,
+      type: investment.type?.toLowerCase() || '',
+      round: investment.round || '',
+      amount: investment.amount?.toString() || '',
+      post_money_valuation: investment.post_money_valuation ? (investment.post_money_valuation / 1000000).toString() : '',
+      investment_date: investment.investment_date?.split('T')[0] || '',
+    })
+    setShowEditInvestmentModal(true)
+  }
+
+  // Save investment edits
+  const handleSaveInvestment = async () => {
+    if (!editingInvestment) return
+
+    setSavingInvestment(true)
+    try {
+      const { error: invError } = await supabase
+        .from('saif_investments')
+        .update({
+          type: editingInvestment.type || null,
+          round: editingInvestment.round || null,
+          amount: editingInvestment.amount ? parseFloat(editingInvestment.amount) : null,
+          post_money_valuation: editingInvestment.post_money_valuation ? parseFloat(editingInvestment.post_money_valuation) * 1000000 : null,
+          investment_date: editingInvestment.investment_date || undefined,
+        })
+        .eq('id', editingInvestment.id)
+
+      if (invError) throw invError
+
+      showToast('Investment updated successfully', 'success')
+      setShowEditInvestmentModal(false)
+      setEditingInvestment(null)
+      router.refresh()
+    } catch (err: any) {
+      console.error('Error updating investment:', err)
+      showToast('Failed to update investment', 'error')
+    } finally {
+      setSavingInvestment(false)
     }
   }
 
@@ -1616,7 +1672,7 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
                   const typeLabel = INVESTMENT_TYPES.find(t => t.value === investment.type?.toLowerCase())?.label || investment.type
 
                   return (
-                    <div key={investment.id} className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+                    <div key={investment.id} className="flex flex-wrap items-center gap-x-4 gap-y-1">
                       {/* Amount */}
                       <span className="text-2xl font-bold text-gray-900">
                         ${investment.amount?.toLocaleString() || '—'}
@@ -1645,6 +1701,17 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
                           </span>
                         )}
                       </div>
+
+                      {/* Edit button */}
+                      <button
+                        onClick={() => openEditInvestment(investment)}
+                        className="ml-auto p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
+                        title="Edit investment"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                        </svg>
+                      </button>
 
                       {/* Date */}
                       {investment.investment_date && (
@@ -2157,6 +2224,105 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
               <button onClick={() => setShowDecisionModal(false)} className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50" disabled={decisionLoading}>Cancel</button>
               <button onClick={handleSaveDecision} disabled={decisionLoading} className="flex-1 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50">
                 {decisionLoading ? 'Saving...' : 'Save Decision'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Investment Modal */}
+      {showEditInvestmentModal && editingInvestment && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => !savingInvestment && setShowEditInvestmentModal(false)}>
+          <div className="bg-white rounded-xl shadow-xl max-w-lg w-full" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6 border-b border-gray-100">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">Edit Investment</h2>
+                  <p className="text-gray-500 mt-1 text-sm">Update investment details for {company.name}</p>
+                </div>
+                <button onClick={() => !savingInvestment && setShowEditInvestmentModal(false)} className="text-gray-400 hover:text-gray-600 p-2 -m-2">
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Investment Type</label>
+                  <select
+                    value={editingInvestment.type}
+                    onChange={(e) => setEditingInvestment({ ...editingInvestment, type: e.target.value })}
+                    className="input"
+                  >
+                    <option value="">Select type...</option>
+                    {INVESTMENT_TYPES.map(type => (
+                      <option key={type.value} value={type.value}>{type.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Round</label>
+                  <select
+                    value={editingInvestment.round}
+                    onChange={(e) => setEditingInvestment({ ...editingInvestment, round: e.target.value })}
+                    className="input"
+                  >
+                    <option value="">Select round...</option>
+                    {INVESTMENT_ROUNDS.map(round => (
+                      <option key={round.value} value={round.value}>{round.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Amount ($)</label>
+                  <input
+                    type="number"
+                    value={editingInvestment.amount}
+                    onChange={(e) => setEditingInvestment({ ...editingInvestment, amount: e.target.value })}
+                    placeholder="100000"
+                    className="input"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Post-Money / Cap ($M)</label>
+                  <input
+                    type="number"
+                    value={editingInvestment.post_money_valuation}
+                    onChange={(e) => setEditingInvestment({ ...editingInvestment, post_money_valuation: e.target.value })}
+                    placeholder="10"
+                    step="0.1"
+                    className="input"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Investment Date</label>
+                <input
+                  type="date"
+                  value={editingInvestment.investment_date}
+                  onChange={(e) => setEditingInvestment({ ...editingInvestment, investment_date: e.target.value })}
+                  className="input"
+                />
+              </div>
+            </div>
+            <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex gap-3">
+              <button
+                onClick={() => setShowEditInvestmentModal(false)}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50"
+                disabled={savingInvestment}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveInvestment}
+                disabled={savingInvestment}
+                className="flex-1 px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 disabled:opacity-50"
+              >
+                {savingInvestment ? 'Saving...' : 'Save Changes'}
               </button>
             </div>
           </div>
