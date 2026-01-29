@@ -78,6 +78,7 @@ type ArchivedApplication = BaseApplication & {
   email_sender_name: string | null
   allVotes: Vote[]
   draft_rejection_email: string | null
+  decision: string | null
 }
 
 type Partner = {
@@ -100,6 +101,9 @@ type SortOption =
   | 'stage'
   | 'decision-yes'
   | 'decision-no'
+  | 'archive-portfolio'
+  | 'archive-rejected'
+  | 'archive-limbo'
 
 // ============================================
 // Helper Functions
@@ -163,9 +167,20 @@ function getStageBadgeStyle(stage: string | null): string {
       return 'bg-amber-100 text-amber-700'
     case 'rejected':
       return 'bg-red-100 text-red-700'
+    case 'limbo':
+      return 'bg-purple-100 text-purple-700'
     default:
       return 'bg-gray-100 text-gray-700'
   }
+}
+
+function getArchiveDisplayInfo(stage: string | null, decision: string | null): { label: string; style: string } {
+  // If decision is 'limbo', show limbo regardless of stage
+  if (decision === 'limbo') {
+    return { label: 'limbo', style: 'bg-purple-100 text-purple-700' }
+  }
+  // Otherwise show stage
+  return { label: stage || 'N/A', style: getStageBadgeStyle(stage) }
 }
 
 function getDecisionBadgeStyle(decision: string): string {
@@ -2189,7 +2204,9 @@ export default function DealsClient({
                       <option value="date-oldest">Oldest First</option>
                       <option value="name-az">Name (A-Z)</option>
                       <option value="name-za">Name (Z-A)</option>
-                      <option value="stage">By Status</option>
+                      <option value="archive-portfolio">Portfolio First</option>
+                      <option value="archive-rejected">Rejected First</option>
+                      <option value="archive-limbo">Limbo First</option>
                     </select>
                   </div>
                 </div>
@@ -2212,11 +2229,14 @@ export default function DealsClient({
                           <h3 className="font-medium text-gray-900 truncate flex-1 min-w-0">
                             {app.company_name}
                           </h3>
-                          <span
-                            className={`badge capitalize flex-shrink-0 ${getStageBadgeStyle(app.stage)}`}
-                          >
-                            {app.stage || 'N/A'}
-                          </span>
+                          {(() => {
+                            const displayInfo = getArchiveDisplayInfo(app.stage, app.decision)
+                            return (
+                              <span className={`badge capitalize flex-shrink-0 ${displayInfo.style}`}>
+                                {displayInfo.label}
+                              </span>
+                            )
+                          })()}
                         </div>
                         {app.founder_names && (
                           <p className="text-sm text-gray-500 truncate">{formatFounderNames(app.founder_names)}</p>
@@ -3019,11 +3039,14 @@ export default function DealsClient({
                     <h2 className="text-2xl font-bold text-gray-900">
                       {detailArchivedApp.company_name}
                     </h2>
-                    <span
-                      className={`badge capitalize ${getStageBadgeStyle(detailArchivedApp.stage)}`}
-                    >
-                      {detailArchivedApp.stage || 'N/A'}
-                    </span>
+                    {(() => {
+                      const displayInfo = getArchiveDisplayInfo(detailArchivedApp.stage, detailArchivedApp.decision)
+                      return (
+                        <span className={`badge capitalize ${displayInfo.style}`}>
+                          {displayInfo.label}
+                        </span>
+                      )
+                    })()}
                   </div>
                   {detailArchivedApp.founder_names && (
                     <p className="text-gray-500 mt-1">{formatFounderNames(detailArchivedApp.founder_names)}</p>

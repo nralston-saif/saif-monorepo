@@ -162,9 +162,15 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
   const [status, setStatus] = useState(activeDeal?.deliberation?.status || 'scheduled')
   // Investment fields (for yes decision)
   const [investmentAmount, setInvestmentAmount] = useState<number | null>(null)
-  const [investmentTerms, setInvestmentTerms] = useState('10mm cap safe')
   const [investmentDate, setInvestmentDate] = useState(new Date().toISOString().split('T')[0])
+  const [investmentType, setInvestmentType] = useState<string>('safe')
+  const [investmentRound, setInvestmentRound] = useState<string>('pre_seed')
+  const [postMoneyValuation, setPostMoneyValuation] = useState<number | null>(null)
+  const [discountPercent, setDiscountPercent] = useState<number | null>(null)
+  const [investmentTerms, setInvestmentTerms] = useState('')
+  const [leadPartnerId, setLeadPartnerId] = useState<string>(currentPersonId || '')
   const [otherFunders, setOtherFunders] = useState('')
+  const [isStealthy, setIsStealthy] = useState(false)
   // Rejection field
   const [rejectionEmailSender, setRejectionEmailSender] = useState('')
 
@@ -457,8 +463,12 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
         showToast('Please enter an investment amount', 'warning')
         return
       }
-      if (!investmentTerms) {
-        showToast('Please enter investment terms', 'warning')
+      if (!investmentDate) {
+        showToast('Please enter an investment date', 'warning')
+        return
+      }
+      if (!investmentType) {
+        showToast('Please select an investment type', 'warning')
         return
       }
     }
@@ -492,23 +502,39 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
 
       // Handle 'yes' decision - create investment
       if (decision === 'yes') {
-        const { error: investmentError } = await supabase
+        // Build investment record with all fields from saif_investments table
+        const investmentRecord = {
+          company_id: company.id,
+          investment_date: investmentDate,
+          type: investmentType,
+          amount: investmentAmount,
+          round: investmentRound || null,
+          post_money_valuation: postMoneyValuation || null,
+          discount: discountPercent ? discountPercent / 100 : null, // Convert percentage to decimal
+          lead_partner_id: leadPartnerId || null,
+          status: 'active',
+          terms: investmentTerms || null,
+          other_funders: otherFunders || null,
+          stealthy: isStealthy,
+          notes: thoughts || null,
+        }
+
+        console.log('Creating investment record:', investmentRecord)
+
+        const { data: investmentData, error: investmentError } = await supabase
           .from('saif_investments')
-          .insert({
-            company_id: company.id,
-            investment_date: investmentDate,
-            amount: investmentAmount,
-            terms: investmentTerms,
-            other_funders: otherFunders || null,
-            stealthy: false,
-            notes: thoughts || null,
-          })
+          .insert(investmentRecord)
+          .select()
+          .single()
 
         if (investmentError) {
+          console.error('Investment creation error:', investmentError)
           showToast('Error creating investment: ' + investmentError.message, 'error')
           setDecisionLoading(false)
           return
         }
+
+        console.log('Investment created successfully:', investmentData)
 
         // Update application and company stages
         await supabase
@@ -2018,28 +2044,96 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
                 </div>
               </div>
               {decision === 'yes' && (
-                <div className="bg-emerald-50 rounded-xl p-6 border-2 border-emerald-200">
-                  <h3 className="text-lg font-semibold text-emerald-800 mb-4">💰 Investment Details</h3>
-                  <div className="grid gap-4 sm:grid-cols-2">
+                <div className="bg-emerald-50 rounded-xl p-4 border-2 border-emerald-200">
+                  <h3 className="text-sm font-semibold text-emerald-800 mb-2 flex items-center gap-2">
+                    <span>💰 Investment Details</span>
+                  </h3>
+                  <p className="text-sm text-emerald-700 mb-3">
+                    Please enter the investment details. This will create a portfolio entry.
+                  </p>
+
+                  {/* Row 1: Amount, Date, Type */}
+                  <div className="grid gap-3 sm:grid-cols-3">
                     <div>
-                      <label className="block text-sm font-medium text-emerald-800 mb-1.5">Investment Amount *</label>
+                      <label className="block text-sm font-medium text-emerald-800 mb-1">Amount *</label>
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
                         <input type="number" value={investmentAmount || ''} onChange={(e) => setInvestmentAmount(e.target.value ? parseFloat(e.target.value) : null)} className="input pl-7" placeholder="100000" />
                       </div>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-emerald-800 mb-1.5">Investment Date *</label>
+                      <label className="block text-sm font-medium text-emerald-800 mb-1">Date *</label>
                       <input type="date" value={investmentDate} onChange={(e) => setInvestmentDate(e.target.value)} className="input" />
                     </div>
+                    <div>
+                      <label className="block text-sm font-medium text-emerald-800 mb-1">Type *</label>
+                      <select value={investmentType} onChange={(e) => setInvestmentType(e.target.value)} className="input">
+                        <option value="safe">SAFE</option>
+                        <option value="note">Convertible Note</option>
+                        <option value="equity">Equity</option>
+                        <option value="option">Option</option>
+                      </select>
+                    </div>
                   </div>
-                  <div className="mt-4">
-                    <label className="block text-sm font-medium text-emerald-800 mb-1.5">Terms *</label>
-                    <input type="text" value={investmentTerms} onChange={(e) => setInvestmentTerms(e.target.value)} className="input" />
+
+                  {/* Row 2: Round, Valuation/Cap, Discount */}
+                  <div className="grid gap-3 sm:grid-cols-3 mt-3">
+                    <div>
+                      <label className="block text-sm font-medium text-emerald-800 mb-1">Round</label>
+                      <select value={investmentRound} onChange={(e) => setInvestmentRound(e.target.value)} className="input">
+                        <option value="pre_seed">Pre-Seed</option>
+                        <option value="seed">Seed</option>
+                        <option value="series_a">Series A</option>
+                        <option value="series_b">Series B</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-emerald-800 mb-1">
+                        {investmentType === 'safe' || investmentType === 'note' ? 'Valuation Cap' : 'Post-Money Valuation'}
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                        <input type="number" value={postMoneyValuation || ''} onChange={(e) => setPostMoneyValuation(e.target.value ? parseFloat(e.target.value) : null)} className="input pl-7" placeholder="10000000" />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-emerald-800 mb-1">Discount %</label>
+                      <div className="relative">
+                        <input type="number" value={discountPercent || ''} onChange={(e) => setDiscountPercent(e.target.value ? parseFloat(e.target.value) : null)} className="input pr-7" placeholder="20" min="0" max="100" />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">%</span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="mt-4">
-                    <label className="block text-sm font-medium text-emerald-800 mb-1.5">Co-Investors (optional)</label>
-                    <input type="text" value={otherFunders} onChange={(e) => setOtherFunders(e.target.value)} className="input" />
+
+                  {/* Row 3: Terms, Lead Partner */}
+                  <div className="grid gap-3 sm:grid-cols-2 mt-3">
+                    <div>
+                      <label className="block text-sm font-medium text-emerald-800 mb-1">Terms / Notes</label>
+                      <input type="text" value={investmentTerms} onChange={(e) => setInvestmentTerms(e.target.value)} className="input" placeholder="e.g., MFN, pro-rata rights" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-emerald-800 mb-1">Lead Partner</label>
+                      <select value={leadPartnerId} onChange={(e) => setLeadPartnerId(e.target.value)} className="input">
+                        <option value="">Select partner...</option>
+                        {partners.map((partner) => (
+                          <option key={partner.id} value={partner.id}>{partner.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Row 4: Co-Investors */}
+                  <div className="mt-3">
+                    <label className="block text-sm font-medium text-emerald-800 mb-1">Co-Investors</label>
+                    <input type="text" value={otherFunders} onChange={(e) => setOtherFunders(e.target.value)} className="input" placeholder="e.g., Y Combinator, Sequoia" />
+                  </div>
+
+                  {/* Row 5: Stealthy checkbox */}
+                  <div className="mt-3">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" checked={isStealthy} onChange={(e) => setIsStealthy(e.target.checked)} className="w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500" />
+                      <span className="text-sm font-medium text-emerald-800">Stealth investment (hide from public portfolio)</span>
+                    </label>
                   </div>
                 </div>
               )}
