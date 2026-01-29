@@ -772,7 +772,7 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
           round: editingInvestment.round || null,
           amount: editingInvestment.amount ? parseFloat(editingInvestment.amount) : null,
           post_money_valuation: editingInvestment.post_money_valuation ? parseFloat(editingInvestment.post_money_valuation) * 1000000 : null,
-          investment_date: editingInvestment.investment_date || undefined,
+          investment_date: editingInvestment.investment_date === null ? undefined : editingInvestment.investment_date,
         })
         .eq('id', editingInvestment.id)
 
