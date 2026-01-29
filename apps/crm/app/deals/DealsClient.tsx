@@ -1008,25 +1008,36 @@ export default function DealsClient({
     setDelibLoading(true)
 
     try {
+      const deliberationData = {
+        application_id: selectedDelibApp.id,
+        idea_summary: ideaSummary || null,
+        thoughts: thoughts || null,
+        decision: decision as 'pending' | 'maybe' | 'yes' | 'no' | 'limbo',
+        status: decision === 'yes' ? 'portfolio' : status,
+        meeting_date: meetingDate || null,
+      }
+      console.log('Saving deliberation:', JSON.stringify(deliberationData, null, 2))
+
       const { error } = await supabase.from('saifcrm_deliberations').upsert(
-        {
-          application_id: selectedDelibApp.id,
-          idea_summary: ideaSummary || null,
-          thoughts: thoughts || null,
-          decision: decision as 'pending' | 'maybe' | 'yes' | 'no' | 'limbo',
-          status: decision === 'yes' ? 'portfolio' : status,
-          meeting_date: meetingDate || null,
-        },
+        deliberationData,
         {
           onConflict: 'application_id',
         }
       )
 
       if (error) {
+        console.error('Deliberation save error:', {
+          error,
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint
+        })
         showToast('Error saving deliberation: ' + error.message, 'error')
         setDelibLoading(false)
         return
       }
+      console.log('Deliberation saved successfully')
 
       if (decision === 'yes') {
         if (!selectedDelibApp.company_id) {
@@ -1052,7 +1063,7 @@ export default function DealsClient({
           notes: thoughts || null,
         }
 
-        console.log('Creating investment record:', investmentRecord)
+        console.log('Creating investment record:', JSON.stringify(investmentRecord, null, 2))
 
         const { data: investmentData, error: investmentError } = await supabase
           .from('saif_investments')
@@ -1061,8 +1072,15 @@ export default function DealsClient({
           .single()
 
         if (investmentError) {
-          console.error('Investment creation error:', investmentError)
-          showToast('Error creating investment: ' + investmentError.message, 'error')
+          console.error('Investment creation error - full details:', {
+            error: investmentError,
+            code: investmentError.code,
+            message: investmentError.message,
+            details: investmentError.details,
+            hint: investmentError.hint,
+            record: investmentRecord
+          })
+          showToast('Error creating investment: ' + (investmentError.message || investmentError.code || 'Unknown error'), 'error')
           setDelibLoading(false)
           return
         }
@@ -2754,7 +2772,8 @@ export default function DealsClient({
                           type="number"
                           value={investmentAmount || ''}
                           onChange={(e) => setInvestmentAmount(e.target.value ? parseFloat(e.target.value) : null)}
-                          className="input pl-7"
+                          className="input"
+                          style={{ paddingLeft: '1.75rem' }}
                           placeholder="100000"
                         />
                       </div>
@@ -2814,7 +2833,8 @@ export default function DealsClient({
                           type="number"
                           value={postMoneyValuation || ''}
                           onChange={(e) => setPostMoneyValuation(e.target.value ? parseFloat(e.target.value) : null)}
-                          className="input pl-7"
+                          className="input"
+                          style={{ paddingLeft: '1.75rem' }}
                           placeholder="10000000"
                         />
                       </div>

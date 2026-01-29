@@ -737,7 +737,8 @@ export default function PortfolioClient({
                         type="number"
                         value={investmentAmount || ''}
                         onChange={(e) => setInvestmentAmount(e.target.value ? parseFloat(e.target.value) : null)}
-                        className="input pl-7"
+                        className="input"
+                        style={{ paddingLeft: '1.75rem' }}
                         placeholder="100000"
                       />
                     </div>
@@ -791,7 +792,8 @@ export default function PortfolioClient({
                         type="number"
                         value={postMoneyValuation || ''}
                         onChange={(e) => setPostMoneyValuation(e.target.value ? parseFloat(e.target.value) : null)}
-                        className="input pl-7"
+                        className="input"
+                        style={{ paddingLeft: '1.75rem' }}
                         placeholder="10000000"
                       />
                     </div>

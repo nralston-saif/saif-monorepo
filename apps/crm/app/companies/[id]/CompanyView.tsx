@@ -2125,7 +2125,7 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
                       <label className="block text-sm font-medium text-emerald-800 mb-1">Amount *</label>
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
-                        <input type="number" value={investmentAmount || ''} onChange={(e) => setInvestmentAmount(e.target.value ? parseFloat(e.target.value) : null)} className="input pl-7" placeholder="100000" />
+                        <input type="number" value={investmentAmount || ''} onChange={(e) => setInvestmentAmount(e.target.value ? parseFloat(e.target.value) : null)} className="input" style={{ paddingLeft: '1.75rem' }} placeholder="100000" />
                       </div>
                     </div>
                     <div>
@@ -2160,7 +2160,7 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
                       </label>
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
-                        <input type="number" value={postMoneyValuation || ''} onChange={(e) => setPostMoneyValuation(e.target.value ? parseFloat(e.target.value) : null)} className="input pl-7" placeholder="10000000" />
+                        <input type="number" value={postMoneyValuation || ''} onChange={(e) => setPostMoneyValuation(e.target.value ? parseFloat(e.target.value) : null)} className="input" style={{ paddingLeft: '1.75rem' }} placeholder="10000000" />
                       </div>
                     </div>
                     <div>
