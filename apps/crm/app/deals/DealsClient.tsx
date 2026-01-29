@@ -1025,23 +1025,27 @@ export default function DealsClient({
         }
       ).select()
 
-      console.log('Deliberation upsert response:', { data: upsertData, error })
+      console.log('Deliberation upsert response:', { data: upsertData, error, hasError: !!error, errorType: typeof error })
 
       if (error) {
         // Log everything we can about the error
-        console.error('Deliberation save error - raw:', error)
-        console.error('Deliberation save error - stringified:', JSON.stringify(error, null, 2))
-        console.error('Deliberation save error - Object.keys:', Object.keys(error))
-        console.error('Deliberation save error - properties:', {
-          code: error.code,
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          status: (error as any).status,
-          statusText: (error as any).statusText,
-        })
-        console.error('Deliberation data that failed:', JSON.stringify(deliberationData, null, 2))
-        showToast('Error saving deliberation: ' + (error.message || JSON.stringify(error) || 'Unknown error'), 'error')
+        console.error('=== DELIBERATION ERROR DEBUG ===')
+        console.error('Error type:', typeof error)
+        console.error('Error constructor:', error?.constructor?.name)
+        console.error('Error is truthy:', !!error)
+        console.error('Error raw:', error)
+        console.error('Error stringified:', JSON.stringify(error, null, 2))
+        console.error('Error keys:', Object.keys(error || {}))
+        console.error('Error getOwnPropertyNames:', Object.getOwnPropertyNames(error || {}))
+        console.error('Error.message:', error?.message)
+        console.error('Error.code:', error?.code)
+        console.error('Data returned:', upsertData)
+        console.error('Deliberation data sent:', JSON.stringify(deliberationData, null, 2))
+        console.error('=== END ERROR DEBUG ===')
+
+        // Try to extract any useful info
+        const errorMsg = error?.message || error?.code || (typeof error === 'string' ? error : JSON.stringify(error)) || 'Unknown database error'
+        showToast('Error saving deliberation: ' + errorMsg, 'error')
         setDelibLoading(false)
         return
       }
