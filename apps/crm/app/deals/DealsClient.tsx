@@ -1025,31 +1025,12 @@ export default function DealsClient({
         }
       ).select()
 
-      console.log('Deliberation upsert response:', { data: upsertData, error, hasError: !!error, errorType: typeof error })
-
       if (error) {
-        // Log everything we can about the error
-        console.error('=== DELIBERATION ERROR DEBUG ===')
-        console.error('Error type:', typeof error)
-        console.error('Error constructor:', error?.constructor?.name)
-        console.error('Error is truthy:', !!error)
-        console.error('Error raw:', error)
-        console.error('Error stringified:', JSON.stringify(error, null, 2))
-        console.error('Error keys:', Object.keys(error || {}))
-        console.error('Error getOwnPropertyNames:', Object.getOwnPropertyNames(error || {}))
-        console.error('Error.message:', error?.message)
-        console.error('Error.code:', error?.code)
-        console.error('Data returned:', upsertData)
-        console.error('Deliberation data sent:', JSON.stringify(deliberationData, null, 2))
-        console.error('=== END ERROR DEBUG ===')
-
-        // Try to extract any useful info
-        const errorMsg = error?.message || error?.code || (typeof error === 'string' ? error : JSON.stringify(error)) || 'Unknown database error'
-        showToast('Error saving deliberation: ' + errorMsg, 'error')
+        console.error('Deliberation save error:', error)
+        showToast('Error saving deliberation: ' + (error.message || 'Unknown error'), 'error')
         setDelibLoading(false)
         return
       }
-      console.log('Deliberation saved successfully')
 
       if (decision === 'yes') {
         if (!selectedDelibApp.company_id) {
@@ -1075,8 +1056,6 @@ export default function DealsClient({
           notes: thoughts || null,
         }
 
-        console.log('Creating investment record:', JSON.stringify(investmentRecord, null, 2))
-
         const { data: investmentData, error: investmentError } = await supabase
           .from('saif_investments')
           .insert(investmentRecord)
@@ -1084,14 +1063,7 @@ export default function DealsClient({
           .single()
 
         if (investmentError) {
-          console.error('Investment creation error - full details:', {
-            error: investmentError,
-            code: investmentError.code,
-            message: investmentError.message,
-            details: investmentError.details,
-            hint: investmentError.hint,
-            record: investmentRecord
-          })
+          console.error('Investment creation error:', investmentError)
           showToast('Error creating investment: ' + (investmentError.message || investmentError.code || 'Unknown error'), 'error')
           setDelibLoading(false)
           return
