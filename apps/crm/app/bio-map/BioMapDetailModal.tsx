@@ -186,25 +186,28 @@ export default function BioMapDetailModal({ organization, person, focusTags, use
             )}
 
             {/* Contacts */}
-            {organization.founders.length > 0 && (
+            {organization.contacts.length > 0 && (
               <div>
                 <h3 className="text-sm font-medium text-gray-500 mb-2">Contacts</h3>
                 <div className="space-y-3">
-                  {organization.founders.map(founder => (
-                    <div key={founder.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  {organization.contacts.map(contact => (
+                    <div key={contact.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                       <div>
-                        <p className="font-medium text-gray-900">{founder.name}</p>
-                        {founder.title && (
-                          <p className="text-sm text-gray-500">{founder.title}</p>
+                        <p className="font-medium text-gray-900">{contact.name}</p>
+                        {contact.title && (
+                          <p className="text-sm text-gray-500">{contact.title}</p>
+                        )}
+                        {contact.relationship_type && (
+                          <p className="text-xs text-gray-400 capitalize">{contact.relationship_type.replace('_', ' ')}</p>
                         )}
                       </div>
-                      {founder.email && (
+                      {contact.email && (
                         <a
-                          href={`mailto:${founder.email}`}
+                          href={`mailto:${contact.email}`}
                           onClick={(e) => e.stopPropagation()}
                           className="text-sm text-blue-600 hover:underline"
                         >
-                          {founder.email}
+                          {contact.email}
                         </a>
                       )}
                     </div>

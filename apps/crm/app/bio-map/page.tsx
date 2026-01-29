@@ -64,11 +64,12 @@ export type BioMapOrganization = {
   entity_type: string | null
   tags: string[]
   founded_year: number | null
-  founders: {
+  contacts: {
     id: string
     name: string
     title: string | null
     email: string | null
+    relationship_type: string | null
   }[]
 }
 
@@ -204,7 +205,7 @@ export default async function BioMapPage() {
     hasBioTag(c.tags) || hasFocusTag(c.tags, focusTagNames)
   )
 
-  // Get founders for these organizations
+  // Get all contacts for these organizations (not just founders)
   const bioOrgIds = bioOrganizations.map(c => c.id)
   const { data: orgPeople } = await supabase
     .from('saif_company_people')
@@ -216,25 +217,25 @@ export default async function BioMapPage() {
       person:saif_people(id, first_name, last_name, name, email)
     `)
     .in('company_id', bioOrgIds)
-    .eq('relationship_type', 'founder')
     .is('end_date', null)
 
-  // Create founders map by company
-  const foundersByCompany: Record<string, Array<{ id: string; name: string; title: string | null; email: string | null }>> = {}
+  // Create contacts map by company
+  const contactsByCompany: Record<string, Array<{ id: string; name: string; title: string | null; email: string | null; relationship_type: string | null }>> = {}
   orgPeople?.forEach(op => {
-    if (!foundersByCompany[op.company_id]) {
-      foundersByCompany[op.company_id] = []
+    if (!contactsByCompany[op.company_id]) {
+      contactsByCompany[op.company_id] = []
     }
     const person = op.person as { id: string; first_name: string | null; last_name: string | null; name: string | null; email: string | null } | null
     if (person) {
       const name = person.first_name && person.last_name
         ? `${person.first_name} ${person.last_name}`
         : person.first_name || person.last_name || person.name || 'Unknown'
-      foundersByCompany[op.company_id].push({
+      contactsByCompany[op.company_id].push({
         id: person.id,
         name,
         title: op.title,
         email: person.email,
+        relationship_type: op.relationship_type,
       })
     }
   })
@@ -255,7 +256,7 @@ export default async function BioMapPage() {
       entity_type: c.entity_type,
       tags: c.tags || [],
       founded_year: c.founded_year,
-      founders: foundersByCompany[c.id] || [],
+      contacts: contactsByCompany[c.id] || [],
     }
   })
 

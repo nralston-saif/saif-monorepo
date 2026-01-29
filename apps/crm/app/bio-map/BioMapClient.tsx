@@ -200,7 +200,7 @@ export default function BioMapClient({
           org.industry,
           org.city,
           org.country,
-          ...org.founders.map(f => f.name),
+          ...org.contacts.map(f => f.name),
           ...org.tags,
         ].filter(Boolean).join(' ').toLowerCase()
 
@@ -483,16 +483,16 @@ export default function BioMapClient({
                         ) : '-'}
                       </td>
                       <td className="px-4 py-3 hidden md:table-cell text-sm text-gray-600">
-                        {org.founders.length > 0 ? org.founders.map(f => f.name).join(', ') : '-'}
+                        {org.contacts.length > 0 ? org.contacts.map(f => f.name).join(', ') : '-'}
                       </td>
                       <td className="px-4 py-3 hidden lg:table-cell text-sm text-gray-500">
-                        {org.founders.length > 0 && org.founders[0].email ? (
+                        {org.contacts.length > 0 && org.contacts[0].email ? (
                           <a
-                            href={`mailto:${org.founders[0].email}`}
+                            href={`mailto:${org.contacts[0].email}`}
                             onClick={(e) => e.stopPropagation()}
                             className="text-blue-600 hover:underline"
                           >
-                            {org.founders[0].email}
+                            {org.contacts[0].email}
                           </a>
                         ) : '-'}
                       </td>
