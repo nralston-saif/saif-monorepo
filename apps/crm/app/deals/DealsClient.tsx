@@ -214,7 +214,7 @@ function getStatusBadgeStyle(status: string): string {
 }
 
 function sortByDateAndName<
-  T extends { submitted_at: string | null; company_name: string; stage?: string | null }
+  T extends { submitted_at: string | null; company_name: string; stage?: string | null; decision?: string | null }
 >(items: T[], sortOption: SortOption, getDecision?: (item: T) => string | undefined): T[] {
   return [...items].sort((a, b) => {
     switch (sortOption) {
@@ -246,6 +246,26 @@ function sortByDateAndName<
           if (getDecision(a) !== 'no' && getDecision(b) === 'no') return 1
         }
         return 0
+      case 'archive-portfolio': {
+        if (a.stage === 'portfolio' && b.stage !== 'portfolio') return -1
+        if (a.stage !== 'portfolio' && b.stage === 'portfolio') return 1
+        return 0
+      }
+      case 'archive-rejected': {
+        // Show rejected (not limbo) first
+        const aIsRejected = a.stage === 'rejected' && a.decision !== 'limbo'
+        const bIsRejected = b.stage === 'rejected' && b.decision !== 'limbo'
+        if (aIsRejected && !bIsRejected) return -1
+        if (!aIsRejected && bIsRejected) return 1
+        return 0
+      }
+      case 'archive-limbo': {
+        const aIsLimbo = a.decision === 'limbo'
+        const bIsLimbo = b.decision === 'limbo'
+        if (aIsLimbo && !bIsLimbo) return -1
+        if (!aIsLimbo && bIsLimbo) return 1
+        return 0
+      }
       default:
         return 0
     }

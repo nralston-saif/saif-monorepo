@@ -188,27 +188,33 @@ export default async function DealsPage(): Promise<React.ReactElement> {
 
   const archivedAppsTransformed = (allApplications || [])
     .filter(app => app.stage === 'portfolio' || app.stage === 'rejected')
-    .map((app) => ({
-      id: app.id,
-      company_id: app.company_id,
-      company_name: app.company_name,
-      founder_names: app.founder_names,
-      founder_linkedins: app.founder_linkedins,
-      founder_bios: app.founder_bios,
-      primary_email: app.primary_email,
-      company_description: app.company_description,
-      website: app.website,
-      previous_funding: app.previous_funding,
-      deck_link: app.deck_link,
-      stage: app.stage,
-      previous_stage: (app as { previous_stage?: string }).previous_stage || null,
-      submitted_at: app.submitted_at,
-      email_sent: app.email_sent,
-      email_sent_at: app.email_sent_at,
-      email_sender_name: (app.email_sender as { name: string } | null)?.name || null,
-      allVotes: transformVotes(app.saifcrm_votes as RawVote[]),
-      draft_rejection_email: (app as { draft_rejection_email?: string }).draft_rejection_email || null,
-    }))
+    .map((app) => {
+      const deliberation = Array.isArray(app.saifcrm_deliberations)
+        ? app.saifcrm_deliberations[0]
+        : null
+      return {
+        id: app.id,
+        company_id: app.company_id,
+        company_name: app.company_name,
+        founder_names: app.founder_names,
+        founder_linkedins: app.founder_linkedins,
+        founder_bios: app.founder_bios,
+        primary_email: app.primary_email,
+        company_description: app.company_description,
+        website: app.website,
+        previous_funding: app.previous_funding,
+        deck_link: app.deck_link,
+        stage: app.stage,
+        previous_stage: (app as { previous_stage?: string }).previous_stage || null,
+        submitted_at: app.submitted_at,
+        email_sent: app.email_sent,
+        email_sent_at: app.email_sent_at,
+        email_sender_name: (app.email_sender as { name: string } | null)?.name || null,
+        allVotes: transformVotes(app.saifcrm_votes as RawVote[]),
+        draft_rejection_email: (app as { draft_rejection_email?: string }).draft_rejection_email || null,
+        decision: deliberation?.decision || null,
+      }
+    })
 
   return (
     <div className="min-h-screen bg-gray-50">
