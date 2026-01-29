@@ -176,6 +176,8 @@ function getDecisionBadgeStyle(decision: string): string {
       return 'bg-red-500 text-white'
     case 'maybe':
       return 'bg-amber-500 text-white'
+    case 'limbo':
+      return 'bg-purple-500 text-white'
     default:
       return 'bg-gray-200 text-gray-700'
   }
@@ -963,7 +965,7 @@ export default function DealsClient({
           application_id: selectedDelibApp.id,
           idea_summary: ideaSummary || null,
           thoughts: thoughts || null,
-          decision: decision as 'pending' | 'maybe' | 'yes' | 'no',
+          decision: decision as 'pending' | 'maybe' | 'yes' | 'no' | 'limbo',
           status: decision === 'yes' ? 'portfolio' : status,
           meeting_date: meetingDate || null,
         },
@@ -1070,6 +1072,18 @@ export default function DealsClient({
           credentials: 'include',
           body: JSON.stringify({ applicationId: selectedDelibApp.id }),
         }).catch(console.error)
+      } else if (decision === 'limbo') {
+        // Move to archive without rejection email - company didn't respond to interview scheduling
+        await supabase
+          .from('saifcrm_applications')
+          .update({
+            stage: 'rejected',
+            previous_stage: 'interview',
+          })
+          .eq('id', selectedDelibApp.id)
+
+        // Sync company stage to rejected
+        await syncCompanyStage(selectedDelibApp.id, 'rejected')
       }
 
       setSelectedDelibApp(null)
@@ -1078,6 +1092,8 @@ export default function DealsClient({
         showToast('Investment recorded and added to portfolio', 'success')
       } else if (decision === 'no') {
         showToast('Application rejected - email task assigned', 'success')
+      } else if (decision === 'limbo') {
+        showToast('Application moved to limbo', 'success')
       } else {
         showToast('Deliberation saved', 'success')
       }
@@ -2616,6 +2632,7 @@ export default function DealsClient({
                     { value: 'pending', label: 'Pending', color: 'gray' },
                     { value: 'yes', label: 'Yes', color: 'emerald' },
                     { value: 'no', label: 'No', color: 'red' },
+                    { value: 'limbo', label: 'Limbo', color: 'purple' },
                   ].map((option) => {
                     let selectedStyle = ''
                     if (decision === option.value) {
@@ -2623,6 +2640,8 @@ export default function DealsClient({
                         selectedStyle = 'border-emerald-500 bg-emerald-50 text-emerald-700'
                       } else if (option.color === 'red') {
                         selectedStyle = 'border-red-500 bg-red-50 text-red-700'
+                      } else if (option.color === 'purple') {
+                        selectedStyle = 'border-purple-500 bg-purple-50 text-purple-700'
                       } else {
                         selectedStyle = 'border-gray-400 bg-gray-50 text-gray-700'
                       }
