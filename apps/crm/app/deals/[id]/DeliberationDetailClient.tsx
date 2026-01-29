@@ -71,9 +71,15 @@ export default function DeliberationDetailClient({
 
   // Investment fields (shown when decision is 'yes')
   const [investmentAmount, setInvestmentAmount] = useState<number | null>(null)
-  const [investmentTerms, setInvestmentTerms] = useState('10mm cap safe')
   const [investmentDate, setInvestmentDate] = useState(new Date().toISOString().split('T')[0])
+  const [investmentType, setInvestmentType] = useState<string>('safe')
+  const [investmentRound, setInvestmentRound] = useState<string>('pre_seed')
+  const [postMoneyValuation, setPostMoneyValuation] = useState<number | null>(null)
+  const [discount, setDiscount] = useState<number | null>(null)
+  const [investmentTerms, setInvestmentTerms] = useState('')
+  const [leadPartnerId, setLeadPartnerId] = useState<string>('')
   const [otherFunders, setOtherFunders] = useState('')
+  const [isStealthy, setIsStealthy] = useState(false)
 
   // Rejection email sender (shown when decision is 'no')
   const [rejectionEmailSender, setRejectionEmailSender] = useState<string>('')
@@ -150,10 +156,17 @@ export default function DeliberationDetailClient({
     setDecision(application.deliberation?.decision || 'pending')
     setStatus(application.deliberation?.status || 'scheduled')
     setMeetingDate(application.deliberation?.meeting_date || '')
+    // Reset investment fields
     setInvestmentAmount(null)
-    setInvestmentTerms('10mm cap safe')
     setInvestmentDate(new Date().toISOString().split('T')[0])
+    setInvestmentType('safe')
+    setInvestmentRound('pre_seed')
+    setPostMoneyValuation(null)
+    setDiscount(null)
+    setInvestmentTerms('')
+    setLeadPartnerId(userId) // Default to current user as lead partner
     setOtherFunders('')
+    setIsStealthy(false)
     setShowDecisionModal(true)
   }
 
@@ -200,12 +213,12 @@ export default function DeliberationDetailClient({
         showToast('Please enter an investment amount', 'warning')
         return
       }
-      if (!investmentTerms) {
-        showToast('Please enter investment terms', 'warning')
-        return
-      }
       if (!investmentDate) {
         showToast('Please enter an investment date', 'warning')
+        return
+      }
+      if (!investmentType) {
+        showToast('Please select an investment type', 'warning')
         return
       }
     }
@@ -226,7 +239,7 @@ export default function DeliberationDetailClient({
           application_id: application.id,
           idea_summary: ideaSummary || null,
           thoughts: thoughts || null,
-          decision: decision as 'pending' | 'maybe' | 'yes' | 'no',
+          decision: decision as 'pending' | 'maybe' | 'yes' | 'no' | 'limbo',
           status: decision === 'yes' ? 'portfolio' : status,
           meeting_date: meetingDate || null,
         },
@@ -247,23 +260,53 @@ export default function DeliberationDetailClient({
           return
         }
 
-        const { error: investmentError } = await supabase
+        // Build investment record with all fields from saif_investments table
+        const investmentRecord: {
+          company_id: string
+          investment_date: string
+          type: string
+          amount: number
+          round: string | null
+          post_money_valuation: number | null
+          discount: number | null
+          lead_partner_id: string | null
+          status: string
+          terms: string | null
+          other_funders: string | null
+          stealthy: boolean
+          notes: string | null
+        } = {
+          company_id: application.company_id,
+          investment_date: investmentDate,
+          type: investmentType,
+          amount: investmentAmount!,
+          round: investmentRound || null,
+          post_money_valuation: postMoneyValuation || null,
+          discount: discount ? discount / 100 : null, // Convert percentage to decimal
+          lead_partner_id: leadPartnerId || null,
+          status: 'active',
+          terms: investmentTerms || null,
+          other_funders: otherFunders || null,
+          stealthy: isStealthy,
+          notes: thoughts || null,
+        }
+
+        console.log('Creating investment record:', investmentRecord)
+
+        const { data: investmentData, error: investmentError } = await supabase
           .from('saif_investments')
-          .insert({
-            company_id: application.company_id,
-            investment_date: investmentDate,
-            amount: investmentAmount,
-            terms: investmentTerms,
-            other_funders: otherFunders || null,
-            stealthy: false,
-            notes: thoughts || null,
-          })
+          .insert(investmentRecord)
+          .select()
+          .single()
 
         if (investmentError) {
+          console.error('Investment creation error:', investmentError)
           showToast('Error creating investment: ' + investmentError.message, 'error')
           setLoading(false)
           return
         }
+
+        console.log('Investment created successfully:', investmentData)
 
         // Update application stage to portfolio
         await supabase
@@ -339,6 +382,20 @@ export default function DeliberationDetailClient({
         }).catch(console.error)
 
         showToast('Application rejected - email task assigned', 'success')
+      } else if (decision === 'limbo') {
+        // Move to archive without rejection email - company didn't respond to interview scheduling
+        await supabase
+          .from('saifcrm_applications')
+          .update({
+            stage: 'rejected',
+            previous_stage: 'interview',
+          })
+          .eq('id', application.id)
+
+        // Sync company stage to rejected
+        await syncCompanyStage(application.id, 'rejected')
+
+        showToast('Application moved to limbo', 'success')
       } else {
         showToast('Deliberation saved', 'success')
       }
@@ -390,6 +447,8 @@ export default function DeliberationDetailClient({
         return 'bg-red-500 text-white'
       case 'maybe':
         return 'bg-amber-500 text-white'
+      case 'limbo':
+        return 'bg-purple-500 text-white'
       default:
         return 'bg-gray-200 text-gray-700'
     }
@@ -829,17 +888,18 @@ export default function DeliberationDetailClient({
                 <label className="block text-sm font-medium text-gray-700 mb-3">
                   Final Decision
                 </label>
-                <div className="flex gap-3">
+                <div className="flex gap-2">
                   {[
-                    { value: 'pending', label: 'Pending', icon: '⏳', color: 'gray' },
-                    { value: 'yes', label: 'Yes', icon: '✅', color: 'emerald' },
-                    { value: 'maybe', label: 'Maybe', icon: '🤔', color: 'amber' },
-                    { value: 'no', label: 'No', icon: '❌', color: 'red' },
+                    { value: 'pending', label: 'Pending', color: 'gray' },
+                    { value: 'yes', label: 'Yes', color: 'emerald' },
+                    { value: 'maybe', label: 'Maybe', color: 'amber' },
+                    { value: 'no', label: 'No', color: 'red' },
+                    { value: 'limbo', label: 'Limbo', color: 'purple' },
                   ].map((option) => (
                     <button
                       key={option.value}
                       onClick={() => setDecision(option.value)}
-                      className={`flex-1 py-3 px-4 rounded-xl border-2 font-semibold text-center transition-all ${
+                      className={`flex-1 py-2 px-3 rounded-lg border font-medium text-sm text-center transition-all ${
                         decision === option.value
                           ? option.color === 'emerald'
                             ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
@@ -847,12 +907,13 @@ export default function DeliberationDetailClient({
                             ? 'border-amber-500 bg-amber-50 text-amber-700'
                             : option.color === 'red'
                             ? 'border-red-500 bg-red-50 text-red-700'
+                            : option.color === 'purple'
+                            ? 'border-purple-500 bg-purple-50 text-purple-700'
                             : 'border-gray-400 bg-gray-50 text-gray-700'
                           : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
                       }`}
                     >
-                      <div className="text-xl mb-1">{option.icon}</div>
-                      <div>{option.label}</div>
+                      {option.label}
                     </button>
                   ))}
                 </div>
@@ -868,10 +929,11 @@ export default function DeliberationDetailClient({
                     Please enter the investment details. This will create a portfolio entry.
                   </p>
 
-                  <div className="grid gap-4 sm:grid-cols-2">
+                  {/* Row 1: Amount, Date, Type */}
+                  <div className="grid gap-4 sm:grid-cols-3">
                     <div>
                       <label className="block text-sm font-medium text-emerald-800 mb-1.5">
-                        Investment Amount *
+                        Amount *
                       </label>
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
@@ -886,7 +948,7 @@ export default function DeliberationDetailClient({
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-emerald-800 mb-1.5">
-                        Investment Date *
+                        Date *
                       </label>
                       <input
                         type="date"
@@ -895,35 +957,134 @@ export default function DeliberationDetailClient({
                         className="input"
                       />
                     </div>
+                    <div>
+                      <label className="block text-sm font-medium text-emerald-800 mb-1.5">
+                        Type *
+                      </label>
+                      <select
+                        value={investmentType}
+                        onChange={(e) => setInvestmentType(e.target.value)}
+                        className="input"
+                      >
+                        <option value="safe">SAFE</option>
+                        <option value="note">Convertible Note</option>
+                        <option value="equity">Equity</option>
+                        <option value="option">Option</option>
+                      </select>
+                    </div>
                   </div>
 
-                  <div className="mt-4">
-                    <label className="block text-sm font-medium text-emerald-800 mb-1.5">
-                      Terms *
-                    </label>
-                    <input
-                      type="text"
-                      value={investmentTerms}
-                      onChange={(e) => setInvestmentTerms(e.target.value)}
-                      onFocus={(e) => {
-                        if (e.target.value === '10mm cap safe') {
-                          setInvestmentTerms('')
-                        }
-                      }}
-                      className="input"
-                    />
+                  {/* Row 2: Round, Valuation/Cap, Discount */}
+                  <div className="grid gap-4 sm:grid-cols-3 mt-4">
+                    <div>
+                      <label className="block text-sm font-medium text-emerald-800 mb-1.5">
+                        Round
+                      </label>
+                      <select
+                        value={investmentRound}
+                        onChange={(e) => setInvestmentRound(e.target.value)}
+                        className="input"
+                      >
+                        <option value="pre_seed">Pre-Seed</option>
+                        <option value="seed">Seed</option>
+                        <option value="series_a">Series A</option>
+                        <option value="series_b">Series B</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-emerald-800 mb-1.5">
+                        {investmentType === 'safe' || investmentType === 'note' ? 'Valuation Cap' : 'Post-Money Valuation'}
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                        <input
+                          type="number"
+                          value={postMoneyValuation || ''}
+                          onChange={(e) => setPostMoneyValuation(e.target.value ? parseFloat(e.target.value) : null)}
+                          className="input pl-7"
+                          placeholder="10000000"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-emerald-800 mb-1.5">
+                        Discount %
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          value={discount || ''}
+                          onChange={(e) => setDiscount(e.target.value ? parseFloat(e.target.value) : null)}
+                          className="input pr-7"
+                          placeholder="20"
+                          min="0"
+                          max="100"
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">%</span>
+                      </div>
+                    </div>
                   </div>
 
+                  {/* Row 3: Terms, Lead Partner */}
+                  <div className="grid gap-4 sm:grid-cols-2 mt-4">
+                    <div>
+                      <label className="block text-sm font-medium text-emerald-800 mb-1.5">
+                        Terms / Notes
+                      </label>
+                      <input
+                        type="text"
+                        value={investmentTerms}
+                        onChange={(e) => setInvestmentTerms(e.target.value)}
+                        className="input"
+                        placeholder="e.g., MFN, pro-rata rights"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-emerald-800 mb-1.5">
+                        Lead Partner
+                      </label>
+                      <select
+                        value={leadPartnerId}
+                        onChange={(e) => setLeadPartnerId(e.target.value)}
+                        className="input"
+                      >
+                        <option value="">Select partner...</option>
+                        {partners.map((partner) => (
+                          <option key={partner.id} value={partner.id}>
+                            {partner.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Row 4: Co-Investors */}
                   <div className="mt-4">
                     <label className="block text-sm font-medium text-emerald-800 mb-1.5">
-                      Co-Investors (optional)
+                      Co-Investors
                     </label>
                     <input
                       type="text"
                       value={otherFunders}
                       onChange={(e) => setOtherFunders(e.target.value)}
                       className="input"
+                      placeholder="e.g., Y Combinator, Sequoia"
                     />
+                  </div>
+
+                  {/* Row 5: Stealthy checkbox */}
+                  <div className="mt-4">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={isStealthy}
+                        onChange={(e) => setIsStealthy(e.target.checked)}
+                        className="w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                      />
+                      <span className="text-sm font-medium text-emerald-800">
+                        Stealth investment (hide from public portfolio)
+                      </span>
+                    </label>
                   </div>
                 </div>
               )}
