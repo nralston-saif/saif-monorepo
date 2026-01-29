@@ -1018,22 +1018,30 @@ export default function DealsClient({
       }
       console.log('Saving deliberation:', JSON.stringify(deliberationData, null, 2))
 
-      const { error } = await supabase.from('saifcrm_deliberations').upsert(
+      const { data: upsertData, error } = await supabase.from('saifcrm_deliberations').upsert(
         deliberationData,
         {
           onConflict: 'application_id',
         }
-      )
+      ).select()
+
+      console.log('Deliberation upsert response:', { data: upsertData, error })
 
       if (error) {
-        console.error('Deliberation save error:', {
-          error,
+        // Log everything we can about the error
+        console.error('Deliberation save error - raw:', error)
+        console.error('Deliberation save error - stringified:', JSON.stringify(error, null, 2))
+        console.error('Deliberation save error - Object.keys:', Object.keys(error))
+        console.error('Deliberation save error - properties:', {
           code: error.code,
           message: error.message,
           details: error.details,
-          hint: error.hint
+          hint: error.hint,
+          status: (error as any).status,
+          statusText: (error as any).statusText,
         })
-        showToast('Error saving deliberation: ' + error.message, 'error')
+        console.error('Deliberation data that failed:', JSON.stringify(deliberationData, null, 2))
+        showToast('Error saving deliberation: ' + (error.message || JSON.stringify(error) || 'Unknown error'), 'error')
         setDelibLoading(false)
         return
       }
