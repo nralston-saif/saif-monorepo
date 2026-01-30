@@ -17,6 +17,35 @@ import { ensureProtocol, isValidUrl } from '@/lib/utils'
 import { useToast } from '@saif/ui'
 import type { ActiveDeal } from './page'
 
+// ============================================
+// Number Formatting Helpers
+// ============================================
+
+function formatNumberWithCommas(value: number | null | undefined): string {
+  if (value === null || value === undefined || isNaN(value)) return ''
+  return value.toLocaleString('en-US', { maximumFractionDigits: 2 })
+}
+
+function parseFormattedNumber(value: string): number | null {
+  if (!value || value.trim() === '') return null
+  const cleaned = value.replace(/,/g, '')
+  const num = parseFloat(cleaned)
+  return isNaN(num) ? null : num
+}
+
+function handleFormattedNumberChange(
+  value: string,
+  setter: (val: number | null) => void
+): void {
+  const cleaned = value.replace(/[^\d.,]/g, '')
+  const num = parseFormattedNumber(cleaned)
+  setter(num)
+}
+
+// Default investment values
+const DEFAULT_INVESTMENT_AMOUNT = 100000
+const DEFAULT_VALUATION_CAP = 10000000
+
 type Company = Database['public']['Tables']['saif_companies']['Row']
 type Person = Database['public']['Tables']['saif_people']['Row']
 type CompanyPerson = Database['public']['Tables']['saif_company_people']['Row']
@@ -160,12 +189,12 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
   const [decision, setDecision] = useState(activeDeal?.deliberation?.decision || 'pending')
   const [meetingDate, setMeetingDate] = useState(activeDeal?.deliberation?.meeting_date || '')
   const [status, setStatus] = useState(activeDeal?.deliberation?.status || 'scheduled')
-  // Investment fields (for yes decision)
-  const [investmentAmount, setInvestmentAmount] = useState<number | null>(null)
+  // Investment fields (for yes decision) - with defaults for common values
+  const [investmentAmount, setInvestmentAmount] = useState<number | null>(DEFAULT_INVESTMENT_AMOUNT)
   const [investmentDate, setInvestmentDate] = useState(new Date().toISOString().split('T')[0])
   const [investmentType, setInvestmentType] = useState<string>('safe')
   const [investmentRound, setInvestmentRound] = useState<string>('pre_seed')
-  const [postMoneyValuation, setPostMoneyValuation] = useState<number | null>(null)
+  const [postMoneyValuation, setPostMoneyValuation] = useState<number | null>(DEFAULT_VALUATION_CAP)
   const [discountPercent, setDiscountPercent] = useState<number | null>(null)
   const [investmentTerms, setInvestmentTerms] = useState('')
   const [leadPartnerId, setLeadPartnerId] = useState<string>(currentPersonId || '')
@@ -2184,7 +2213,7 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
                       <label className="block text-sm font-medium text-emerald-800 mb-1">Amount *</label>
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
-                        <input type="number" value={investmentAmount || ''} onChange={(e) => setInvestmentAmount(e.target.value ? parseFloat(e.target.value) : null)} className="input" style={{ paddingLeft: '1.75rem' }} placeholder="100000" />
+                        <input type="text" inputMode="numeric" value={formatNumberWithCommas(investmentAmount)} onChange={(e) => handleFormattedNumberChange(e.target.value, setInvestmentAmount)} className="input" style={{ paddingLeft: '1.75rem' }} placeholder="100,000" />
                       </div>
                     </div>
                     <div>
@@ -2219,7 +2248,7 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
                       </label>
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
-                        <input type="number" value={postMoneyValuation || ''} onChange={(e) => setPostMoneyValuation(e.target.value ? parseFloat(e.target.value) : null)} className="input" style={{ paddingLeft: '1.75rem' }} placeholder="10000000" />
+                        <input type="text" inputMode="numeric" value={formatNumberWithCommas(postMoneyValuation)} onChange={(e) => handleFormattedNumberChange(e.target.value, setPostMoneyValuation)} className="input" style={{ paddingLeft: '1.75rem' }} placeholder="10,000,000" />
                       </div>
                     </div>
                     <div>
@@ -2314,10 +2343,15 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
                     <input
-                      type="number"
+                      type="text"
+                      inputMode="numeric"
                       value={editingInvestment.amount}
-                      onChange={(e) => setEditingInvestment({ ...editingInvestment, amount: e.target.value })}
-                      placeholder="100000"
+                      onChange={(e) => {
+                        const cleaned = e.target.value.replace(/[^\d.,]/g, '')
+                        const num = parseFormattedNumber(cleaned)
+                        setEditingInvestment({ ...editingInvestment, amount: num !== null ? formatNumberWithCommas(num) : cleaned })
+                      }}
+                      placeholder="100,000"
                       className="input"
                       style={{ paddingLeft: '1.75rem' }}
                     />
@@ -2369,11 +2403,15 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
                     <input
-                      type="number"
+                      type="text"
+                      inputMode="numeric"
                       value={editingInvestment.post_money_valuation}
-                      onChange={(e) => setEditingInvestment({ ...editingInvestment, post_money_valuation: e.target.value })}
-                      placeholder="10"
-                      step="0.1"
+                      onChange={(e) => {
+                        const cleaned = e.target.value.replace(/[^\d.,]/g, '')
+                        const num = parseFormattedNumber(cleaned)
+                        setEditingInvestment({ ...editingInvestment, post_money_valuation: num !== null ? formatNumberWithCommas(num) : cleaned })
+                      }}
+                      placeholder="10,000,000"
                       className="input"
                       style={{ paddingLeft: '1.75rem' }}
                     />

@@ -10,6 +10,35 @@ import ApplicationDetailModal from '@/components/ApplicationDetailModal'
 import { ensureProtocol, isValidUrl } from '@/lib/utils'
 
 // ============================================
+// Number Formatting Helpers
+// ============================================
+
+// Format a number with commas (e.g., 1000000 -> "1,000,000")
+function formatNumberWithCommas(value: number | null | undefined): string {
+  if (value === null || value === undefined || isNaN(value)) return ''
+  return value.toLocaleString('en-US', { maximumFractionDigits: 2 })
+}
+
+// Parse a string with commas to a number (e.g., "1,000,000" -> 1000000)
+function parseFormattedNumber(value: string): number | null {
+  if (!value || value.trim() === '') return null
+  const cleaned = value.replace(/,/g, '')
+  const num = parseFloat(cleaned)
+  return isNaN(num) ? null : num
+}
+
+// Handle input change for formatted number fields
+function handleFormattedNumberChange(
+  value: string,
+  setter: (val: number | null) => void
+): void {
+  // Allow only digits, commas, and decimal point
+  const cleaned = value.replace(/[^\d.,]/g, '')
+  const num = parseFormattedNumber(cleaned)
+  setter(num)
+}
+
+// ============================================
 // Types
 // ============================================
 
@@ -2753,12 +2782,13 @@ export default function DealsClient({
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
                         <input
-                          type="number"
-                          value={investmentAmount || ''}
-                          onChange={(e) => setInvestmentAmount(e.target.value ? parseFloat(e.target.value) : null)}
+                          type="text"
+                          inputMode="numeric"
+                          value={formatNumberWithCommas(investmentAmount)}
+                          onChange={(e) => handleFormattedNumberChange(e.target.value, setInvestmentAmount)}
                           className="input"
                           style={{ paddingLeft: '1.75rem' }}
-                          placeholder="100000"
+                          placeholder="100,000"
                         />
                       </div>
                     </div>
@@ -2814,12 +2844,13 @@ export default function DealsClient({
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
                         <input
-                          type="number"
-                          value={postMoneyValuation || ''}
-                          onChange={(e) => setPostMoneyValuation(e.target.value ? parseFloat(e.target.value) : null)}
+                          type="text"
+                          inputMode="numeric"
+                          value={formatNumberWithCommas(postMoneyValuation)}
+                          onChange={(e) => handleFormattedNumberChange(e.target.value, setPostMoneyValuation)}
                           className="input"
                           style={{ paddingLeft: '1.75rem' }}
-                          placeholder="10000000"
+                          placeholder="10,000,000"
                         />
                       </div>
                     </div>
