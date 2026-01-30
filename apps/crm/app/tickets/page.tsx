@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Navigation from '@/components/Navigation'
+import { getActiveProfile } from '@/lib/impersonation'
 import TicketsClient from './TicketsClient'
 
 // Types for the RPC response
@@ -52,23 +53,10 @@ export const dynamic = 'force-dynamic'
 export default async function TicketsPage() {
   const supabase = await createClient()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
-    redirect('/auth/login')
-  }
-
-  // Get user profile
-  const { data: profile } = await supabase
-    .from('saif_people')
-    .select('id, first_name, last_name, email, role, status')
-    .eq('auth_user_id', user.id)
-    .single()
+  const { profile } = await getActiveProfile()
 
   if (!profile) {
-    redirect('/profile/claim')
+    redirect('/login')
   }
 
   // Only partners can access tickets
@@ -95,7 +83,7 @@ export default async function TicketsPage() {
         companies={companies as any}
         people={people as any}
         currentUserId={profile.id}
-        userName={profile?.first_name && profile?.last_name ? `${profile.first_name} ${profile.last_name}` : user.email || 'User'}
+        userName={profile?.first_name && profile?.last_name ? `${profile.first_name} ${profile.last_name}` : profile?.email || 'User'}
       />
     </div>
   )

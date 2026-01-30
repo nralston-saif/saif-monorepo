@@ -1,29 +1,17 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Navigation from '@/components/Navigation'
+import { getActiveProfile } from '@/lib/impersonation'
 import MeetingsClient from './MeetingsClient'
 import type { Meeting, MeetingNote, Person } from '@saif/supabase'
 
 export default async function MeetingsPage() {
   const supabase = await createClient()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const { profile } = await getActiveProfile()
 
-  if (!user) {
-    redirect('/auth/login')
-  }
-
-  // Get full user profile
-  const { data: profile, error: profileError } = await supabase
-    .from('saif_people')
-    .select('id, first_name, last_name, name, email, role, status, avatar_url')
-    .eq('auth_user_id', user.id)
-    .single()
-
-  if (profileError || !profile) {
-    redirect('/profile/claim')
+  if (!profile) {
+    redirect('/login')
   }
 
   const typedProfile = profile as Person

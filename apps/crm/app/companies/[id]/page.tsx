@@ -4,6 +4,7 @@ import type { Database } from '@/lib/types/database'
 import FounderNavigation from '@/components/FounderNavigation'
 import Navigation from '@/components/Navigation'
 import PartnerViewBanner from '@/components/PartnerViewBanner'
+import { getActiveProfile } from '@/lib/impersonation'
 import CompanyView from './CompanyView'
 
 type Company = Database['public']['Tables']['saif_companies']['Row']
@@ -49,22 +50,10 @@ export default async function CompanyPage({
   const [{ id }, { view }] = await Promise.all([params, searchParams])
   const supabase = await createClient()
 
-  // Check authentication
-  const { data: { user }, error: authError } = await supabase.auth.getUser()
-
-  if (authError || !user) {
-    redirect('/auth/login')
-  }
-
-  // Get current user's profile
-  const { data: currentPerson } = await supabase
-    .from('saif_people')
-    .select('id, first_name, role')
-    .eq('auth_user_id', user.id)
-    .single()
+  const { profile: currentPerson } = await getActiveProfile()
 
   if (!currentPerson) {
-    redirect('/profile/claim')
+    redirect('/login')
   }
 
   // Fetch company with all related data
@@ -232,7 +221,7 @@ export default async function CompanyPage({
 
   return (
     <div className="min-h-screen bg-white">
-      {showPartnerView ? <Navigation userName={userName} personId={currentPerson.id} /> : <FounderNavigation isPartnerViewingAsCommunity={isPartnerViewingAsCommunity} />}
+      {showPartnerView ? <Navigation userName={userName} personId={currentPerson.id} /> : <FounderNavigation isPartnerViewingAsCommunity={isPartnerViewingAsCommunity} personId={currentPerson.id} />}
 
       {isPartnerViewingAsCommunity && <PartnerViewBanner returnPath={`/companies/${id}`} />}
 

@@ -80,7 +80,7 @@ const getTopicLabel = (topic: string): string => {
 export default function FounderDashboard({ person, company, founders, founderTitle, community, newsArticles = [], isPartnerViewingAsCommunity = false }: FounderDashboardProps) {
   return (
     <div className="min-h-screen bg-white">
-      <FounderNavigation isPartnerViewingAsCommunity={isPartnerViewingAsCommunity} />
+      <FounderNavigation isPartnerViewingAsCommunity={isPartnerViewingAsCommunity} personId={person.id} />
 
       {isPartnerViewingAsCommunity && <PartnerViewBanner returnPath="/dashboard" />}
 

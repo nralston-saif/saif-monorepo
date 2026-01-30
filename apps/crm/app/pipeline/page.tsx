@@ -1,27 +1,14 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Navigation from '@/components/Navigation'
+import { getActiveProfile } from '@/lib/impersonation'
 import PipelineClient from './PipelineClient'
 
 export default async function PipelinePage() {
   const supabase = await createClient()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const { profile } = await getActiveProfile()
 
-  if (!user) {
-    redirect('/login')
-  }
-
-  // Get user profile (using auth_user_id to link to auth.users)
-  const { data: profile } = await supabase
-    .from('saif_people')
-    .select('id, first_name, name, role')
-    .eq('auth_user_id', user.id)
-    .single()
-
-  // Only partners can access the pipeline
   if (!profile || profile.role !== 'partner') {
     redirect('/access-denied')
   }

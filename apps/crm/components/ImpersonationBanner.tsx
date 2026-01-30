@@ -1,62 +1,30 @@
-'use client'
+import { cookies } from 'next/headers'
+import StopImpersonatingButton from './StopImpersonatingButton'
 
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+const IMPERSONATE_COOKIE = 'saif_impersonate'
 
-interface ImpersonationState {
-  id: string
-  name: string
-}
+export default async function ImpersonationBanner() {
+  const cookieStore = await cookies()
+  const impersonateCookie = cookieStore.get(IMPERSONATE_COOKIE)
 
-export default function ImpersonationBanner() {
-  const [impersonating, setImpersonating] = useState<ImpersonationState | null>(null)
-  const [stopping, setStopping] = useState(false)
-  const router = useRouter()
-
-  useEffect(() => {
-    async function checkImpersonation() {
-      try {
-        const response = await fetch('/api/auth/impersonate')
-        const data = await response.json()
-        setImpersonating(data.impersonating)
-      } catch (error) {
-        console.error('Error checking impersonation:', error)
-      }
-    }
-
-    checkImpersonation()
-  }, [])
-
-  const handleStopImpersonating = async () => {
-    setStopping(true)
-    try {
-      await fetch('/api/auth/impersonate', { method: 'DELETE' })
-      setImpersonating(null)
-      router.push('/dashboard')
-      router.refresh()
-    } catch (error) {
-      console.error('Error stopping impersonation:', error)
-    } finally {
-      setStopping(false)
-    }
+  if (!impersonateCookie) {
+    return null
   }
 
-  if (!impersonating) {
+  let targetName = 'User'
+  try {
+    const data = JSON.parse(impersonateCookie.value)
+    targetName = data.targetName || 'User'
+  } catch (e) {
     return null
   }
 
   return (
     <div className="bg-amber-500 text-white px-4 py-2 text-center text-sm font-medium sticky top-0 z-50">
       <span>
-        Viewing as <strong>{impersonating.name}</strong>
+        Viewing as <strong>{targetName}</strong>
       </span>
-      <button
-        onClick={handleStopImpersonating}
-        disabled={stopping}
-        className="ml-4 px-3 py-1 bg-white text-amber-600 rounded text-xs font-semibold hover:bg-amber-50 disabled:opacity-50"
-      >
-        {stopping ? 'Stopping...' : 'Stop Impersonating'}
-      </button>
+      <StopImpersonatingButton />
     </div>
   )
 }

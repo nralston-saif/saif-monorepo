@@ -1,25 +1,13 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { getActiveProfile } from '@/lib/impersonation'
 
 export default async function EditProfilePage() {
-  const supabase = await createClient()
+  const { profile } = await getActiveProfile()
 
-  const { data: { user } } = await supabase.auth.getUser()
-
-  if (!user) {
-    redirect('/auth/login')
-  }
-
-  const { data: person } = await supabase
-    .from('saif_people')
-    .select('id')
-    .eq('auth_user_id', user.id)
-    .single()
-
-  if (!person) {
-    redirect('/profile/claim')
+  if (!profile) {
+    redirect('/login')
   }
 
   // Redirect to the consolidated profile page
-  redirect(`/people/${person.id}`)
+  redirect(`/people/${profile.id}`)
 }

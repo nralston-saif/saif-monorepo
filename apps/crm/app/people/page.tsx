@@ -6,6 +6,7 @@ import FounderNavigation from '@/components/FounderNavigation'
 import PartnerViewBanner from '@/components/PartnerViewBanner'
 import PeopleClient from './PeopleClient'
 import PeopleGrid from './PeopleGrid'
+import { getActiveProfile } from '@/lib/impersonation'
 import type { Database } from '@/lib/types/database'
 import type { UserRole, UserStatus } from '@saif/supabase'
 
@@ -56,23 +57,10 @@ export default async function PeoplePage({
   const { search: initialSearch, view } = await searchParams
   const supabase = await createClient()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
-    redirect('/auth/login')
-  }
-
-  // Get user profile with role
-  const { data: profile } = await supabase
-    .from('saif_people')
-    .select('id, first_name, last_name, name, email, role, status')
-    .eq('auth_user_id', user.id)
-    .single()
+  const { profile } = await getActiveProfile()
 
   if (!profile) {
-    redirect('/profile/claim')
+    redirect('/login')
   }
 
   const isPartner = profile.role === 'partner'
@@ -244,7 +232,7 @@ export default async function PeoplePage({
           <PeopleClient
             people={peopleWithNotes as any}
             userId={profile?.id || ''}
-            userName={profile?.name || user.email || 'User'}
+            userName={profile?.name || profile?.email || 'User'}
             companyLocationMap={companyLocationMap}
             initialSearch={initialSearch || ''}
           />
@@ -324,7 +312,7 @@ export default async function PeoplePage({
 
   return (
     <div className="min-h-screen bg-white">
-      <FounderNavigation isPartnerViewingAsCommunity={isPartnerViewingAsCommunity} />
+      <FounderNavigation isPartnerViewingAsCommunity={isPartnerViewingAsCommunity} personId={profile.id} />
 
       {isPartnerViewingAsCommunity && <PartnerViewBanner returnPath="/people" />}
 

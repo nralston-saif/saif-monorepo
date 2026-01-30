@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Navigation from '@/components/Navigation'
+import { getActiveProfile } from '@/lib/impersonation'
 import DealsClient from './DealsClient'
 
 type RawVote = {
@@ -72,19 +73,7 @@ function transformVotes(votes: RawVote[] | undefined): TransformedVote[] {
 export default async function DealsPage(): Promise<React.ReactElement> {
   const supabase = await createClient()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
-    redirect('/login')
-  }
-
-  const { data: profile } = await supabase
-    .from('saif_people')
-    .select('id, first_name, name, role')
-    .eq('auth_user_id', user.id)
-    .single()
+  const { profile } = await getActiveProfile()
 
   if (!profile || profile.role !== 'partner') {
     redirect('/access-denied')

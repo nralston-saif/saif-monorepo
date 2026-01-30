@@ -9,19 +9,21 @@ import SearchModal from './SearchModal'
 interface FounderNavigationProps {
   userName?: string
   isPartnerViewingAsCommunity?: boolean
+  personId?: string
 }
 
-export default function FounderNavigation({ userName, isPartnerViewingAsCommunity = false }: FounderNavigationProps) {
+export default function FounderNavigation({ userName, isPartnerViewingAsCommunity = false, personId: personIdProp }: FounderNavigationProps) {
   const [showSearch, setShowSearch] = useState(false)
-  const [personId, setPersonId] = useState<string | null>(null)
+  const [personId, setPersonId] = useState<string | null>(personIdProp || null)
   const pathname = usePathname()
   const supabase = createClient()
 
   // Helper to add view=community query param for partners viewing community
   const getHref = (path: string) => isPartnerViewingAsCommunity ? `${path}?view=community` : path
 
-  // Fetch the current user's person ID for profile link
+  // Fetch the current user's person ID for profile link (only if not passed as prop)
   useEffect(() => {
+    if (personIdProp) return
     async function fetchPersonId() {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
@@ -36,7 +38,7 @@ export default function FounderNavigation({ userName, isPartnerViewingAsCommunit
       }
     }
     fetchPersonId()
-  }, [supabase])
+  }, [supabase, personIdProp])
 
   // Cmd+K / Ctrl+K keyboard shortcut
   useEffect(() => {

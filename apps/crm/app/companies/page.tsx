@@ -4,6 +4,7 @@ import type { Database } from '@/lib/types/database'
 import FounderNavigation from '@/components/FounderNavigation'
 import Navigation from '@/components/Navigation'
 import PartnerViewBanner from '@/components/PartnerViewBanner'
+import { getActiveProfile } from '@/lib/impersonation'
 import CompanyGrid from './CompanyGrid'
 
 type Company = Database['public']['Tables']['saif_companies']['Row']
@@ -16,22 +17,10 @@ export default async function CompaniesPage({
   const { view } = await searchParams
   const supabase = await createClient()
 
-  // Check authentication
-  const { data: { user }, error: authError } = await supabase.auth.getUser()
-
-  if (authError || !user) {
-    redirect('/auth/login')
-  }
-
-  // Get user's profile
-  const { data: person } = await supabase
-    .from('saif_people')
-    .select('id, first_name, role')
-    .eq('auth_user_id', user.id)
-    .single()
+  const { profile: person } = await getActiveProfile()
 
   if (!person) {
-    redirect('/profile/claim')
+    redirect('/login')
   }
 
   const isPartner = person.role === 'partner'
@@ -151,7 +140,7 @@ export default async function CompaniesPage({
 
   return (
     <div className="min-h-screen bg-white">
-      {showPartnerView ? <Navigation userName={userName} personId={person.id} /> : <FounderNavigation isPartnerViewingAsCommunity={isPartnerViewingAsCommunity} />}
+      {showPartnerView ? <Navigation userName={userName} personId={person.id} /> : <FounderNavigation isPartnerViewingAsCommunity={isPartnerViewingAsCommunity} personId={person.id} />}
 
       {isPartnerViewingAsCommunity && <PartnerViewBanner returnPath="/companies" />}
 

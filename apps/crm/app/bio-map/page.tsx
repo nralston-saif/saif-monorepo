@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { Suspense } from 'react'
 import Navigation from '@/components/Navigation'
+import { getActiveProfile } from '@/lib/impersonation'
 import BioMapClient from './BioMapClient'
 import type { Database } from '@/lib/types/database'
 import type { UserRole, UserStatus } from '@saif/supabase'
@@ -79,23 +80,10 @@ export const dynamic = 'force-dynamic'
 export default async function BioMapPage() {
   const supabase = await createClient()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
-    redirect('/auth/login')
-  }
-
-  // Get user profile with role
-  const { data: profile } = await supabase
-    .from('saif_people')
-    .select('id, first_name, last_name, name, email, role, status')
-    .eq('auth_user_id', user.id)
-    .single()
+  const { profile } = await getActiveProfile()
 
   if (!profile) {
-    redirect('/profile/claim')
+    redirect('/login')
   }
 
   // Only partners can access Bio-Map

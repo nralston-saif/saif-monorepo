@@ -400,9 +400,8 @@ export default function PersonView({ person, introducerName, activeCompanies, ca
         return
       }
 
-      // Redirect to dashboard as the impersonated user
-      router.push('/dashboard')
-      router.refresh()
+      // Full page reload to ensure layout (ImpersonationBanner) re-renders
+      window.location.href = '/dashboard'
     } catch (err: any) {
       setError('Failed to impersonate user')
     } finally {
