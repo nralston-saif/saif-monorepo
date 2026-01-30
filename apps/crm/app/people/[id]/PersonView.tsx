@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import type { UserRole, UserStatus } from '@saif/supabase'
 import TagSelector from '@/app/tickets/TagSelector'
+import CreateTicketButton from '@/components/CreateTicketButton'
 import { CollaborativeNoteEditor } from '@/components/collaborative'
 import { NotesList } from '@/components/shared'
 
@@ -1090,6 +1091,8 @@ export default function PersonView({ person, introducerName, activeCompanies, ca
                   {impersonating ? 'Starting...' : 'View as User'}
                 </button>
               )}
+              {/* Create Ticket Button (partners only - handled internally) */}
+              <CreateTicketButton currentUserId={currentUserId} />
               {/* Edit Button */}
               {canEdit && (
                 <button
