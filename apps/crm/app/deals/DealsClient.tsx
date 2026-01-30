@@ -10,6 +10,12 @@ import ApplicationDetailModal from '@/components/ApplicationDetailModal'
 import { ensureProtocol, isValidUrl } from '@/lib/utils'
 
 // ============================================
+// Default Values for Investment Forms
+// ============================================
+const DEFAULT_INVESTMENT_AMOUNT = 100000
+const DEFAULT_VALUATION_CAP = 10000000
+
+// ============================================
 // Number Formatting Helpers
 // ============================================
 
@@ -473,11 +479,11 @@ export default function DealsClient({
   const [status, setStatus] = useState('scheduled')
   const [meetingDate, setMeetingDate] = useState('')
   const [delibLoading, setDelibLoading] = useState(false)
-  const [investmentAmount, setInvestmentAmount] = useState<number | null>(null)
+  const [investmentAmount, setInvestmentAmount] = useState<number | null>(DEFAULT_INVESTMENT_AMOUNT)
   const [investmentDate, setInvestmentDate] = useState('')
   const [investmentType, setInvestmentType] = useState<string>('safe')
   const [investmentRound, setInvestmentRound] = useState<string>('pre_seed')
-  const [postMoneyValuation, setPostMoneyValuation] = useState<number | null>(null)
+  const [postMoneyValuation, setPostMoneyValuation] = useState<number | null>(DEFAULT_VALUATION_CAP)
   const [discount, setDiscount] = useState<number | null>(null)
   const [investmentTerms, setInvestmentTerms] = useState('')
   const [leadPartnerId, setLeadPartnerId] = useState<string>('')
@@ -897,12 +903,12 @@ export default function DealsClient({
     setDecision(app.deliberation?.decision || 'pending')
     setStatus(app.deliberation?.status || 'scheduled')
     setMeetingDate(app.deliberation?.meeting_date || '')
-    // Reset investment fields
-    setInvestmentAmount(null)
+    // Reset investment fields with defaults
+    setInvestmentAmount(DEFAULT_INVESTMENT_AMOUNT)
     setInvestmentDate(new Date().toISOString().split('T')[0])
     setInvestmentType('safe')
     setInvestmentRound('pre_seed')
-    setPostMoneyValuation(null)
+    setPostMoneyValuation(DEFAULT_VALUATION_CAP)
     setDiscount(null)
     setInvestmentTerms('')
     setLeadPartnerId(userId) // Default to current user as lead partner

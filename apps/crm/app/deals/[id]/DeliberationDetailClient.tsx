@@ -9,6 +9,12 @@ import CreateTicketButton from '@/components/CreateTicketButton'
 import { ensureProtocol, isValidUrl } from '@/lib/utils'
 
 // ============================================
+// Default Values for Investment Forms
+// ============================================
+const DEFAULT_INVESTMENT_AMOUNT = 100000
+const DEFAULT_VALUATION_CAP = 10000000
+
+// ============================================
 // Number Formatting Helpers
 // ============================================
 
@@ -95,11 +101,11 @@ export default function DeliberationDetailClient({
   const [moveBackLoading, setMoveBackLoading] = useState(false)
 
   // Investment fields (shown when decision is 'yes')
-  const [investmentAmount, setInvestmentAmount] = useState<number | null>(null)
+  const [investmentAmount, setInvestmentAmount] = useState<number | null>(DEFAULT_INVESTMENT_AMOUNT)
   const [investmentDate, setInvestmentDate] = useState(new Date().toISOString().split('T')[0])
   const [investmentType, setInvestmentType] = useState<string>('safe')
   const [investmentRound, setInvestmentRound] = useState<string>('pre_seed')
-  const [postMoneyValuation, setPostMoneyValuation] = useState<number | null>(null)
+  const [postMoneyValuation, setPostMoneyValuation] = useState<number | null>(DEFAULT_VALUATION_CAP)
   const [discount, setDiscount] = useState<number | null>(null)
   const [investmentTerms, setInvestmentTerms] = useState('')
   const [leadPartnerId, setLeadPartnerId] = useState<string>('')
