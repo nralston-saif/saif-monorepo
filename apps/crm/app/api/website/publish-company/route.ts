@@ -1,6 +1,26 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 
+// Trigger revalidation on the website after publish/unpublish
+async function revalidateWebsite() {
+  const websiteUrl = process.env.WEBSITE_URL || 'https://saif-website.vercel.app'
+  const revalidateSecret = process.env.WEBSITE_REVALIDATION_SECRET
+
+  const pathsToRevalidate = ['/portfolio', '/']
+
+  // Fire all revalidation requests in parallel for speed
+  await Promise.allSettled(
+    pathsToRevalidate.map(async (path) => {
+      const url = new URL('/api/revalidate', websiteUrl)
+      url.searchParams.set('path', path)
+      if (revalidateSecret) {
+        url.searchParams.set('secret', revalidateSecret)
+      }
+      return fetch(url.toString(), { method: 'POST' })
+    })
+  )
+}
+
 export async function POST(request: Request) {
   const supabase = await createClient()
 
@@ -69,6 +89,9 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Failed to unpublish company' }, { status: 500 })
       }
 
+      // Trigger website revalidation
+      await revalidateWebsite()
+
       return NextResponse.json({
         success: true,
         published: false,
@@ -111,6 +134,9 @@ export async function POST(request: Request) {
         console.error('Error publishing company:', insertError)
         return NextResponse.json({ error: 'Failed to publish company' }, { status: 500 })
       }
+
+      // Trigger website revalidation
+      await revalidateWebsite()
 
       return NextResponse.json({
         success: true,
