@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import FocusTagSelector from '@/components/FocusTagSelector'
@@ -33,6 +33,103 @@ type Props = {
   onUpdate?: () => void
 }
 
+// Editable text field component with auto-save
+function EditableField({
+  label,
+  value,
+  onChange,
+  multiline = false,
+  placeholder = 'Click to add...',
+}: {
+  label: string
+  value: string
+  onChange: (value: string) => Promise<void>
+  multiline?: boolean
+  placeholder?: string
+}) {
+  const [isEditing, setIsEditing] = useState(false)
+  const [localValue, setLocalValue] = useState(value)
+  const [saving, setSaving] = useState(false)
+  const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null)
+
+  useEffect(() => {
+    setLocalValue(value)
+  }, [value])
+
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus()
+    }
+  }, [isEditing])
+
+  const handleSave = async () => {
+    if (localValue !== value) {
+      setSaving(true)
+      await onChange(localValue)
+      setSaving(false)
+    }
+    setIsEditing(false)
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !multiline) {
+      handleSave()
+    }
+    if (e.key === 'Escape') {
+      setLocalValue(value)
+      setIsEditing(false)
+    }
+  }
+
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-2">
+        <h3 className="text-sm font-medium text-gray-500">{label}</h3>
+        {saving && <span className="text-xs text-gray-400">(saving...)</span>}
+      </div>
+      {isEditing ? (
+        multiline ? (
+          <textarea
+            ref={inputRef as React.RefObject<HTMLTextAreaElement>}
+            value={localValue}
+            onChange={(e) => setLocalValue(e.target.value)}
+            onBlur={handleSave}
+            onKeyDown={handleKeyDown}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent text-sm"
+            rows={3}
+            placeholder={placeholder}
+          />
+        ) : (
+          <input
+            ref={inputRef as React.RefObject<HTMLInputElement>}
+            type="text"
+            value={localValue}
+            onChange={(e) => setLocalValue(e.target.value)}
+            onBlur={handleSave}
+            onKeyDown={handleKeyDown}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent text-sm"
+            placeholder={placeholder}
+          />
+        )
+      ) : (
+        <div
+          onClick={() => setIsEditing(true)}
+          className="cursor-pointer hover:bg-gray-50 rounded-lg p-2 -m-2 transition-colors group"
+        >
+          {localValue ? (
+            <p className="text-gray-900">{localValue}</p>
+          ) : (
+            <p className="text-gray-400 italic">{placeholder}</p>
+          )}
+          <span className="text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity">
+            Click to edit
+          </span>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function BioMapDetailModal({ organization, person, focusTags, userId, onClose, onUpdate }: Props) {
   const router = useRouter()
   const supabase = createClient()
@@ -44,6 +141,15 @@ export default function BioMapDetailModal({ organization, person, focusTags, use
   const [error, setError] = useState<string | null>(null)
   const [hasChanges, setHasChanges] = useState(false)
 
+  // Editable organization fields
+  const [description, setDescription] = useState(organization?.short_description || '')
+  const [website, setWebsite] = useState(organization?.website || '')
+
+  // Editable person fields
+  const [personEmail, setPersonEmail] = useState(person?.email || '')
+  const [personBio, setPersonBio] = useState(person?.bio || '')
+  const [personLinkedin, setPersonLinkedin] = useState(person?.linkedin_url || '')
+
   // Handle close - refresh if changes were made
   const handleClose = () => {
     if (hasChanges && onUpdate) {
@@ -54,24 +160,7 @@ export default function BioMapDetailModal({ organization, person, focusTags, use
 
   if (!organization && !person) return null
 
-  const getBioTags = (tagList: string[]): string[] => {
-    return tagList.filter(t => t.toLowerCase().includes('bio'))
-  }
-
   const focusTagNames = focusTags.map(t => t.name.toLowerCase())
-
-  const getFocusTags = (tagList: string[]): { name: string; color: string }[] => {
-    return tagList
-      .filter(t => focusTagNames.includes(t.toLowerCase()))
-      .map(t => {
-        const focusTag = focusTags.find(ft => ft.name.toLowerCase() === t.toLowerCase())
-        return {
-          name: t,
-          color: focusTag?.color || '#6B7280',
-        }
-      })
-      .sort((a, b) => a.name.localeCompare(b.name))
-  }
 
   const handleTagsChange = async (newTags: string[]) => {
     setTags(newTags)
@@ -95,15 +184,62 @@ export default function BioMapDetailModal({ organization, person, focusTags, use
         if (updateError) throw updateError
       }
 
-      // Mark that changes were made (will refresh on close)
       setHasChanges(true)
     } catch (err: any) {
       console.error('Error saving tags:', err)
       setError(err?.message || 'Failed to save tags')
-      // Revert to previous tags on error
       setTags(tags)
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleOrgFieldUpdate = async (field: string, value: string) => {
+    if (!organization) return
+
+    try {
+      const { error: updateError } = await supabase
+        .from('saif_companies')
+        .update({ [field]: value || null, updated_at: new Date().toISOString() })
+        .eq('id', organization.id)
+
+      if (updateError) throw updateError
+      setHasChanges(true)
+    } catch (err: any) {
+      console.error(`Error saving ${field}:`, err)
+      setError(err?.message || `Failed to save ${field}`)
+    }
+  }
+
+  const handlePersonFieldUpdate = async (field: string, value: string) => {
+    if (!person) return
+
+    try {
+      const { error: updateError } = await supabase
+        .from('saif_people')
+        .update({ [field]: value || null, updated_at: new Date().toISOString() })
+        .eq('id', person.id)
+
+      if (updateError) throw updateError
+      setHasChanges(true)
+    } catch (err: any) {
+      console.error(`Error saving ${field}:`, err)
+      setError(err?.message || `Failed to save ${field}`)
+    }
+  }
+
+  const handleContactEmailUpdate = async (contactId: string, newEmail: string) => {
+    try {
+      const { error: updateError } = await supabase
+        .from('saif_people')
+        .update({ email: newEmail || null, updated_at: new Date().toISOString() })
+        .eq('id', contactId)
+
+      if (updateError) throw updateError
+      setHasChanges(true)
+    } catch (err: any) {
+      console.error('Error saving contact email:', err)
+      setError(err?.message || 'Failed to save contact email')
     }
   }
 
@@ -131,7 +267,7 @@ export default function BioMapDetailModal({ organization, person, focusTags, use
                 </svg>
               </button>
             </div>
-            {/* Focus/Tags - Always visible in header */}
+            {/* Focus/Tags */}
             <div className="mt-4">
               <div className="flex items-center gap-2 mb-2">
                 <h3 className="text-sm font-medium text-gray-500">Focus</h3>
@@ -151,13 +287,28 @@ export default function BioMapDetailModal({ organization, person, focusTags, use
 
           {/* Content */}
           <div className="p-6 space-y-6 max-h-[50vh] overflow-y-auto">
-            {/* Description */}
-            {organization.short_description && (
-              <div>
-                <h3 className="text-sm font-medium text-gray-500 mb-2">Description</h3>
-                <p className="text-gray-900">{organization.short_description}</p>
-              </div>
-            )}
+            {/* Description - Editable */}
+            <EditableField
+              label="Description"
+              value={description}
+              onChange={async (value) => {
+                setDescription(value)
+                await handleOrgFieldUpdate('short_description', value)
+              }}
+              multiline
+              placeholder="Add a description..."
+            />
+
+            {/* Website - Editable */}
+            <EditableField
+              label="Website"
+              value={website}
+              onChange={async (value) => {
+                setWebsite(value)
+                await handleOrgFieldUpdate('website', value)
+              }}
+              placeholder="Add website URL..."
+            />
 
             {/* Location */}
             {(organization.city || organization.country) && (
@@ -169,52 +320,23 @@ export default function BioMapDetailModal({ organization, person, focusTags, use
               </div>
             )}
 
-            {/* Website */}
-            {organization.website && (
-              <div>
-                <h3 className="text-sm font-medium text-gray-500 mb-2">Website</h3>
-                <a
-                  href={organization.website}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-600 hover:underline"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {organization.website}
-                </a>
-              </div>
-            )}
-
-            {/* Contacts */}
-            {organization.contacts.length > 0 && (
-              <div>
-                <h3 className="text-sm font-medium text-gray-500 mb-2">Contacts</h3>
+            {/* Contacts - Editable emails */}
+            <div>
+              <h3 className="text-sm font-medium text-gray-500 mb-2">Contacts</h3>
+              {organization.contacts.length > 0 ? (
                 <div className="space-y-3">
                   {organization.contacts.map(contact => (
-                    <div key={contact.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <div>
-                        <p className="font-medium text-gray-900">{contact.name}</p>
-                        {contact.title && (
-                          <p className="text-sm text-gray-500">{contact.title}</p>
-                        )}
-                        {contact.relationship_type && (
-                          <p className="text-xs text-gray-400 capitalize">{contact.relationship_type.replace('_', ' ')}</p>
-                        )}
-                      </div>
-                      {contact.email && (
-                        <a
-                          href={`mailto:${contact.email}`}
-                          onClick={(e) => e.stopPropagation()}
-                          className="text-sm text-blue-600 hover:underline"
-                        >
-                          {contact.email}
-                        </a>
-                      )}
-                    </div>
+                    <ContactCard
+                      key={contact.id}
+                      contact={contact}
+                      onEmailUpdate={handleContactEmailUpdate}
+                    />
                   ))}
                 </div>
-              </div>
-            )}
+              ) : (
+                <p className="text-gray-400 italic">No contacts added</p>
+              )}
+            </div>
 
             {/* Founded Year */}
             {organization.founded_year && (
@@ -274,7 +396,7 @@ export default function BioMapDetailModal({ organization, person, focusTags, use
                 </svg>
               </button>
             </div>
-            {/* Focus/Tags - Always visible in header */}
+            {/* Focus/Tags */}
             <div className="mt-4">
               <div className="flex items-center gap-2 mb-2">
                 <h3 className="text-sm font-medium text-gray-500">Focus</h3>
@@ -302,27 +424,28 @@ export default function BioMapDetailModal({ organization, person, focusTags, use
               </span>
             </div>
 
-            {/* Bio */}
-            {person.bio && (
-              <div>
-                <h3 className="text-sm font-medium text-gray-500 mb-2">Bio</h3>
-                <p className="text-gray-900">{person.bio}</p>
-              </div>
-            )}
+            {/* Bio - Editable */}
+            <EditableField
+              label="Bio"
+              value={personBio}
+              onChange={async (value) => {
+                setPersonBio(value)
+                await handlePersonFieldUpdate('bio', value)
+              }}
+              multiline
+              placeholder="Add a bio..."
+            />
 
-            {/* Email */}
-            {person.email && (
-              <div>
-                <h3 className="text-sm font-medium text-gray-500 mb-2">Email</h3>
-                <a
-                  href={`mailto:${person.email}`}
-                  onClick={(e) => e.stopPropagation()}
-                  className="text-blue-600 hover:underline"
-                >
-                  {person.email}
-                </a>
-              </div>
-            )}
+            {/* Email - Editable */}
+            <EditableField
+              label="Email"
+              value={personEmail}
+              onChange={async (value) => {
+                setPersonEmail(value)
+                await handlePersonFieldUpdate('email', value)
+              }}
+              placeholder="Add email..."
+            />
 
             {/* Location */}
             {person.location && (
@@ -332,21 +455,16 @@ export default function BioMapDetailModal({ organization, person, focusTags, use
               </div>
             )}
 
-            {/* LinkedIn */}
-            {person.linkedin_url && (
-              <div>
-                <h3 className="text-sm font-medium text-gray-500 mb-2">LinkedIn</h3>
-                <a
-                  href={person.linkedin_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-600 hover:underline"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {person.linkedin_url}
-                </a>
-              </div>
-            )}
+            {/* LinkedIn - Editable */}
+            <EditableField
+              label="LinkedIn"
+              value={personLinkedin}
+              onChange={async (value) => {
+                setPersonLinkedin(value)
+                await handlePersonFieldUpdate('linkedin_url', value)
+              }}
+              placeholder="Add LinkedIn URL..."
+            />
 
             {/* Organizations */}
             {person.company_associations.length > 0 && (
@@ -394,4 +512,86 @@ export default function BioMapDetailModal({ organization, person, focusTags, use
   }
 
   return null
+}
+
+// Contact card with editable email
+function ContactCard({
+  contact,
+  onEmailUpdate,
+}: {
+  contact: { id: string; name: string; title: string | null; email: string | null; relationship_type: string | null }
+  onEmailUpdate: (contactId: string, email: string) => Promise<void>
+}) {
+  const [isEditingEmail, setIsEditingEmail] = useState(false)
+  const [email, setEmail] = useState(contact.email || '')
+  const [saving, setSaving] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (isEditingEmail && inputRef.current) {
+      inputRef.current.focus()
+    }
+  }, [isEditingEmail])
+
+  const handleSave = async () => {
+    if (email !== (contact.email || '')) {
+      setSaving(true)
+      await onEmailUpdate(contact.id, email)
+      setSaving(false)
+    }
+    setIsEditingEmail(false)
+  }
+
+  return (
+    <div className="p-3 bg-gray-50 rounded-lg">
+      <div className="flex items-start justify-between">
+        <div className="flex-1">
+          <p className="font-medium text-gray-900">{contact.name}</p>
+          {contact.title && (
+            <p className="text-sm text-gray-500">{contact.title}</p>
+          )}
+          {contact.relationship_type && (
+            <p className="text-xs text-gray-400 capitalize">{contact.relationship_type.replace('_', ' ')}</p>
+          )}
+        </div>
+      </div>
+      <div className="mt-2">
+        {isEditingEmail ? (
+          <div className="flex items-center gap-2">
+            <input
+              ref={inputRef}
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              onBlur={handleSave}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleSave()
+                if (e.key === 'Escape') {
+                  setEmail(contact.email || '')
+                  setIsEditingEmail(false)
+                }
+              }}
+              className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-black focus:border-transparent"
+              placeholder="Add email..."
+            />
+            {saving && <span className="text-xs text-gray-400">Saving...</span>}
+          </div>
+        ) : (
+          <div
+            onClick={() => setIsEditingEmail(true)}
+            className="cursor-pointer hover:bg-gray-100 rounded px-2 py-1 -mx-2 -my-1 transition-colors group"
+          >
+            {email ? (
+              <span className="text-sm text-blue-600">{email}</span>
+            ) : (
+              <span className="text-sm text-gray-400 italic">Add email...</span>
+            )}
+            <span className="text-xs text-gray-400 opacity-0 group-hover:opacity-100 ml-2 transition-opacity">
+              (click to edit)
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
+  )
 }
