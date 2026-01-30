@@ -186,8 +186,16 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
     amount: string
     post_money_valuation: string
     investment_date: string
+    discount: string
+    terms: string
+    lead_partner_id: string
+    other_funders: string
+    stealthy: boolean
+    notes: string
+    status: string
   } | null>(null)
   const [savingInvestment, setSavingInvestment] = useState(false)
+  const [deletingInvestment, setDeletingInvestment] = useState(false)
 
   // Founder management state
   const [showAddFounder, setShowAddFounder] = useState(false)
@@ -755,6 +763,13 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
       amount: investment.amount?.toString() || '',
       post_money_valuation: investment.post_money_valuation ? (investment.post_money_valuation / 1000000).toString() : '',
       investment_date: investment.investment_date?.split('T')[0] || '',
+      discount: investment.discount ? (investment.discount * 100).toString() : '',
+      terms: investment.terms || '',
+      lead_partner_id: investment.lead_partner_id || '',
+      other_funders: investment.other_funders || '',
+      stealthy: investment.stealthy || false,
+      notes: investment.notes || '',
+      status: investment.status || 'active',
     })
     setShowEditInvestmentModal(true)
   }
@@ -772,7 +787,14 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
           round: editingInvestment.round || null,
           amount: editingInvestment.amount ? parseFloat(editingInvestment.amount) : null,
           post_money_valuation: editingInvestment.post_money_valuation ? parseFloat(editingInvestment.post_money_valuation) * 1000000 : null,
-          investment_date: editingInvestment.investment_date === null ? undefined : editingInvestment.investment_date,
+          investment_date: editingInvestment.investment_date || undefined,
+          discount: editingInvestment.discount ? parseFloat(editingInvestment.discount) / 100 : null,
+          terms: editingInvestment.terms || null,
+          lead_partner_id: editingInvestment.lead_partner_id || null,
+          other_funders: editingInvestment.other_funders || null,
+          stealthy: editingInvestment.stealthy,
+          notes: editingInvestment.notes || null,
+          status: editingInvestment.status || 'active',
         })
         .eq('id', editingInvestment.id)
 
@@ -787,6 +809,31 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
       showToast('Failed to update investment', 'error')
     } finally {
       setSavingInvestment(false)
+    }
+  }
+
+  // Delete investment
+  const handleDeleteInvestment = async (investmentId: string) => {
+    if (!confirm('Are you sure you want to delete this investment? This action cannot be undone.')) {
+      return
+    }
+
+    setDeletingInvestment(true)
+    try {
+      const { error } = await supabase
+        .from('saif_investments')
+        .delete()
+        .eq('id', investmentId)
+
+      if (error) throw error
+
+      showToast('Investment deleted successfully', 'success')
+      router.refresh()
+    } catch (err: any) {
+      console.error('Error deleting investment:', err)
+      showToast('Failed to delete investment', 'error')
+    } finally {
+      setDeletingInvestment(false)
     }
   }
 
@@ -1702,16 +1749,28 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
                         )}
                       </div>
 
-                      {/* Edit button */}
-                      <button
-                        onClick={() => openEditInvestment(investment)}
-                        className="ml-auto p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
-                        title="Edit investment"
-                      >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                        </svg>
-                      </button>
+                      {/* Edit & Delete buttons */}
+                      <div className="ml-auto flex items-center gap-1">
+                        <button
+                          onClick={() => openEditInvestment(investment)}
+                          className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
+                          title="Edit investment"
+                        >
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={() => handleDeleteInvestment(investment.id)}
+                          disabled={deletingInvestment}
+                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded disabled:opacity-50"
+                          title="Delete investment"
+                        >
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
 
                       {/* Date */}
                       {investment.investment_date && (
@@ -2233,8 +2292,8 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
       {/* Edit Investment Modal */}
       {showEditInvestmentModal && editingInvestment && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => !savingInvestment && setShowEditInvestmentModal(false)}>
-          <div className="bg-white rounded-xl shadow-xl max-w-lg w-full" onClick={(e) => e.stopPropagation()}>
-            <div className="p-6 border-b border-gray-100">
+          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6 border-b border-gray-100 sticky top-0 bg-white">
               <div className="flex items-start justify-between">
                 <div>
                   <h2 className="text-xl font-bold text-gray-900">Edit Investment</h2>
@@ -2248,9 +2307,33 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
               </div>
             </div>
             <div className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              {/* Row 1: Amount, Date, Type */}
+              <div className="grid grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Investment Type</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Amount ($)</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                    <input
+                      type="number"
+                      value={editingInvestment.amount}
+                      onChange={(e) => setEditingInvestment({ ...editingInvestment, amount: e.target.value })}
+                      placeholder="100000"
+                      className="input"
+                      style={{ paddingLeft: '1.75rem' }}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                  <input
+                    type="date"
+                    value={editingInvestment.investment_date}
+                    onChange={(e) => setEditingInvestment({ ...editingInvestment, investment_date: e.target.value })}
+                    className="input"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
                   <select
                     value={editingInvestment.type}
                     onChange={(e) => setEditingInvestment({ ...editingInvestment, type: e.target.value })}
@@ -2262,6 +2345,10 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
                     ))}
                   </select>
                 </div>
+              </div>
+
+              {/* Row 2: Round, Valuation/Cap, Discount */}
+              <div className="grid grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Round</label>
                   <select
@@ -2275,41 +2362,119 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
                     ))}
                   </select>
                 </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Amount ($)</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {editingInvestment.type === 'safe' || editingInvestment.type === 'note' ? 'Valuation Cap ($M)' : 'Post-Money ($M)'}
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                    <input
+                      type="number"
+                      value={editingInvestment.post_money_valuation}
+                      onChange={(e) => setEditingInvestment({ ...editingInvestment, post_money_valuation: e.target.value })}
+                      placeholder="10"
+                      step="0.1"
+                      className="input"
+                      style={{ paddingLeft: '1.75rem' }}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Discount %</label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      value={editingInvestment.discount}
+                      onChange={(e) => setEditingInvestment({ ...editingInvestment, discount: e.target.value })}
+                      placeholder="20"
+                      min="0"
+                      max="100"
+                      className="input"
+                      style={{ paddingRight: '1.75rem' }}
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">%</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Row 3: Terms, Lead Partner, Status */}
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Terms</label>
                   <input
-                    type="number"
-                    value={editingInvestment.amount}
-                    onChange={(e) => setEditingInvestment({ ...editingInvestment, amount: e.target.value })}
-                    placeholder="100000"
+                    type="text"
+                    value={editingInvestment.terms}
+                    onChange={(e) => setEditingInvestment({ ...editingInvestment, terms: e.target.value })}
+                    placeholder="e.g., MFN, Pro-rata"
                     className="input"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Post-Money / Cap ($M)</label>
-                  <input
-                    type="number"
-                    value={editingInvestment.post_money_valuation}
-                    onChange={(e) => setEditingInvestment({ ...editingInvestment, post_money_valuation: e.target.value })}
-                    placeholder="10"
-                    step="0.1"
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Lead Partner</label>
+                  <select
+                    value={editingInvestment.lead_partner_id}
+                    onChange={(e) => setEditingInvestment({ ...editingInvestment, lead_partner_id: e.target.value })}
                     className="input"
-                  />
+                  >
+                    <option value="">Select partner...</option>
+                    {partners.map((partner) => (
+                      <option key={partner.id} value={partner.id}>{partner.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                  <select
+                    value={editingInvestment.status}
+                    onChange={(e) => setEditingInvestment({ ...editingInvestment, status: e.target.value })}
+                    className="input"
+                  >
+                    <option value="active">Active</option>
+                    <option value="acquired">Acquired</option>
+                    <option value="ipo">IPO</option>
+                    <option value="failed">Failed</option>
+                    <option value="written_off">Written Off</option>
+                  </select>
                 </div>
               </div>
+
+              {/* Row 4: Co-Investors */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Investment Date</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Co-Investors</label>
                 <input
-                  type="date"
-                  value={editingInvestment.investment_date}
-                  onChange={(e) => setEditingInvestment({ ...editingInvestment, investment_date: e.target.value })}
+                  type="text"
+                  value={editingInvestment.other_funders}
+                  onChange={(e) => setEditingInvestment({ ...editingInvestment, other_funders: e.target.value })}
+                  placeholder="e.g., Y Combinator, Sequoia"
                   className="input"
                 />
               </div>
+
+              {/* Row 5: Notes */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                <textarea
+                  value={editingInvestment.notes}
+                  onChange={(e) => setEditingInvestment({ ...editingInvestment, notes: e.target.value })}
+                  placeholder="Additional notes about this investment..."
+                  rows={3}
+                  className="input resize-none"
+                />
+              </div>
+
+              {/* Stealth toggle */}
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="edit-stealth"
+                  checked={editingInvestment.stealthy}
+                  onChange={(e) => setEditingInvestment({ ...editingInvestment, stealthy: e.target.checked })}
+                  className="w-4 h-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900"
+                />
+                <label htmlFor="edit-stealth" className="text-sm text-gray-700">Stealth investment (hide from public portfolio)</label>
+              </div>
             </div>
-            <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex gap-3">
+            <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex gap-3 sticky bottom-0">
               <button
                 onClick={() => setShowEditInvestmentModal(false)}
                 className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50"
