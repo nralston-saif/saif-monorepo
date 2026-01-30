@@ -1,11 +1,14 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import { cookies } from 'next/headers'
 import Navigation from '@/components/Navigation'
 import DashboardClient from './DashboardClient'
 import FounderDashboard from './FounderDashboard'
 import type { Database } from '@/lib/types/database'
 
 type Person = Database['public']['Tables']['saif_people']['Row']
+
+const IMPERSONATE_COOKIE = 'saif_impersonate'
 
 export default async function DashboardPage({
   searchParams
@@ -23,16 +26,38 @@ export default async function DashboardPage({
     redirect('/auth/login')
   }
 
-  // Get full user profile (using auth_user_id to link to auth.users)
-  const { data: profile, error: profileError } = await supabase
+  // Get the real user's profile first
+  const { data: realProfile, error: realProfileError } = await supabase
     .from('saif_people')
     .select('id, first_name, last_name, name, email, role, status')
     .eq('auth_user_id', user.id)
     .single()
 
   // If no profile, redirect to claim flow
-  if (profileError || !profile) {
+  if (realProfileError || !realProfile) {
     redirect('/profile/claim')
+  }
+
+  // Check for impersonation (partners only)
+  let profile = realProfile
+  const cookieStore = await cookies()
+  const impersonateCookie = cookieStore.get(IMPERSONATE_COOKIE)
+
+  if (impersonateCookie && realProfile.role === 'partner') {
+    try {
+      const impersonateData = JSON.parse(impersonateCookie.value)
+      const { data: impersonatedProfile } = await supabase
+        .from('saif_people')
+        .select('*')
+        .eq('id', impersonateData.targetPersonId)
+        .single()
+
+      if (impersonatedProfile && impersonatedProfile.role !== 'partner') {
+        profile = impersonatedProfile
+      }
+    } catch (e) {
+      // Invalid cookie, ignore
+    }
   }
 
   const typedProfile = profile as Person
@@ -40,7 +65,7 @@ export default async function DashboardPage({
   const isPartner = typedProfile.role === 'partner'
   const wantsCommunityView = view === 'community'
 
-  // Non-partners see the founder dashboard, partners can view it with ?view=community
+  // Non-partners see the founder dashboard, partners can view it with ?view=community or impersonation
   if (!isPartner || wantsCommunityView) {
     // Fetch the founder's company
     const { data: companyRelation } = await supabase

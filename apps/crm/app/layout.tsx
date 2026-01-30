@@ -4,6 +4,7 @@ import './globals.css'
 import { Providers } from '@saif/ui'
 import NotificationToast from '@/components/NotificationToast'
 import TicketModalProvider from '@/components/TicketModalProvider'
+import ImpersonationBanner from '@/components/ImpersonationBanner'
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -39,6 +40,7 @@ export default async function RootLayout({
       </head>
       <body>
         <Providers>
+          <ImpersonationBanner />
           <TicketModalProvider>
             {children}
             <NotificationToast />

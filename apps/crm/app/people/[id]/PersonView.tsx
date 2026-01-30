@@ -117,6 +117,7 @@ export default function PersonView({ person, introducerName, activeCompanies, ca
   const [copiedAltEmail, setCopiedAltEmail] = useState<number | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [impersonating, setImpersonating] = useState(false)
 
   const copyEmailToClipboard = async () => {
     if (person.email) {
@@ -378,6 +379,34 @@ export default function PersonView({ person, introducerName, activeCompanies, ca
       setError(`Failed to upload photo: ${err?.message || 'Unknown error'}`)
     } finally {
       setUploadingAvatar(false)
+    }
+  }
+
+  const handleImpersonate = async () => {
+    setImpersonating(true)
+    setError(null)
+
+    try {
+      const response = await fetch('/api/auth/impersonate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetPersonId: person.id }),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        setError(result.error || 'Failed to impersonate user')
+        return
+      }
+
+      // Redirect to dashboard as the impersonated user
+      router.push('/dashboard')
+      router.refresh()
+    } catch (err: any) {
+      setError('Failed to impersonate user')
+    } finally {
+      setImpersonating(false)
     }
   }
 
@@ -1050,15 +1079,28 @@ export default function PersonView({ person, introducerName, activeCompanies, ca
               </div>
             </div>
 
-            {/* Edit Button */}
-            {canEdit && (
-              <button
-                onClick={() => setIsEditing(true)}
-                className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800"
-              >
-                Edit Profile
-              </button>
-            )}
+            {/* Action Buttons */}
+            <div className="flex items-center gap-2">
+              {/* Impersonate Button (partners only, non-partners who have signed up) */}
+              {isPartner && person.role !== 'partner' && person.status === 'active' && (
+                <button
+                  onClick={handleImpersonate}
+                  disabled={impersonating}
+                  className="px-4 py-2 bg-amber-500 text-white text-sm font-medium rounded-md hover:bg-amber-600 disabled:opacity-50"
+                >
+                  {impersonating ? 'Starting...' : 'View as User'}
+                </button>
+              )}
+              {/* Edit Button */}
+              {canEdit && (
+                <button
+                  onClick={() => setIsEditing(true)}
+                  className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800"
+                >
+                  Edit Profile
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Bio */}
