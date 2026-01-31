@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { Database } from '@/lib/types/database'
 import { sanitizeUrl } from '@/lib/sanitize'
+import Toggle from '@/components/Toggle'
 
 type Company = Database['public']['Tables']['saif_companies']['Row']
 type Person = Database['public']['Tables']['saif_people']['Row']
@@ -19,10 +20,13 @@ interface CompanyViewProps {
   }
   canEdit: boolean
   isPartner: boolean
+  isFounder: boolean
+  isPortfolioCompany: boolean
+  isPublishedToWebsite: boolean
   currentPersonId: string
 }
 
-export default function CompanyView({ company, canEdit, isPartner, currentPersonId }: CompanyViewProps) {
+export default function CompanyView({ company, canEdit, isPartner, isFounder, isPortfolioCompany, isPublishedToWebsite, currentPersonId }: CompanyViewProps) {
   const router = useRouter()
   const supabase = createClient()
 
@@ -31,6 +35,10 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
   const [uploadingLogo, setUploadingLogo] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+
+  // Website publishing state
+  const [publishedToWebsite, setPublishedToWebsite] = useState(isPublishedToWebsite)
+  const [publishing, setPublishing] = useState(false)
 
   // Founder management state
   const [showAddFounder, setShowAddFounder] = useState(false)
@@ -306,6 +314,43 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
     }
   }
 
+  // Handle website publish toggle
+  const togglePublishToWebsite = async (newValue: boolean) => {
+    setPublishing(true)
+    // Optimistically update UI
+    setPublishedToWebsite(newValue)
+
+    try {
+      const response = await fetch('/api/website/publish-company', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          company_id: company.id,
+          action: 'toggle',
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        // Revert on error
+        setPublishedToWebsite(!newValue)
+        setError(data.error || 'Failed to update website status')
+        setTimeout(() => setError(null), 3000)
+      } else {
+        setSuccess(data.message || (newValue ? 'Company published to website' : 'Company removed from website'))
+        setTimeout(() => setSuccess(null), 3000)
+      }
+    } catch (err) {
+      // Revert on error
+      setPublishedToWebsite(!newValue)
+      setError('Failed to update website status')
+      setTimeout(() => setError(null), 3000)
+    } finally {
+      setPublishing(false)
+    }
+  }
+
   // Get current and former founders
   const currentFounders = company.people?.filter(
     (cp) => cp.relationship_type === 'founder' && cp.person && !cp.end_date
@@ -385,15 +430,33 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
           </div>
         </div>
 
-        {/* Edit Button */}
-        {canEdit && !isEditing && (
-          <button
-            onClick={() => setIsEditing(true)}
-            className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800"
-          >
-            Edit Company
-          </button>
-        )}
+        {/* Action Buttons */}
+        <div className="flex gap-3">
+          {/* Publish to Website Toggle - for portfolio companies, visible to partners and founders */}
+          {isPortfolioCompany && (isPartner || isFounder) && !isEditing && (
+            <div
+              className="flex items-center gap-3 px-3 py-1.5 bg-gray-50 rounded-lg border border-gray-200"
+              title="List your company on the SAIF website"
+            >
+              <span className="text-sm text-gray-600">Website</span>
+              <Toggle
+                checked={publishedToWebsite}
+                onChange={togglePublishToWebsite}
+                disabled={publishing}
+                size="sm"
+              />
+            </div>
+          )}
+          {/* Edit Button */}
+          {canEdit && !isEditing && (
+            <button
+              onClick={() => setIsEditing(true)}
+              className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800"
+            >
+              Edit Company
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Error/Success Messages */}

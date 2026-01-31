@@ -1,6 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
-import { getActiveProfile } from '@/lib/impersonation'
 
 // Trigger revalidation on the website after publish/unpublish
 async function revalidateWebsite() {
@@ -25,16 +24,24 @@ async function revalidateWebsite() {
 export async function POST(request: Request) {
   const supabase = await createClient()
 
-  // Get active profile (respects impersonation)
-  const { profile, realProfile } = await getActiveProfile()
-
-  if (!profile) {
+  // Check if user is authenticated
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
   }
 
-  // Use real profile to check if user is actually a partner (for authorization)
-  // But use active profile to check founder relationship
-  const isPartner = realProfile?.role === 'partner'
+  // Get current user's profile
+  const { data: currentPerson } = await supabase
+    .from('saif_people')
+    .select('id, role')
+    .eq('auth_user_id', user.id)
+    .single()
+
+  if (!currentPerson) {
+    return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
+  }
+
+  const isPartner = currentPerson.role === 'partner'
 
   try {
     const { company_id, action } = await request.json()
@@ -49,7 +56,7 @@ export async function POST(request: Request) {
         .from('saif_company_people')
         .select('id')
         .eq('company_id', company_id)
-        .eq('user_id', profile.id)
+        .eq('user_id', currentPerson.id)
         .eq('relationship_type', 'founder')
         .is('end_date', null)
         .single()
@@ -71,7 +78,8 @@ export async function POST(request: Request) {
     }
 
     // Check if already published
-    const { data: existing } = await supabase
+    // Note: website_portfolio_companies is not in saif-face types, use type assertion
+    const { data: existing } = await (supabase as any)
       .from('website_portfolio_companies')
       .select('id')
       .eq('company_id', company_id)
@@ -91,7 +99,7 @@ export async function POST(request: Request) {
         })
       }
 
-      const { error: deleteError } = await supabase
+      const { error: deleteError } = await (supabase as any)
         .from('website_portfolio_companies')
         .delete()
         .eq('company_id', company_id)
@@ -121,16 +129,16 @@ export async function POST(request: Request) {
       }
 
       // Get the max sort_order
-      const { data: maxOrder } = await supabase
+      const { data: maxOrder } = await (supabase as any)
         .from('website_portfolio_companies')
         .select('sort_order')
         .order('sort_order', { ascending: false })
         .limit(1)
         .single()
 
-      const nextSortOrder = (maxOrder?.sort_order || 0) + 1
+      const nextSortOrder = ((maxOrder as any)?.sort_order || 0) + 1
 
-      const { error: insertError } = await supabase
+      const { error: insertError } = await (supabase as any)
         .from('website_portfolio_companies')
         .insert({
           company_id: company.id,
@@ -156,47 +164,6 @@ export async function POST(request: Request) {
         message: `${company.name} has been published to the website`,
       })
     }
-  } catch (error) {
-    console.error('Unexpected error:', error)
-    return NextResponse.json({ error: 'Unexpected error' }, { status: 500 })
-  }
-}
-
-// GET endpoint to check publish status for multiple companies
-export async function GET(request: Request) {
-  const supabase = await createClient()
-
-  // Check if user is authenticated
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
-    return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
-  }
-
-  try {
-    const { searchParams } = new URL(request.url)
-    const companyIds = searchParams.get('company_ids')?.split(',').filter(Boolean)
-
-    if (!companyIds || companyIds.length === 0) {
-      return NextResponse.json({ error: 'company_ids parameter is required' }, { status: 400 })
-    }
-
-    const { data: published, error } = await supabase
-      .from('website_portfolio_companies')
-      .select('company_id')
-      .in('company_id', companyIds)
-
-    if (error) {
-      console.error('Error fetching published status:', error)
-      return NextResponse.json({ error: 'Failed to fetch published status' }, { status: 500 })
-    }
-
-    const publishedIds = new Set(published?.map(p => p.company_id) || [])
-    const result: Record<string, boolean> = {}
-    companyIds.forEach(id => {
-      result[id] = publishedIds.has(id)
-    })
-
-    return NextResponse.json({ published: result })
   } catch (error) {
     console.error('Unexpected error:', error)
     return NextResponse.json({ error: 'Unexpected error' }, { status: 500 })

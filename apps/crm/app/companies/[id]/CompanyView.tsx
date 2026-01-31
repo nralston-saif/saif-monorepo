@@ -95,6 +95,7 @@ interface CompanyViewProps {
   }
   canEdit: boolean
   isPartner: boolean
+  isFounder?: boolean
   currentPersonId: string
   userName: string
   activeDeal?: ActiveDeal | null
@@ -103,7 +104,7 @@ interface CompanyViewProps {
   isPublishedToWebsite?: boolean
 }
 
-export default function CompanyView({ company, canEdit, isPartner, currentPersonId, userName, activeDeal, partners = [], isPortfolioCompany = false, isPublishedToWebsite = false }: CompanyViewProps) {
+export default function CompanyView({ company, canEdit, isPartner, isFounder = false, currentPersonId, userName, activeDeal, partners = [], isPortfolioCompany = false, isPublishedToWebsite = false }: CompanyViewProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const supabase = createClient()
@@ -966,16 +967,21 @@ export default function CompanyView({ company, canEdit, isPartner, currentPerson
         {/* Action Buttons */}
         <div className="flex gap-3">
           <CreateTicketButton currentUserId={currentPersonId} />
-          {/* Publish to Website Toggle - only for portfolio companies and partners */}
-          {isPortfolioCompany && isPartner && (
-            <div className="flex items-center gap-3 px-3 py-1.5 bg-gray-50 rounded-lg border border-gray-200">
-              <span className="text-sm text-gray-600">Website</span>
-              <Toggle
-                checked={publishedToWebsite}
-                onChange={togglePublishToWebsite}
-                disabled={publishing}
-                size="sm"
-              />
+          {/* Publish to Website Toggle - for portfolio companies, visible to partners and founders */}
+          {isPortfolioCompany && (isPartner || isFounder) && (
+            <div className="relative group">
+              <div className="flex items-center gap-3 px-3 py-1.5 bg-gray-50 rounded-lg border border-gray-200">
+                <span className="text-sm text-gray-600">Website</span>
+                <Toggle
+                  checked={publishedToWebsite}
+                  onChange={togglePublishToWebsite}
+                  disabled={publishing}
+                  size="sm"
+                />
+              </div>
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                List your company on the SAIF website
+              </div>
             </div>
           )}
           {canEdit && !isEditing && (

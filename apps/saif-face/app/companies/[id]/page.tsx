@@ -135,6 +135,21 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
 
   const canEdit = isPartner || isFounder
 
+  // Check if company is published to website (only for portfolio companies)
+  const isPortfolioCompany = companyData.stage === 'portfolio'
+  let isPublishedToWebsite = false
+
+  if (isPortfolioCompany) {
+    // Note: website_portfolio_companies is not in saif-face types, use type assertion
+    const { data: publishedData } = await (supabase as any)
+      .from('website_portfolio_companies')
+      .select('id')
+      .eq('company_id', id)
+      .single()
+
+    isPublishedToWebsite = !!publishedData
+  }
+
   // For non-partners, filter out former founder info (end_date) from the response
   // This prevents information disclosure about who left companies
   const sanitizedPeople = isPartner
@@ -195,6 +210,9 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
         company={typedCompany}
         canEdit={canEdit}
         isPartner={isPartner}
+        isFounder={isFounder}
+        isPortfolioCompany={isPortfolioCompany}
+        isPublishedToWebsite={isPublishedToWebsite}
         currentPersonId={currentPerson.id}
       />
     </div>

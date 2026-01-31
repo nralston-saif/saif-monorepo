@@ -230,6 +230,7 @@ export default async function CompanyPage({
         company={typedCompany}
         canEdit={canEdit}
         isPartner={showPartnerView}
+        isFounder={isFounder}
         currentPersonId={currentPerson.id}
         userName={userName}
         activeDeal={activeDeal}
