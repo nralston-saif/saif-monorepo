@@ -102,9 +102,10 @@ interface CompanyViewProps {
   partners?: Partner[]
   isPortfolioCompany?: boolean
   isPublishedToWebsite?: boolean
+  isStealthMode?: boolean
 }
 
-export default function CompanyView({ company, canEdit, isPartner, isFounder = false, currentPersonId, userName, activeDeal, partners = [], isPortfolioCompany = false, isPublishedToWebsite = false }: CompanyViewProps) {
+export default function CompanyView({ company, canEdit, isPartner, isFounder = false, currentPersonId, userName, activeDeal, partners = [], isPortfolioCompany = false, isPublishedToWebsite = false, isStealthMode = false }: CompanyViewProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const supabase = createClient()
@@ -121,10 +122,18 @@ export default function CompanyView({ company, canEdit, isPartner, isFounder = f
   const [publishedToWebsite, setPublishedToWebsite] = useState(isPublishedToWebsite)
   const [publishing, setPublishing] = useState(false)
 
+  // Stealth mode state
+  const [stealthMode, setStealthMode] = useState(isStealthMode)
+  const [togglingStealthMode, setTogglingStealthMode] = useState(false)
+
   // Sync state when server-provided prop changes (e.g., after page refresh)
   useEffect(() => {
     setPublishedToWebsite(isPublishedToWebsite)
   }, [isPublishedToWebsite])
+
+  useEffect(() => {
+    setStealthMode(isStealthMode)
+  }, [isStealthMode])
 
   const togglePublishToWebsite = async (newValue: boolean) => {
     // Optimistically update UI
@@ -160,6 +169,42 @@ export default function CompanyView({ company, canEdit, isPartner, isFounder = f
       showToast('Failed to update publish status', 'error')
     } finally {
       setPublishing(false)
+    }
+  }
+
+  const toggleStealthMode = async (newValue: boolean) => {
+    // Optimistically update UI
+    const previousValue = stealthMode
+    setStealthMode(newValue)
+    setTogglingStealthMode(true)
+
+    try {
+      const response = await fetch('/api/company/toggle-stealth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          company_id: company.id,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        // Confirm the state from server
+        setStealthMode(data.is_stealth)
+        showToast(data.message, 'success')
+      } else {
+        // Rollback on error
+        setStealthMode(previousValue)
+        showToast(data.error || 'Failed to update stealth mode', 'error')
+      }
+    } catch (error) {
+      // Rollback on error
+      setStealthMode(previousValue)
+      console.error('Error toggling stealth mode:', error)
+      showToast('Failed to update stealth mode', 'error')
+    } finally {
+      setTogglingStealthMode(false)
     }
   }
 
@@ -973,6 +1018,23 @@ export default function CompanyView({ company, canEdit, isPartner, isFounder = f
         {/* Action Buttons */}
         <div className="flex gap-3">
           <CreateTicketButton currentUserId={currentPersonId} />
+          {/* Stealth Mode Toggle - for portfolio companies, visible to partners and founders */}
+          {isPortfolioCompany && (isPartner || isFounder) && (
+            <div className="relative group">
+              <div className="flex items-center gap-3 px-3 py-1.5 bg-gray-50 rounded-lg border border-gray-200">
+                <span className="text-sm text-gray-600">Stealth</span>
+                <Toggle
+                  checked={stealthMode}
+                  onChange={toggleStealthMode}
+                  disabled={togglingStealthMode}
+                  size="sm"
+                />
+              </div>
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                Hide company and team from other founders
+              </div>
+            </div>
+          )}
           {/* Publish to Website Toggle - for portfolio companies, visible to partners and founders */}
           {isPortfolioCompany && (isPartner || isFounder) && (
             <div className="relative group">

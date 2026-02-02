@@ -35,6 +35,7 @@ export type Database = {
           is_active: boolean | null
           is_aisafety_company: boolean | null
           is_deal_prospect: boolean | null
+          is_stealth: boolean | null
           logo_url: string | null
           name: string
           previous_names: string[] | null
@@ -56,6 +57,7 @@ export type Database = {
           is_active?: boolean | null
           is_aisafety_company?: boolean | null
           is_deal_prospect?: boolean | null
+          is_stealth?: boolean | null
           logo_url?: string | null
           name: string
           previous_names?: string[] | null
@@ -77,6 +79,7 @@ export type Database = {
           is_active?: boolean | null
           is_aisafety_company?: boolean | null
           is_deal_prospect?: boolean | null
+          is_stealth?: boolean | null
           logo_url?: string | null
           name?: string
           previous_names?: string[] | null

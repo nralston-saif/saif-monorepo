@@ -212,6 +212,9 @@ export default async function CompanyPage({
     isPublishedToWebsite = !!publishedData
   }
 
+  // Get stealth mode status
+  const isStealthMode = company.is_stealth ?? false
+
   const typedCompany = company as Company & {
     people?: (CompanyPerson & {
       person: Person | null
@@ -237,6 +240,7 @@ export default async function CompanyPage({
         partners={partnersList}
         isPortfolioCompany={isPortfolioCompany}
         isPublishedToWebsite={isPublishedToWebsite}
+        isStealthMode={isStealthMode}
       />
     </div>
   )
