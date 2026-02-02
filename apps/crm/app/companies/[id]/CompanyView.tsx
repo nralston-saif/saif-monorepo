@@ -1055,7 +1055,7 @@ export default function CompanyView({ company, canEdit, isPartner, isFounder = f
               {/* Info text for founders about what gets published */}
               {isFounder && !isPartner && (
                 <p className="text-xs text-gray-500 max-w-[200px]">
-                  If publicly listed, your logo, company name, description, and website link will be pulled from this page.
+                  If listed on saif.vc, your logo, company name, description, and website link will be pulled from this page.
                 </p>
               )}
             </div>
