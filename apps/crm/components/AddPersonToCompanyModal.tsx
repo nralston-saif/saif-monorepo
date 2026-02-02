@@ -22,6 +22,7 @@ type Person = {
   last_name: string | null
   email: string | null
   role: string
+  status: string | null
   title: string | null
   avatar_url: string | null
 }
@@ -151,7 +152,7 @@ export default function AddPersonToCompanyModal({
   const fetchAllPeople = async () => {
     const { data } = await supabase
       .from('saif_people')
-      .select('id, first_name, last_name, email, role, title, avatar_url')
+      .select('id, first_name, last_name, email, role, status, title, avatar_url')
       .order('first_name')
 
     if (data) {
@@ -165,7 +166,7 @@ export default function AddPersonToCompanyModal({
     // Search by name or email
     const { data } = await supabase
       .from('saif_people')
-      .select('id, first_name, last_name, email, role, title, avatar_url')
+      .select('id, first_name, last_name, email, role, status, title, avatar_url')
       .or(`first_name.ilike.%${query}%,last_name.ilike.%${query}%,email.ilike.%${query}%`)
       .limit(20)
 
@@ -268,13 +269,21 @@ export default function AddPersonToCompanyModal({
         return
       }
 
-      // Update role to founder if adding as founder
+      // Update role and status when adding as founder
       if (relationshipType === 'founder') {
-        const currentRole = selectedPerson.role
-        if (currentRole !== 'founder' && currentRole !== 'partner') {
+        const updates: Record<string, string> = {}
+        if (selectedPerson.role !== 'founder' && selectedPerson.role !== 'partner') {
+          updates.role = 'founder'
+        }
+        // Founders are automatically eligible for community signup
+        // (don't downgrade 'active' people)
+        if (selectedPerson.status === 'tracked') {
+          updates.status = 'eligible'
+        }
+        if (Object.keys(updates).length > 0) {
           await supabase
             .from('saif_people')
-            .update({ role: 'founder' })
+            .update(updates)
             .eq('id', selectedPerson.id)
         }
       }
@@ -315,6 +324,8 @@ export default function AddPersonToCompanyModal({
 
     try {
       // 1. Create the person
+      // Founders are automatically eligible for community signup
+      const effectiveStatus = relationshipType === 'founder' ? 'eligible' as UserStatus : formData.status
       const { data: newPerson, error: createError } = await supabase
         .from('saif_people')
         .insert({
@@ -323,7 +334,7 @@ export default function AddPersonToCompanyModal({
           email: formData.email || null,
           mobile_phone: formData.mobile_phone || null,
           role: relationshipType === 'founder' ? 'founder' : formData.role,
-          status: formData.status,
+          status: effectiveStatus,
           title: formData.title || null,
           bio: formData.bio || null,
           location: formData.location || null,

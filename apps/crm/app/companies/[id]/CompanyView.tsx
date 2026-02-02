@@ -660,19 +660,25 @@ export default function CompanyView({ company, canEdit, isPartner, isFounder = f
       if (newFounder.email) {
         const { data: existingPerson } = await supabase
           .from('saif_people')
-          .select('id, role')
+          .select('id, role, status')
           .eq('email', newFounder.email)
           .single()
 
         if (existingPerson) {
           personId = existingPerson.id
 
-          // Update role to 'founder' if they're not already a founder or partner
-          // (partner is a higher-priority role that shouldn't be downgraded)
+          // Build updates: upgrade role and status for new founders
+          const updates: Record<string, string> = {}
           if (existingPerson.role !== 'founder' && existingPerson.role !== 'partner') {
+            updates.role = 'founder'
+          }
+          if (existingPerson.status === 'tracked') {
+            updates.status = 'eligible'
+          }
+          if (Object.keys(updates).length > 0) {
             await supabase
               .from('saif_people')
-              .update({ role: 'founder' })
+              .update(updates)
               .eq('id', existingPerson.id)
           }
         }
@@ -680,8 +686,8 @@ export default function CompanyView({ company, canEdit, isPartner, isFounder = f
 
       // Create new person if doesn't exist
       if (!personId) {
-        // New founders start as 'tracked'; partners can later invite them to the community (-> 'eligible')
-        const founderStatus = 'tracked'
+        // Founders added to a company are automatically eligible for community signup
+        const founderStatus = 'eligible'
         const { data: createdPerson, error: createError } = await supabase
           .from('saif_people')
           .insert({
