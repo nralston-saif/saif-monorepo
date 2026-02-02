@@ -72,7 +72,7 @@ export default async function PeoplePage() {
 
     // For everyone else, check if they have an active relationship with a portfolio company
     const hasActivePortfolioRelationship = person.companies?.some(
-      cp => !cp.end_date && cp.company?.stage === 'portfolio'
+      cp => !cp.end_date && (cp.company?.stage === 'portfolio' || cp.company?.stage === 'saif')
     )
 
     return hasActivePortfolioRelationship

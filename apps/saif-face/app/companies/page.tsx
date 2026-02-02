@@ -60,7 +60,7 @@ export default async function CompaniesPage() {
           type
         )
       `)
-      .eq('stage', 'portfolio')
+      .in('stage', ['portfolio', 'saif'])
       .eq('is_active', true)
       .order('name')
     companies = result.data
@@ -84,7 +84,7 @@ export default async function CompaniesPage() {
           )
         )
       `)
-      .eq('stage', 'portfolio')
+      .in('stage', ['portfolio', 'saif'])
       .eq('is_active', true)
       .order('name')
     companies = result.data

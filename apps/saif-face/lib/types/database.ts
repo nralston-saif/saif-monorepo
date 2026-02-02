@@ -8,7 +8,7 @@ export type Json =
 
 export type UserRole = 'partner' | 'founder' | 'advisor' | 'employee' | 'board_member' | 'investor' | 'contact'
 export type UserStatus = 'active' | 'eligible' | 'tracked'
-export type CompanyStage = 'portfolio' | 'prospect' | 'diligence' | 'passed' | 'archived'
+export type CompanyStage = 'portfolio' | 'prospect' | 'diligence' | 'passed' | 'archived' | 'saif' | 'tracked'
 export type RelationshipType = 'founder' | 'employee' | 'advisor' | 'board_member'
 
 export interface Database {
