@@ -15,15 +15,16 @@ function VerifyContent() {
     async function handleVerification() {
       const supabase = createClient()
 
-      // Check for error in URL params (Supabase sends errors this way)
-      const error = searchParams.get('error')
-      const errorDescription = searchParams.get('error_description')
-
-      if (error) {
-        console.error('Verification error from URL:', error, errorDescription)
-        setErrorMessage(errorDescription || 'Verification failed')
-        setStatus('error')
-        return
+      // Check for access_token in hash first — Supabase implicit flow puts the
+      // token here even when error query params are present from a prior redirect
+      const hash = window.location.hash
+      if (hash && hash.includes('access_token')) {
+        // Let the Supabase client pick up the session from the hash
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session) {
+          setStatus('success')
+          return
+        }
       }
 
       // Check for code in URL (Supabase PKCE flow)
@@ -45,17 +46,21 @@ function VerifyContent() {
         return
       }
 
-      // Check for access_token in hash (older flow)
-      const hash = window.location.hash
-      if (hash && hash.includes('access_token')) {
-        setStatus('success')
-        return
-      }
-
       // Check if user is already authenticated (maybe verification already processed)
       const { data: { session } } = await supabase.auth.getSession()
       if (session) {
         setStatus('success')
+        return
+      }
+
+      // Check for error in URL params
+      const error = searchParams.get('error')
+      const errorDescription = searchParams.get('error_description')
+
+      if (error) {
+        console.error('Verification error from URL:', error, errorDescription)
+        setErrorMessage(errorDescription || 'Verification failed')
+        setStatus('error')
         return
       }
 
