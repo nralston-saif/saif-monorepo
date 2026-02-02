@@ -1035,30 +1035,28 @@ export default function CompanyView({ company, canEdit, isPartner, isFounder = f
               </div>
             </div>
           )}
-          {/* Publish to Website Toggle - for portfolio companies, partners and founders */}
-          {isPortfolioCompany && (isPartner || isFounder) && (
-            <div className="flex flex-col gap-1">
-              <div className="relative group">
-                <div className="flex items-center gap-3 px-3 py-1.5 bg-gray-50 rounded-lg border border-gray-200">
-                  <span className="text-sm text-gray-600">Website</span>
-                  <Toggle
-                    checked={publishedToWebsite}
-                    onChange={togglePublishToWebsite}
-                    disabled={publishing}
-                    size="sm"
-                  />
-                </div>
-                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                  List your company on the SAIF website
-                </div>
+          {/* Publish to Website Toggle - for portfolio companies, partners only */}
+          {isPortfolioCompany && isPartner && (
+            <div className="relative group">
+              <div className="flex items-center gap-3 px-3 py-1.5 bg-gray-50 rounded-lg border border-gray-200">
+                <span className="text-sm text-gray-600">Website</span>
+                <Toggle
+                  checked={publishedToWebsite}
+                  onChange={togglePublishToWebsite}
+                  disabled={publishing}
+                  size="sm"
+                />
               </div>
-              {/* Info text for founders about what gets published */}
-              {isFounder && !isPartner && (
-                <p className="text-xs text-gray-500 max-w-[200px]">
-                  If listed on saif.vc, your logo, company name, description, and website link will be pulled from this page.
-                </p>
-              )}
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                List your company on the SAIF website
+              </div>
             </div>
+          )}
+          {/* Info text for founders about what gets published to website */}
+          {isPortfolioCompany && isFounder && !isPartner && (
+            <p className="text-xs text-gray-500 max-w-[200px]">
+              If listed on saif.vc, your logo, company name, description, and website link will be pulled from this page.
+            </p>
           )}
           {canEdit && !isEditing && (
             <button
