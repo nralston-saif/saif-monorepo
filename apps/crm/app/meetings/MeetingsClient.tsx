@@ -121,7 +121,7 @@ export default function MeetingsClient({ meetings, currentUser, partners }: Meet
     async function fetchData(): Promise<void> {
       const [companiesResult, peopleResult] = await Promise.all([
         supabase.from('saif_companies').select('id, name, logo_url').order('name'),
-        supabase.from('saif_people').select('id, first_name, last_name, email').in('status', ['active', 'pending']).order('first_name'),
+        supabase.from('saif_people').select('id, first_name, last_name, email').in('status', ['active', 'eligible']).order('first_name'),
       ])
 
       if (companiesResult.data) setCompanies(companiesResult.data as Company[])

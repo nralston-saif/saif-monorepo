@@ -46,7 +46,7 @@ const ROLE_LABELS: Record<string, string> = {
 
 const STATUS_LABELS: Record<string, string> = {
   active: 'Active',
-  pending: 'Pending',
+  eligible: 'Eligible',
   tracked: 'Tracked',
   inactive: 'Inactive',
 }

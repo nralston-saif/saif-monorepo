@@ -64,7 +64,7 @@ export default function CreateTicketButton({ currentUserId, className, onSuccess
           supabase
             .from('saif_people')
             .select('id, first_name, last_name, email')
-            .in('status', ['active', 'pending'])
+            .in('status', ['active', 'eligible'])
             .order('first_name'),
         ])
 

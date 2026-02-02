@@ -680,8 +680,8 @@ export default function CompanyView({ company, canEdit, isPartner, isFounder = f
 
       // Create new person if doesn't exist
       if (!personId) {
-        // Portfolio company founders get 'pending' status (awaiting signup), others get 'tracked'
-        const founderStatus = company.stage === 'portfolio' ? 'pending' : 'tracked'
+        // New founders start as 'tracked'; partners can later invite them to the community (-> 'eligible')
+        const founderStatus = 'tracked'
         const { data: createdPerson, error: createError } = await supabase
           .from('saif_people')
           .insert({
