@@ -1016,8 +1016,8 @@ export default function CompanyView({ company, canEdit, isPartner, isFounder = f
         </div>
 
         {/* Action Buttons */}
-        <div className="flex gap-3">
-          <CreateTicketButton currentUserId={currentPersonId} />
+        <div className="flex items-center gap-3">
+          <CreateTicketButton currentUserId={currentPersonId} className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors whitespace-nowrap" />
           {/* Stealth Mode Toggle - for portfolio companies, visible to partners and founders */}
           {isPortfolioCompany && (isPartner || isFounder) && (
             <div className="relative group">
@@ -1055,7 +1055,7 @@ export default function CompanyView({ company, canEdit, isPartner, isFounder = f
           {canEdit && !isEditing && (
             <button
               onClick={() => setIsEditing(true)}
-              className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800"
+              className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 whitespace-nowrap"
             >
               Edit Company
             </button>
