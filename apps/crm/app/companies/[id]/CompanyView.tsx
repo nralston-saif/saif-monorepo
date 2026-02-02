@@ -1052,6 +1052,12 @@ export default function CompanyView({ company, canEdit, isPartner, isFounder = f
               </div>
             </div>
           )}
+          {/* Info text for founders about what gets published */}
+          {isPortfolioCompany && isFounder && !isPartner && (
+            <p className="text-xs text-gray-500 max-w-xs">
+              Your logo, company name, description, and website link from this page will appear on the SAIF portfolio page.
+            </p>
+          )}
           {canEdit && !isEditing && (
             <button
               onClick={() => setIsEditing(true)}
