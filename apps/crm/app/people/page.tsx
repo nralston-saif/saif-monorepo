@@ -99,8 +99,7 @@ export default async function PeoplePage({
           relationship_notes,
           created_at
         `)
-        .order('first_name', { ascending: true })
-        .limit(300),
+        .order('first_name', { ascending: true }),
       // Get portfolio companies (investments)
       supabase
         .from('saif_investments')
@@ -269,7 +268,6 @@ export default async function PeoplePage({
       )
     `)
     .order('first_name')
-    .limit(300)
 
   if (peopleError) {
     console.error('Error fetching people:', peopleError)
