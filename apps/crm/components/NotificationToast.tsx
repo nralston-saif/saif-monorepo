@@ -95,6 +95,8 @@ export default function NotificationToast() {
         return '📦'
       case 'ticket_status_changed':
         return '🔄'
+      case 'profile_claimed':
+        return '👋'
       default:
         return '🔔'
     }

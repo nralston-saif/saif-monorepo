@@ -14,6 +14,7 @@ export type NotificationType =
   | 'ticket_assigned'
   | 'ticket_archived'
   | 'ticket_status_changed'
+  | 'profile_claimed'
 
 export type Database = {
   // Allows to automatically instantiate createClient with right options

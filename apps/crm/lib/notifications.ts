@@ -25,6 +25,7 @@ export type NotificationType =
   | 'ticket_assigned'
   | 'ticket_archived'
   | 'ticket_status_changed'
+  | 'profile_claimed'
 
 export type CreateNotificationParams = {
   recipientId: string
@@ -393,6 +394,30 @@ export async function notifyTicketStatusChanged(
     message: `${actorName} changed "${ticketTitle}" to ${statusLabel}`,
     link: `/tickets?id=${ticketId}`,
     ticketId,
+  })
+}
+
+/**
+ * Notification: Founder claimed their profile
+ * Notifies all partners when a founder claims their profile
+ */
+export async function notifyProfileClaimed(
+  personId: string,
+  founderName: string,
+  companyName: string | null
+) {
+  const partnerIds = await getAllPartnerIds()
+
+  const title = companyName
+    ? `${founderName} from ${companyName} claimed their profile`
+    : `${founderName} claimed their profile`
+
+  return createNotificationForMany({
+    recipientIds: partnerIds,
+    type: 'profile_claimed',
+    title,
+    message: 'A founder has joined the platform.',
+    link: `/people/${personId}`,
   })
 }
 

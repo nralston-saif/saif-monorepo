@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import { logAuditEventAsync } from '@/lib/audit'
+import { notifyProfileClaimed } from '@/lib/notifications'
 
 function getServiceClient() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -106,6 +107,41 @@ export async function POST(_request: NextRequest): Promise<NextResponse<ClaimPro
       },
       request: _request,
     })
+
+    // Notify partners about the profile claim (async, don't block response)
+    ;(async () => {
+      try {
+        // Get founder's name
+        const { data: founderData } = await serviceClient
+          .from('saif_people')
+          .select('first_name, last_name, name')
+          .eq('id', emailMatch.id)
+          .single()
+
+        const founderName = founderData?.first_name && founderData?.last_name
+          ? `${founderData.first_name} ${founderData.last_name}`
+          : founderData?.name || 'A founder'
+
+        // Get company name from company association (if any)
+        let companyName: string | null = null
+        const { data: companyData } = await serviceClient
+          .from('saif_company_people')
+          .select('saif_companies(name)')
+          .eq('user_id', emailMatch.id)
+          .limit(1)
+          .maybeSingle()
+
+        if (companyData?.saif_companies) {
+          // Handle both array and object responses from Supabase
+          const companies = companyData.saif_companies as { name: string } | { name: string }[]
+          companyName = Array.isArray(companies) ? companies[0]?.name : companies.name
+        }
+
+        await notifyProfileClaimed(emailMatch.id, founderName, companyName)
+      } catch (err) {
+        console.error('Error sending profile claim notification:', err)
+      }
+    })()
 
     return NextResponse.json({ success: true, redirectTo: '/dashboard' })
   } catch (error) {
