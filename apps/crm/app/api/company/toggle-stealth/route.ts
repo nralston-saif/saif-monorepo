@@ -23,27 +23,16 @@ export async function POST(request: Request) {
 
   const isPartner = currentPerson.role === 'partner'
 
+  // Only partners can toggle stealth mode
+  if (!isPartner) {
+    return NextResponse.json({ error: 'Only partners can toggle stealth mode' }, { status: 403 })
+  }
+
   try {
     const { company_id } = await request.json()
 
     if (!company_id) {
       return NextResponse.json({ error: 'company_id is required' }, { status: 400 })
-    }
-
-    // If not a partner, check if user is a founder of THIS company
-    if (!isPartner) {
-      const { data: founderLink } = await supabase
-        .from('saif_company_people')
-        .select('id')
-        .eq('company_id', company_id)
-        .eq('user_id', currentPerson.id)
-        .eq('relationship_type', 'founder')
-        .is('end_date', null)
-        .single()
-
-      if (!founderLink) {
-        return NextResponse.json({ error: 'Only founders can toggle stealth mode for their company' }, { status: 403 })
-      }
     }
 
     // Get company details (including current stealth status)

@@ -33,30 +33,18 @@ export async function POST(request: Request) {
   }
 
   // Use real profile to check if user is actually a partner (for authorization)
-  // But use active profile to check founder relationship
   const isPartner = realProfile?.role === 'partner'
+
+  // Only partners can publish/unpublish companies
+  if (!isPartner) {
+    return NextResponse.json({ error: 'Only partners can publish companies to the website' }, { status: 403 })
+  }
 
   try {
     const { company_id, action } = await request.json()
 
     if (!company_id) {
       return NextResponse.json({ error: 'company_id is required' }, { status: 400 })
-    }
-
-    // If not a partner, check if user is a founder of THIS company
-    if (!isPartner) {
-      const { data: founderLink } = await supabase
-        .from('saif_company_people')
-        .select('id')
-        .eq('company_id', company_id)
-        .eq('user_id', profile.id)
-        .eq('relationship_type', 'founder')
-        .is('end_date', null)
-        .single()
-
-      if (!founderLink) {
-        return NextResponse.json({ error: 'Only founders can publish their own company' }, { status: 403 })
-      }
     }
 
     // Get company details from saif_companies

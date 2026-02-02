@@ -1018,8 +1018,8 @@ export default function CompanyView({ company, canEdit, isPartner, isFounder = f
         {/* Action Buttons */}
         <div className="flex items-center gap-3">
           <CreateTicketButton currentUserId={currentPersonId} className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors whitespace-nowrap" />
-          {/* Stealth Mode Toggle - for portfolio companies, visible to partners and founders */}
-          {isPortfolioCompany && (isPartner || isFounder) && (
+          {/* Stealth Mode Toggle - for portfolio companies, partners only */}
+          {isPortfolioCompany && isPartner && (
             <div className="relative group">
               <div className="flex items-center gap-3 px-3 py-1.5 bg-gray-50 rounded-lg border border-gray-200">
                 <span className="text-sm text-gray-600">Stealth</span>
@@ -1035,8 +1035,8 @@ export default function CompanyView({ company, canEdit, isPartner, isFounder = f
               </div>
             </div>
           )}
-          {/* Publish to Website Toggle - for portfolio companies, visible to partners and founders */}
-          {isPortfolioCompany && (isPartner || isFounder) && (
+          {/* Publish to Website Toggle - for portfolio companies, partners only */}
+          {isPortfolioCompany && isPartner && (
             <div className="relative group">
               <div className="flex items-center gap-3 px-3 py-1.5 bg-gray-50 rounded-lg border border-gray-200">
                 <span className="text-sm text-gray-600">Website</span>
