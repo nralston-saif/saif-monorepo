@@ -1055,9 +1055,7 @@ export default function CompanyView({ company, canEdit, isPartner, isFounder = f
           {/* Info text for founders about what gets published */}
           {isPortfolioCompany && isFounder && !isPartner && (
             <p className="text-xs text-gray-500 max-w-xs">
-              {publishedToWebsite
-                ? 'Your company is publicly listed on the SAIF portfolio page.'
-                : 'Toggle on to list your logo, company name, description, and website link on the SAIF portfolio page.'}
+              If publicly listed, your logo, company name, description, and website link will be pulled from this page.
             </p>
           )}
           {canEdit && !isEditing && (
