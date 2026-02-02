@@ -116,6 +116,32 @@ export default function PersonView({ person, introducerName, activeCompanies, ca
     }
   }, [isPartner, person.status, person.email, supabase])
 
+  // Resend verification (partners only)
+  const [resendingVerification, setResendingVerification] = useState(false)
+  const handleResendVerification = async () => {
+    if (!person.email) return
+    setResendingVerification(true)
+    setError(null)
+    try {
+      const response = await fetch('/api/auth/resend-verification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: person.email.toLowerCase() }),
+      })
+      const result = await response.json()
+      if (result.success) {
+        setSuccess('Verification email resent')
+        setTimeout(() => setSuccess(null), 3000)
+      } else {
+        setError(result.message || 'Failed to resend verification email')
+      }
+    } catch {
+      setError('Failed to resend verification email')
+    } finally {
+      setResendingVerification(false)
+    }
+  }
+
   // Company affiliation management (partners only)
   const [allCompanyAssociations, setAllCompanyAssociations] = useState<CompanyAssociation[]>([])
   const [availableCompanies, setAvailableCompanies] = useState<{ id: string; name: string }[]>([])
@@ -1071,9 +1097,18 @@ export default function PersonView({ person, introducerName, activeCompanies, ca
                     </span>
                   )}
                   {isPartner && awaitingVerification && (
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
-                      Awaiting Verification
-                    </span>
+                    <>
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                        Awaiting Verification
+                      </span>
+                      <button
+                        onClick={handleResendVerification}
+                        disabled={resendingVerification}
+                        className="text-xs text-amber-700 hover:text-amber-900 underline disabled:opacity-50"
+                      >
+                        {resendingVerification ? 'Sending...' : 'Resend'}
+                      </button>
+                    </>
                   )}
                   {person.location && (
                     <span className="text-sm text-gray-500">{person.location}</span>
