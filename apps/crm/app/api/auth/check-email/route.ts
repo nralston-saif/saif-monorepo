@@ -47,7 +47,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<CheckEmai
 
     const { data: person, error: personError } = await supabase
       .from('saif_people')
-      .select('id, email, auth_user_id, status, invited_to_community, role')
+      .select('id, email, auth_user_id, status, role')
       .ilike('email', email)
       .maybeSingle()
 
@@ -81,39 +81,11 @@ export async function POST(request: NextRequest): Promise<NextResponse<CheckEmai
       }
     }
 
-    if (person.status !== 'pending') {
+    if (person.status !== 'eligible') {
       return NextResponse.json(notEligibleResponse)
     }
 
-    if (person.invited_to_community) {
-      return NextResponse.json({ canSignup: true, reason: 'eligible' })
-    }
-
-    const { data: founderRelation, error: relationError } = await supabase
-      .from('saif_company_people')
-      .select('id, relationship_type, company:saif_companies!inner(id, stage)')
-      .eq('user_id', person.id)
-      .eq('relationship_type', 'founder')
-      .is('end_date', null)
-      .limit(1)
-
-    if (relationError) {
-      console.error('Error checking founder status:', relationError)
-      return NextResponse.json(
-        { canSignup: false, reason: 'not_eligible', message: 'An error occurred. Please try again.' },
-        { status: 500 }
-      )
-    }
-
-    const isPortfolioFounder = founderRelation?.some(
-      (rel) => Array.isArray(rel.company) && rel.company.some((c) => c.stage === 'portfolio')
-    )
-
-    if (isPortfolioFounder) {
-      return NextResponse.json({ canSignup: true, reason: 'eligible' })
-    }
-
-    return NextResponse.json(notEligibleResponse)
+    return NextResponse.json({ canSignup: true, reason: 'eligible' })
   } catch (error) {
     console.error('Check email error:', error)
     return NextResponse.json(

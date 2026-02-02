@@ -90,7 +90,7 @@ export async function GET(request: NextRequest) {
     .from('saif_people')
     .select('id, name, first_name, last_name, email, role, title, avatar_url')
     .or(`first_name.ilike.%${sanitizedQuery}%,last_name.ilike.%${sanitizedQuery}%,name.ilike.%${sanitizedQuery}%,email.ilike.%${sanitizedQuery}%`)
-    .in('status', ['active', 'pending'])
+    .eq('status', 'active')
     .limit(10)
 
   return NextResponse.json(

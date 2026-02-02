@@ -1714,6 +1714,10 @@ export type Database = {
           rejected: number
         }[]
       }
+      get_unverified_signups: {
+        Args: { check_emails: string[] }
+        Returns: { email: string }[]
+      }
     }
     Enums: {
       ticket_priority: "high" | "medium" | "low"

@@ -62,9 +62,8 @@ const TAB_ROLES: (UserRole | 'portfolio')[] = ['founder', 'partner', 'advisor', 
 
 const STATUS_LABELS: Record<string, string> = {
   active: 'Active',
-  pending: 'Pending',
+  eligible: 'Eligible',
   tracked: 'Tracked',
-  inactive: 'Inactive',
 }
 
 const ROLE_COLORS: Record<string, string> = {
@@ -130,6 +129,7 @@ export default function PeopleClient({
   const [isCreatingTag, setIsCreatingTag] = useState(false)
   const tagDropdownRef = useRef<HTMLDivElement>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [unverifiedEmails, setUnverifiedEmails] = useState<Set<string>>(new Set())
 
   const router = useRouter()
   const supabase = createClient()
@@ -160,6 +160,22 @@ export default function PeopleClient({
 
     fetchData()
   }, [supabase])
+
+  // Check for unverified signups among eligible people (partners only)
+  useEffect(() => {
+    const eligibleEmails = people
+      .filter(p => p.status === 'eligible' && p.email)
+      .map(p => p.email!)
+
+    if (eligibleEmails.length === 0) return
+
+    supabase.rpc('get_unverified_signups', { check_emails: eligibleEmails })
+      .then(({ data }) => {
+        if (data && Array.isArray(data) && data.length > 0) {
+          setUnverifiedEmails(new Set((data as { email: string }[]).map(d => d.email.toLowerCase())))
+        }
+      })
+  }, [people, supabase])
 
   // Sync URL search param to state (handles client-side navigation)
   useEffect(() => {
@@ -767,9 +783,14 @@ export default function PeopleClient({
                       <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${ROLE_COLORS[person.role] || 'bg-gray-100 text-gray-800'}`}>
                         {ROLE_LABELS[person.role] || person.role}
                       </span>
-                      {person.status === 'pending' && (
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
-                          Pending
+                      {person.status === 'eligible' && (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                          Eligible
+                        </span>
+                      )}
+                      {person.status === 'eligible' && person.email && unverifiedEmails.has(person.email.toLowerCase()) && (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800">
+                          Awaiting Verification
                         </span>
                       )}
                       {person.location && (
@@ -1061,15 +1082,9 @@ export default function PeopleClient({
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">
                     Status
                   </label>
-                  <select
-                    value={formData.status || 'tracked'}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value as UserStatus })}
-                    className="input"
-                  >
-                    {Object.keys(STATUS_LABELS).map(status => (
-                      <option key={status} value={status}>{STATUS_LABELS[status]}</option>
-                    ))}
-                  </select>
+                  <div className="px-3 py-2 border border-gray-200 rounded-md bg-gray-50 text-sm text-gray-700">
+                    Tracked
+                  </div>
                 </div>
               </div>
 

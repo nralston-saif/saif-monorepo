@@ -167,9 +167,9 @@ export default function PeopleGrid({ people, isPartner }: PeopleGridProps) {
                         {person.role === 'board_member' ? 'Board Member' :
                          person.role.charAt(0).toUpperCase() + person.role.slice(1)}
                       </span>
-                      {person.status === 'pending' && (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
-                          Pending
+                      {person.status === 'eligible' && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                          Eligible
                         </span>
                       )}
                     </div>

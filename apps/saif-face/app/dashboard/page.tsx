@@ -97,9 +97,9 @@ export default async function DashboardPage() {
     `)
     .order('first_name')
 
-  // Filter to active/pending people (same as people page)
+  // Filter to active people only
   const communityList = ((people || []) as PersonWithCompanies[]).filter(
-    p => p.status === 'active' || p.status === 'pending'
+    p => p.status === 'active'
   )
 
   const isPartner = typedPerson.role === 'partner'

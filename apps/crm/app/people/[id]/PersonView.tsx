@@ -46,7 +46,6 @@ type Person = {
   introduced_by: string | null
   introduction_context: string | null
   relationship_notes: string | null
-  invited_to_community: boolean | null
   companies?: CompanyAssociation[]
 }
 
@@ -72,9 +71,8 @@ const ROLE_LABELS: Record<UserRole, string> = {
 
 const STATUS_LABELS: Record<UserStatus, string> = {
   active: 'Active',
-  pending: 'Pending',
+  eligible: 'Eligible',
   tracked: 'Tracked',
-  inactive: 'Inactive',
 }
 
 export default function PersonView({ person, introducerName, activeCompanies, canEdit, isPartner, currentUserId, currentUserName }: PersonViewProps) {
@@ -104,6 +102,19 @@ export default function PersonView({ person, introducerName, activeCompanies, ca
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [avatarUrl, setAvatarUrl] = useState(person.avatar_url)
+
+  // Awaiting verification indicator (partners only, for eligible people)
+  const [awaitingVerification, setAwaitingVerification] = useState(false)
+  useEffect(() => {
+    if (isPartner && person.status === 'eligible' && person.email) {
+      supabase.rpc('get_unverified_signups', { check_emails: [person.email] })
+        .then(({ data }) => {
+          if (data && data.length > 0) {
+            setAwaitingVerification(true)
+          }
+        })
+    }
+  }, [isPartner, person.status, person.email, supabase])
 
   // Company affiliation management (partners only)
   const [allCompanyAssociations, setAllCompanyAssociations] = useState<CompanyAssociation[]>([])
@@ -151,7 +162,6 @@ export default function PersonView({ person, introducerName, activeCompanies, ca
     first_met_date: person.first_met_date || '',
     introduction_context: person.introduction_context || '',
     relationship_notes: person.relationship_notes || '',
-    invited_to_community: person.invited_to_community || false,
   })
 
   // Fetch all company associations when editing (partners only)
@@ -428,11 +438,6 @@ export default function PersonView({ person, introducerName, activeCompanies, ca
         .join(' ')
         .trim() || null
 
-      // If inviting to community, ensure status is set to pending (unless already active)
-      const effectiveStatus = formData.invited_to_community && formData.status === 'tracked'
-        ? 'pending'
-        : formData.status
-
       const { error: updateError } = await supabase
         .from('saif_people')
         .update({
@@ -448,12 +453,11 @@ export default function PersonView({ person, introducerName, activeCompanies, ca
           mobile_phone: formData.mobile_phone || null,
           location: formData.location || null,
           role: formData.role,
-          status: effectiveStatus,
+          status: formData.status,
           tags: formData.tags,
           first_met_date: formData.first_met_date || null,
           introduction_context: formData.introduction_context || null,
           relationship_notes: formData.relationship_notes || null,
-          invited_to_community: formData.invited_to_community,
           updated_at: new Date().toISOString(),
         })
         .eq('id', person.id)
@@ -638,39 +642,29 @@ export default function PersonView({ person, introducerName, activeCompanies, ca
                   </select>
                 </div>
                 <div>
-                  <label htmlFor="status" className="block text-sm font-medium text-gray-700">
+                  <label className="block text-sm font-medium text-gray-700">
                     Status
                   </label>
-                  <select
-                    id="status"
-                    name="status"
-                    value={formData.status}
-                    onChange={handleInputChange}
-                    disabled={!isPartner}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-gray-900 focus:border-gray-900 disabled:bg-gray-100"
-                  >
-                    {Object.entries(STATUS_LABELS).map(([value, label]) => (
-                      <option key={value} value={value}>{label}</option>
-                    ))}
-                  </select>
+                  <div className="mt-1 px-3 py-2 border border-gray-200 rounded-md bg-gray-50 text-sm text-gray-700">
+                    {STATUS_LABELS[formData.status] || formData.status}
+                  </div>
                 </div>
               </div>
 
-              {/* Invite to Community - Partners only */}
-              {isPartner && (
+              {/* Invite to Community - Partners only, for tracked/eligible people */}
+              {isPartner && formData.status !== 'active' && (
                 <div className="flex items-center gap-3 py-2">
                   <input
                     type="checkbox"
-                    id="invited_to_community"
-                    name="invited_to_community"
-                    checked={formData.invited_to_community}
-                    onChange={(e) => setFormData({ ...formData, invited_to_community: e.target.checked })}
+                    id="invite_to_community"
+                    checked={formData.status === 'eligible'}
+                    onChange={(e) => setFormData({ ...formData, status: e.target.checked ? 'eligible' : 'tracked' })}
                     className="h-4 w-4 text-gray-900 focus:ring-gray-900 border-gray-300 rounded"
                   />
-                  <label htmlFor="invited_to_community" className="text-sm font-medium text-gray-700">
+                  <label htmlFor="invite_to_community" className="text-sm font-medium text-gray-700">
                     Invite to Community
                   </label>
-                  <span className="text-xs text-gray-500">(allows signup even if not a portfolio founder)</span>
+                  <span className="text-xs text-gray-500">(sets status to eligible, allows signup)</span>
                 </div>
               )}
 
@@ -1015,7 +1009,6 @@ export default function PersonView({ person, introducerName, activeCompanies, ca
                   first_met_date: person.first_met_date || '',
                   introduction_context: person.introduction_context || '',
                   relationship_notes: person.relationship_notes || '',
-                  invited_to_community: person.invited_to_community || false,
                 })
               }}
               className="text-sm text-gray-600 hover:text-gray-900"
@@ -1072,6 +1065,16 @@ export default function PersonView({ person, introducerName, activeCompanies, ca
                   <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
                     {ROLE_LABELS[person.role]}
                   </span>
+                  {isPartner && person.status === 'eligible' && (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                      Eligible
+                    </span>
+                  )}
+                  {isPartner && awaitingVerification && (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                      Awaiting Verification
+                    </span>
+                  )}
                   {person.location && (
                     <span className="text-sm text-gray-500">{person.location}</span>
                   )}
