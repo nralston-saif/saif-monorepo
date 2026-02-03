@@ -1,10 +1,12 @@
 import { createClient } from '@/lib/supabase/server'
+import { checkEmailConfirmed } from '@/lib/auth/check-confirmed'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = request.nextUrl
   const code = searchParams.get('code')
+  const userEmail = searchParams.get('user_email')
   const next = searchParams.get('next') ?? '/profile/claim'
 
   if (code) {
@@ -18,6 +20,15 @@ export async function GET(request: NextRequest) {
 
     // Log the error for debugging
     console.error('Auth callback error:', error)
+
+    // Code exchange failed - check if email is actually confirmed
+    if (userEmail) {
+      const isConfirmed = await checkEmailConfirmed(userEmail)
+      if (isConfirmed) {
+        // Email is confirmed, just redirect to login with success message
+        return NextResponse.redirect(`${origin}/login?verified=true`)
+      }
+    }
   }
 
   // Return to verify page with error
