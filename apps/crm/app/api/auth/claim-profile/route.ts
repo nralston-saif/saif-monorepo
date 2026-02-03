@@ -133,30 +133,35 @@ export async function POST(_request: NextRequest): Promise<NextResponse<ClaimPro
     // Notify partners about the profile claim (async, don't block response)
     ;(async () => {
       try {
-        // Get founder's name
-        const { data: founderData } = await serviceClient
-          .from('saif_people')
-          .select('first_name, last_name, name')
-          .eq('id', emailMatch.id)
-          .single()
+        // Get founder's name from auth metadata (what they entered during signup)
+        const authFirstName = user.user_metadata?.first_name as string | undefined
+        const authLastName = user.user_metadata?.last_name as string | undefined
 
-        const founderName = founderData?.first_name && founderData?.last_name
-          ? `${founderData.first_name} ${founderData.last_name}`
-          : founderData?.name || 'A founder'
+        const founderName = authFirstName && authLastName
+          ? `${authFirstName} ${authLastName}`
+          : authFirstName || authLastName || 'A founder'
 
         // Get company name from company association (if any)
         let companyName: string | null = null
-        const { data: companyData } = await serviceClient
+        const { data: companyData, error: companyError } = await serviceClient
           .from('saif_company_people')
-          .select('saif_companies(name)')
+          .select('company_id')
           .eq('user_id', emailMatch.id)
           .limit(1)
           .maybeSingle()
 
-        if (companyData?.saif_companies) {
-          // Handle both array and object responses from Supabase
-          const companies = companyData.saif_companies as { name: string } | { name: string }[]
-          companyName = Array.isArray(companies) ? companies[0]?.name : companies.name
+        if (companyError) {
+          console.error('Error fetching company association:', companyError)
+        }
+
+        if (companyData?.company_id) {
+          const { data: company } = await serviceClient
+            .from('saif_companies')
+            .select('name')
+            .eq('id', companyData.company_id)
+            .single()
+
+          companyName = company?.name || null
         }
 
         await notifyProfileClaimed(emailMatch.id, founderName, companyName)
