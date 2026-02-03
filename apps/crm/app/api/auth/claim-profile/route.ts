@@ -71,9 +71,31 @@ export async function POST(_request: NextRequest): Promise<NextResponse<ClaimPro
       )
     }
 
+    // Get name from auth metadata (provided during signup)
+    const authFirstName = user.user_metadata?.first_name as string | undefined
+    const authLastName = user.user_metadata?.last_name as string | undefined
+
+    // Build update object - include names from auth metadata
+    const updateData: Record<string, unknown> = {
+      auth_user_id: user.id,
+      email: user.email,
+      status: 'active',
+    }
+
+    // Sync names from auth metadata (user entered during signup)
+    if (authFirstName) {
+      updateData.first_name = authFirstName
+    }
+    if (authLastName) {
+      updateData.last_name = authLastName
+    }
+    if (authFirstName && authLastName) {
+      updateData.name = `${authFirstName} ${authLastName}`
+    }
+
     const { error: updateError } = await serviceClient
       .from('saif_people')
-      .update({ auth_user_id: user.id, email: user.email, status: 'active' })
+      .update(updateData)
       .eq('id', emailMatch.id)
       .is('auth_user_id', null)
 
