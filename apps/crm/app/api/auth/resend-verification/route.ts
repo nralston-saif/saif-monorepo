@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import { checkRateLimit } from '@/lib/rate-limit'
+import { logAuthEvent } from '@/lib/auth/log-auth-event'
 
 export async function POST(request: NextRequest) {
   try {
@@ -32,18 +33,33 @@ export async function POST(request: NextRequest) {
       type: 'signup',
       email,
       options: {
-        emailRedirectTo: `${request.nextUrl.origin}/auth/callback`,
+        emailRedirectTo: `${request.nextUrl.origin}/auth/callback?user_email=${encodeURIComponent(email)}`,
       },
     })
 
     if (error) {
       console.error('Error resending verification email:', error)
+      await logAuthEvent({
+        eventType: 'resend_verification',
+        email,
+        success: false,
+        errorCode: error.code,
+        errorMessage: error.message,
+        request,
+      })
       // Don't expose the actual error to the client for security
       return NextResponse.json({
         success: false,
         message: 'Unable to resend verification email. Please try again later.'
       })
     }
+
+    await logAuthEvent({
+      eventType: 'resend_verification',
+      email,
+      success: true,
+      request,
+    })
 
     return NextResponse.json({
       success: true,

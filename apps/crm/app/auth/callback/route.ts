@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { checkEmailConfirmed } from '@/lib/auth/check-confirmed'
+import { logAuthEvent } from '@/lib/auth/log-auth-event'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
@@ -9,12 +10,27 @@ export async function GET(request: NextRequest) {
   const userEmail = searchParams.get('user_email')
   const next = searchParams.get('next') ?? '/profile/claim'
 
+  // Log verification attempt
+  await logAuthEvent({
+    eventType: 'verification_attempt',
+    email: userEmail ?? undefined,
+    success: false, // Will be updated on success path
+    metadata: { hasCode: !!code, next },
+    request,
+  })
+
   if (code) {
     const supabase = await createClient()
     const { error } = await supabase.auth.exchangeCodeForSession(code)
 
     if (!error) {
       // Successful verification - redirect to claim profile
+      await logAuthEvent({
+        eventType: 'verification_success',
+        email: userEmail ?? undefined,
+        success: true,
+        request,
+      })
       return NextResponse.redirect(`${origin}${next}`)
     }
 
@@ -26,9 +42,26 @@ export async function GET(request: NextRequest) {
       const isConfirmed = await checkEmailConfirmed(userEmail)
       if (isConfirmed) {
         // Email is confirmed, just redirect to login with success message
+        await logAuthEvent({
+          eventType: 'verification_fallback_success',
+          email: userEmail,
+          success: true,
+          metadata: { originalError: error.message, originalCode: error.code },
+          request,
+        })
         return NextResponse.redirect(`${origin}/login?verified=true`)
       }
     }
+
+    // Log the failure
+    await logAuthEvent({
+      eventType: 'verification_failed',
+      email: userEmail ?? undefined,
+      success: false,
+      errorCode: error.code,
+      errorMessage: error.message,
+      request,
+    })
   }
 
   // Return to verify page with error

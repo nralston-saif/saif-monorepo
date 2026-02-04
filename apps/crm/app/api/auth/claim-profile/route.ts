@@ -3,6 +3,7 @@ import { createClient as createServerClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import { logAuditEventAsync } from '@/lib/audit'
 import { notifyProfileClaimed } from '@/lib/notifications'
+import { logAuthEvent } from '@/lib/auth/log-auth-event'
 
 function getServiceClient() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -26,10 +27,35 @@ export async function POST(_request: NextRequest): Promise<NextResponse<ClaimPro
     const { data: { user }, error: authError } = await supabase.auth.getUser()
 
     if (authError || !user) {
+      await logAuthEvent({
+        eventType: 'claim_failed',
+        success: false,
+        errorCode: 'not_authenticated',
+        errorMessage: authError?.message ?? 'No user',
+        request: _request,
+      })
       return NextResponse.json({ success: false, error: 'Not authenticated' }, { status: 401 })
     }
 
+    // Log claim attempt
+    await logAuthEvent({
+      eventType: 'claim_attempt',
+      email: user.email,
+      userId: user.id,
+      success: false,
+      request: _request,
+    })
+
     if (!user.email_confirmed_at) {
+      await logAuthEvent({
+        eventType: 'claim_failed',
+        email: user.email,
+        userId: user.id,
+        success: false,
+        errorCode: 'email_not_confirmed',
+        errorMessage: 'Email not confirmed',
+        request: _request,
+      })
       return NextResponse.json(
         { success: false, error: 'Please verify your email address before claiming your profile.' },
         { status: 403 }
@@ -65,6 +91,15 @@ export async function POST(_request: NextRequest): Promise<NextResponse<ClaimPro
     }
 
     if (!emailMatch) {
+      await logAuthEvent({
+        eventType: 'claim_failed',
+        email: user.email,
+        userId: user.id,
+        success: false,
+        errorCode: 'profile_not_found',
+        errorMessage: 'No unclaimed profile found for email',
+        request: _request,
+      })
       return NextResponse.json(
         { success: false, error: 'Unable to find your profile. Please contact SAIF support.' },
         { status: 404 }
@@ -115,6 +150,16 @@ export async function POST(_request: NextRequest): Promise<NextResponse<ClaimPro
     }
 
     console.log('Profile claimed successfully:', { userId: user.id, profileId: emailMatch.id, email: user.email })
+
+    // Log auth event for successful claim
+    await logAuthEvent({
+      eventType: 'claim_success',
+      email: user.email,
+      userId: user.id,
+      success: true,
+      metadata: { profileId: emailMatch.id },
+      request: _request,
+    })
 
     // Log audit event for profile claim
     logAuditEventAsync({

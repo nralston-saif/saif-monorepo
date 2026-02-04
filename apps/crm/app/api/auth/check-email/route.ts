@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { checkRateLimit, getClientIP } from '@/lib/rate-limit'
+import { logAuthEvent } from '@/lib/auth/log-auth-event'
 
 const RATE_LIMIT_WINDOW = 60 * 1000
 const RATE_LIMIT_MAX = 5
@@ -63,28 +64,64 @@ export async function POST(request: NextRequest): Promise<NextResponse<CheckEmai
       return NextResponse.json(notEligibleResponse)
     }
 
-    const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers()
-    if (!authError && authUsers?.users) {
-      const existingAuthUser = authUsers.users.find(
-        (u) => u.email?.toLowerCase() === email.toLowerCase()
-      )
-      if (existingAuthUser) {
-        if (existingAuthUser.email_confirmed_at) {
-          return NextResponse.json(notEligibleResponse)
-        }
-        return NextResponse.json({
-          canSignup: false,
-          reason: 'pending_verification',
-          message: 'A signup is already in progress. Please check your inbox for the verification link.',
-          canResendVerification: true,
-        })
+    // Paginate through auth users to handle >1000 users
+    const normalizedEmail = email.toLowerCase()
+    const perPage = 1000
+    let page = 1
+    let existingAuthUser = null
+
+    while (!existingAuthUser) {
+      const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers({
+        page,
+        perPage,
+      })
+
+      if (authError || !authUsers?.users) {
+        break
       }
+
+      existingAuthUser = authUsers.users.find(
+        (u) => u.email?.toLowerCase() === normalizedEmail
+      )
+
+      // No more pages if we got fewer than perPage results
+      if (authUsers.users.length < perPage) {
+        break
+      }
+
+      page++
+    }
+
+    if (existingAuthUser) {
+      if (existingAuthUser.email_confirmed_at) {
+        return NextResponse.json(notEligibleResponse)
+      }
+      return NextResponse.json({
+        canSignup: false,
+        reason: 'pending_verification',
+        message: 'A signup is already in progress. Please check your inbox for the verification link.',
+        canResendVerification: true,
+      })
     }
 
     if (person.status !== 'eligible') {
+      await logAuthEvent({
+        eventType: 'email_check',
+        email,
+        success: false,
+        metadata: { reason: 'status_not_eligible', status: person.status },
+        request,
+      })
       return NextResponse.json(notEligibleResponse)
     }
 
+    await logAuthEvent({
+      eventType: 'email_check',
+      email,
+      success: true,
+      metadata: { reason: 'eligible' },
+      request,
+    })
     return NextResponse.json({ canSignup: true, reason: 'eligible' })
   } catch (error) {
     console.error('Check email error:', error)
