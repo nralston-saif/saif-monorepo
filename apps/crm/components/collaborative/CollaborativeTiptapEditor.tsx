@@ -9,6 +9,7 @@ import { isChangeOrigin } from '@tiptap/extension-collaboration'
 import { useLiveblocksExtension } from '@liveblocks/react-tiptap'
 import { useSelf, useUpdateMyPresence } from '@/lib/liveblocks'
 import type { Transaction } from '@tiptap/pm/state'
+import { liftListItem, sinkListItem } from '@tiptap/pm/schema-list'
 
 export type CollaborativeTiptapEditorHandle = {
   clearContent: () => void
@@ -342,10 +343,33 @@ export function CollaborativeTiptapEditor({
         style: `min-height: calc(${minHeight} - 24px)`,
       },
       handleKeyDown: (view, event) => {
-        // Handle Tab key for indentation
         if (event.key === 'Tab') {
+          const { state } = view
+          const { $from } = state.selection
+
+          // Check if cursor is inside a list item
+          let inList = false
+          for (let d = $from.depth; d > 0; d--) {
+            if ($from.node(d).type.name === 'listItem') {
+              inList = true
+              break
+            }
+          }
+
+          if (inList) {
+            event.preventDefault()
+            const listItemType = state.schema.nodes.listItem
+            if (event.shiftKey) {
+              liftListItem(listItemType)(state, view.dispatch)
+            } else {
+              sinkListItem(listItemType)(state, view.dispatch)
+            }
+            return true
+          }
+
+          // Outside of lists, insert a tab character
           event.preventDefault()
-          view.dispatch(view.state.tr.insertText('\t'))
+          view.dispatch(state.tr.insertText('\t'))
           return true
         }
         return false
