@@ -442,14 +442,20 @@ export default function TicketDetailModal({
     }
 
     // If this ticket has an associated application, mark email as sent
+    // Uses server-side API with service role key to avoid client-side RLS issues
     if (ticket.application_id) {
-      const { error: emailSentError } = await supabase
-        .from('saifcrm_applications')
-        .update({ email_sent: true, email_sent_at: new Date().toISOString() })
-        .eq('id', ticket.application_id)
-
-      if (emailSentError) {
-        console.error('Failed to update email_sent status:', emailSentError)
+      try {
+        const response = await fetch('/api/mark-email-sent', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ applicationId: ticket.application_id }),
+        })
+        if (!response.ok) {
+          console.error('Failed to mark email as sent:', await response.text())
+        }
+      } catch (err) {
+        console.error('Failed to mark email as sent:', err)
         // Don't block archiving if this fails
       }
     }
@@ -543,14 +549,20 @@ export default function TicketDetailModal({
       if (formData.status !== previousStatus) {
         if (formData.status === 'archived') {
           // If this ticket has an associated application, mark email as sent
+          // Uses server-side API with service role key to avoid client-side RLS issues
           if (ticket.application_id) {
-            const { error: emailSentError } = await supabase
-              .from('saifcrm_applications')
-              .update({ email_sent: true, email_sent_at: new Date().toISOString() })
-              .eq('id', ticket.application_id)
-
-            if (emailSentError) {
-              console.error('Failed to update email_sent status:', emailSentError)
+            try {
+              const response = await fetch('/api/mark-email-sent', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ applicationId: ticket.application_id }),
+              })
+              if (!response.ok) {
+                console.error('Failed to mark email as sent:', await response.text())
+              }
+            } catch (err) {
+              console.error('Failed to mark email as sent:', err)
             }
           }
 
@@ -638,14 +650,20 @@ export default function TicketDetailModal({
       // Send notification for status change
       if (newStatus === 'archived' && ticket.status !== 'archived') {
         // If this ticket has an associated application, mark email as sent
+        // Uses server-side API with service role key to avoid client-side RLS issues
         if (ticket.application_id) {
-          const { error: emailSentError } = await supabase
-            .from('saifcrm_applications')
-            .update({ email_sent: true, email_sent_at: new Date().toISOString() })
-            .eq('id', ticket.application_id)
-
-          if (emailSentError) {
-            console.error('Failed to update email_sent status:', emailSentError)
+          try {
+            const response = await fetch('/api/mark-email-sent', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({ applicationId: ticket.application_id }),
+            })
+            if (!response.ok) {
+              console.error('Failed to mark email as sent:', await response.text())
+            }
+          } catch (err) {
+            console.error('Failed to mark email as sent:', err)
           }
         }
 
