@@ -15,6 +15,8 @@ export type NotificationType =
   | 'ticket_archived'
   | 'ticket_status_changed'
   | 'profile_claimed'
+  | 'forum_mention'
+  | 'forum_reply'
 
 export type Database = {
   // Allows to automatically instantiate createClient with right options
@@ -1066,6 +1068,175 @@ export type Database = {
           },
         ]
       }
+      saif_forum_posts: {
+        Row: {
+          id: string
+          author_id: string
+          content: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          author_id: string
+          content: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          author_id?: string
+          content?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saif_forum_posts_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "saif_people"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      saif_forum_replies: {
+        Row: {
+          id: string
+          post_id: string
+          author_id: string
+          content: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          post_id: string
+          author_id: string
+          content: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          post_id?: string
+          author_id?: string
+          content?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saif_forum_replies_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "saif_forum_posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "saif_forum_replies_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "saif_people"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      saif_forum_reactions: {
+        Row: {
+          id: string
+          user_id: string
+          post_id: string | null
+          reply_id: string | null
+          emoji: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          post_id?: string | null
+          reply_id?: string | null
+          emoji: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          post_id?: string | null
+          reply_id?: string | null
+          emoji?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saif_forum_reactions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "saif_people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "saif_forum_reactions_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "saif_forum_posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "saif_forum_reactions_reply_id_fkey"
+            columns: ["reply_id"]
+            isOneToOne: false
+            referencedRelation: "saif_forum_replies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      saif_forum_mentions: {
+        Row: {
+          id: string
+          mentioned_person_id: string
+          post_id: string | null
+          reply_id: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          mentioned_person_id: string
+          post_id?: string | null
+          reply_id?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          mentioned_person_id?: string
+          post_id?: string | null
+          reply_id?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saif_forum_mentions_mentioned_person_id_fkey"
+            columns: ["mentioned_person_id"]
+            isOneToOne: false
+            referencedRelation: "saif_people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "saif_forum_mentions_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "saif_forum_posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "saif_forum_mentions_reply_id_fkey"
+            columns: ["reply_id"]
+            isOneToOne: false
+            referencedRelation: "saif_forum_replies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       saifcrm_notifications: {
         Row: {
           actor_id: string | null
@@ -1073,6 +1244,7 @@ export type Database = {
           created_at: string | null
           dismissed_at: string | null
           expires_at: string | null
+          forum_post_id: string | null
           id: string
           link: string | null
           message: string | null
@@ -1088,6 +1260,7 @@ export type Database = {
           created_at?: string | null
           dismissed_at?: string | null
           expires_at?: string | null
+          forum_post_id?: string | null
           id?: string
           link?: string | null
           message?: string | null
@@ -1103,6 +1276,7 @@ export type Database = {
           created_at?: string | null
           dismissed_at?: string | null
           expires_at?: string | null
+          forum_post_id?: string | null
           id?: string
           link?: string | null
           message?: string | null
@@ -1882,3 +2056,25 @@ export type NotificationWithActor = Notification & {
 // AI News Article types
 export type AINewsArticle = Database['public']['Tables']['saifcrm_ai_news_articles']['Row']
 export type AINewsTopic = AINewsArticle['topic']
+
+// Forum types
+export type ForumPost = Database['public']['Tables']['saif_forum_posts']['Row']
+export type ForumReply = Database['public']['Tables']['saif_forum_replies']['Row']
+export type ForumReaction = Database['public']['Tables']['saif_forum_reactions']['Row']
+export type ForumMention = Database['public']['Tables']['saif_forum_mentions']['Row']
+
+export type ForumPostWithAuthor = ForumPost & {
+  author: Pick<Person, 'id' | 'first_name' | 'last_name' | 'avatar_url' | 'role'> | null
+}
+
+export type ForumReplyWithAuthor = ForumReply & {
+  author: Pick<Person, 'id' | 'first_name' | 'last_name' | 'avatar_url' | 'role'> | null
+}
+
+export type ReactionEmoji = 'thumbsup' | 'heart' | 'tada' | 'bulb'
+
+export type ReactionSummary = {
+  emoji: ReactionEmoji
+  count: number
+  reacted: boolean
+}

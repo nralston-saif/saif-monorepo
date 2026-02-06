@@ -63,6 +63,7 @@ export default function Navigation({ userName, personId }: { userName: string; p
     { name: 'Portfolio', href: '/portfolio' },
     { name: 'Tickets', href: '/tickets' },
     { name: 'Meetings', href: '/meetings' },
+    { name: 'Forum', href: '/forum' },
   ]
 
   const crmItems = [

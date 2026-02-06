@@ -97,6 +97,10 @@ export default function NotificationToast() {
         return '🔄'
       case 'profile_claimed':
         return '👋'
+      case 'forum_mention':
+        return '💬'
+      case 'forum_reply':
+        return '↩️'
       default:
         return '🔔'
     }

@@ -26,6 +26,8 @@ export type NotificationType =
   | 'ticket_archived'
   | 'ticket_status_changed'
   | 'profile_claimed'
+  | 'forum_mention'
+  | 'forum_reply'
 
 export type CreateNotificationParams = {
   recipientId: string
