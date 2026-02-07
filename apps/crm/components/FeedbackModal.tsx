@@ -47,6 +47,7 @@ export default function FeedbackModal({ personId, onClose, onSuccess }: Feedback
       source: 'founder_feedback',
       feedback_type: feedbackType,
       created_by: personId,
+      related_person: personId,
       assigned_to: null,
       status: 'open',
       priority: feedbackType === 'bug_report' ? 'high' : 'medium',
