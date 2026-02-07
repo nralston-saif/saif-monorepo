@@ -57,6 +57,8 @@ type Ticket = {
   tags: string[] | null
   was_unassigned_at_creation: boolean | null
   is_flagged: boolean
+  source: 'partner' | 'founder_feedback'
+  feedback_type: 'bug_report' | 'suggestion' | 'question' | null
   assigned_partner?: Partner | null
   creator?: Partner | null
   company?: Company | null

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import SearchModal from './SearchModal'
+import FeedbackButton from './FeedbackButton'
 
 interface FounderNavigationProps {
   userName?: string
@@ -132,6 +133,11 @@ export default function FounderNavigation({ userName, isPartnerViewingAsCommunit
 
       {/* Search Modal */}
       {showSearch && <SearchModal onClose={() => setShowSearch(false)} />}
+
+      {/* Feedback Button - only show for actual founders, not partners viewing community */}
+      {!isPartnerViewingAsCommunity && personId && (
+        <FeedbackButton personId={personId} />
+      )}
     </>
   )
 }

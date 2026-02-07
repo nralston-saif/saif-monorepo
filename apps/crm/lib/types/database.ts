@@ -17,6 +17,10 @@ export type NotificationType =
   | 'profile_claimed'
   | 'forum_mention'
   | 'forum_reply'
+  | 'new_founder_feedback'
+
+export type TicketSource = 'partner' | 'founder_feedback'
+export type FeedbackType = 'bug_report' | 'suggestion' | 'question'
 
 export type Database = {
   // Allows to automatically instantiate createClient with right options
@@ -515,11 +519,13 @@ export type Database = {
           created_by: string
           description: string | null
           due_date: string | null
+          feedback_type: FeedbackType | null
           id: string
           is_flagged: boolean
           priority: Database["public"]["Enums"]["ticket_priority"]
           related_company: string | null
           related_person: string | null
+          source: TicketSource
           status: Database["public"]["Enums"]["ticket_status"]
           tags: string[] | null
           title: string
@@ -534,11 +540,13 @@ export type Database = {
           created_by: string
           description?: string | null
           due_date?: string | null
+          feedback_type?: FeedbackType | null
           id?: string
           is_flagged?: boolean
           priority?: Database["public"]["Enums"]["ticket_priority"]
           related_company?: string | null
           related_person?: string | null
+          source?: TicketSource
           status?: Database["public"]["Enums"]["ticket_status"]
           tags?: string[] | null
           title: string
@@ -553,11 +561,13 @@ export type Database = {
           created_by?: string
           description?: string | null
           due_date?: string | null
+          feedback_type?: FeedbackType | null
           id?: string
           is_flagged?: boolean
           priority?: Database["public"]["Enums"]["ticket_priority"]
           related_company?: string | null
           related_person?: string | null
+          source?: TicketSource
           status?: Database["public"]["Enums"]["ticket_status"]
           tags?: string[] | null
           title?: string

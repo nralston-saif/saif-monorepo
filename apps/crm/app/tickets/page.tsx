@@ -24,6 +24,8 @@ type TicketsPageData = {
     application_id: string | null
     was_unassigned_at_creation: boolean | null
     is_flagged: boolean | null
+    source: 'partner' | 'founder_feedback' | null
+    feedback_type: 'bug_report' | 'suggestion' | 'question' | null
     assigned_partner: { id: string; first_name: string | null; last_name: string | null; email: string | null; avatar_url: string | null } | null
     creator: { id: string; first_name: string | null; last_name: string | null; email: string | null; avatar_url: string | null } | null
     company: { id: string; name: string; logo_url: string | null } | null

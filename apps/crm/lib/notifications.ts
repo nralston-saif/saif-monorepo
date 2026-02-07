@@ -28,6 +28,7 @@ export type NotificationType =
   | 'profile_claimed'
   | 'forum_mention'
   | 'forum_reply'
+  | 'new_founder_feedback'
 
 export type CreateNotificationParams = {
   recipientId: string
@@ -420,6 +421,38 @@ export async function notifyProfileClaimed(
     title,
     message: 'A founder has joined the platform.',
     link: `/people/${personId}`,
+  })
+}
+
+/**
+ * Notification: Founder submitted feedback
+ * Notifies all partners when a founder submits a bug report, suggestion, or question
+ */
+export async function notifyNewFounderFeedback(
+  ticketId: string,
+  ticketTitle: string,
+  feedbackType: 'bug_report' | 'suggestion' | 'question',
+  founderName: string,
+  companyName: string | null
+) {
+  const partnerIds = await getAllPartnerIds()
+
+  const typeLabels: Record<string, string> = {
+    bug_report: 'Bug Report',
+    suggestion: 'Suggestion',
+    question: 'Question',
+  }
+
+  const typeLabel = typeLabels[feedbackType] || 'Feedback'
+  const fromText = companyName ? ` from ${companyName}` : ''
+
+  return createNotificationForMany({
+    recipientIds: partnerIds,
+    type: 'new_founder_feedback',
+    title: `New ${typeLabel}${fromText}`,
+    message: `${founderName} submitted: "${ticketTitle}"`,
+    link: `/tickets?id=${ticketId}`,
+    ticketId,
   })
 }
 

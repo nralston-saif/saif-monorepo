@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import type { TicketStatus, TicketPriority, TicketComment as BaseTicketComment, Database } from '@/lib/types/database'
+import type { TicketStatus, TicketPriority, TicketComment as BaseTicketComment, Database, TicketSource, FeedbackType } from '@/lib/types/database'
 type BaseTicket = Database['public']['Tables']['saif_tickets']['Row']
 import CreateTicketModal from './CreateTicketModal'
 import TicketDetailModal from './TicketDetailModal'
@@ -42,9 +42,11 @@ type TicketWithRelations = BaseTicket & {
   company?: Company | null
   person?: Person | null
   comments?: TicketCommentWithAuthor[]
+  source?: TicketSource
+  feedback_type?: FeedbackType | null
 }
 
-type StatusFilter = 'active' | 'archived' | 'unassigned' | 'all'
+type StatusFilter = 'active' | 'archived' | 'unassigned' | 'intake' | 'all'
 type StageFilter = 'all' | 'open' | 'in_progress'
 type SortOption = 'date-newest' | 'date-oldest' | 'priority' | 'due-date' | 'title' | 'flagged'
 
@@ -130,6 +132,9 @@ export default function TicketsClient({
       filtered = filtered.filter(t => t.status === 'archived')
     } else if (statusFilter === 'unassigned') {
       filtered = filtered.filter(t => !t.assigned_to && t.status !== 'archived')
+    } else if (statusFilter === 'intake') {
+      // Founder feedback that hasn't been assigned yet
+      filtered = filtered.filter(t => t.source === 'founder_feedback' && !t.assigned_to && t.status !== 'archived')
     }
 
     // Stage filter (open vs in_progress)
@@ -213,6 +218,7 @@ export default function TicketsClient({
       new Date(t.due_date) < new Date() &&
       t.status !== 'archived'
     ).length,
+    intake: localTickets.filter(t => t.source === 'founder_feedback' && !t.assigned_to && t.status !== 'archived').length,
   }), [localTickets])
 
   // Helper functions
@@ -258,6 +264,16 @@ export default function TicketsClient({
       return `${partner.first_name} ${partner.last_name}`
     }
     return partner.email || 'Unknown'
+  }
+
+  const getFeedbackTypeBadge = (feedbackType: FeedbackType | null | undefined) => {
+    if (!feedbackType) return null
+    const badges: Record<FeedbackType, { label: string; icon: string; className: string }> = {
+      bug_report: { label: 'Bug', icon: '🐛', className: 'bg-red-100 text-red-700' },
+      suggestion: { label: 'Idea', icon: '💡', className: 'bg-amber-100 text-amber-700' },
+      question: { label: 'Q', icon: '❓', className: 'bg-blue-100 text-blue-700' },
+    }
+    return badges[feedbackType]
   }
 
   const handleResolveClick = (ticketId: string, ticketTitle: string, e: React.MouseEvent) => {
@@ -364,6 +380,16 @@ export default function TicketsClient({
 
             {/* Badges row */}
             <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5 flex-wrap">
+              {/* Feedback type badge for founder submissions */}
+              {ticket.source === 'founder_feedback' && ticket.feedback_type && (() => {
+                const badge = getFeedbackTypeBadge(ticket.feedback_type)
+                return badge ? (
+                  <span className={`inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium ${badge.className}`}>
+                    <span>{badge.icon}</span>
+                    <span>{badge.label}</span>
+                  </span>
+                ) : null
+              })()}
               <span className={`inline-flex items-center px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium capitalize ${getStatusColor(ticket.status)}`}>
                 {ticket.status.replace('_', ' ')}
               </span>
@@ -523,6 +549,22 @@ export default function TicketsClient({
               }`}
             >
               Active ({stats.open + stats.inProgress})
+            </button>
+            {/* Intake tab - founder feedback needing triage */}
+            <button
+              onClick={() => {
+                setStatusFilter('intake')
+                setAssignedFilter('all')
+              }}
+              className={`px-3 sm:px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap flex-shrink-0 ${
+                statusFilter === 'intake'
+                  ? 'bg-purple-600 text-white'
+                  : stats.intake > 0
+                  ? 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              Intake ({stats.intake})
             </button>
             <button
               onClick={() => {
