@@ -11,10 +11,10 @@ interface FeedbackModalProps {
   onSuccess: () => void
 }
 
-const feedbackTypes: { value: FeedbackType; label: string; icon: string }[] = [
-  { value: 'bug_report', label: 'Bug', icon: '🐛' },
-  { value: 'suggestion', label: 'Suggestion', icon: '💡' },
-  { value: 'question', label: 'Question', icon: '❓' },
+const feedbackTypes: { value: FeedbackType; label: string }[] = [
+  { value: 'bug_report', label: 'Bug' },
+  { value: 'suggestion', label: 'Suggestion' },
+  { value: 'question', label: 'Question' },
 ]
 
 export default function FeedbackModal({ personId, onClose, onSuccess }: FeedbackModalProps) {
@@ -108,14 +108,13 @@ export default function FeedbackModal({ personId, onClose, onSuccess }: Feedback
                   key={type.value}
                   type="button"
                   onClick={() => setFeedbackType(type.value)}
-                  className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border-2 text-sm font-medium transition-all ${
+                  className={`flex-1 px-3 py-2 rounded-lg border-2 text-sm font-medium transition-all ${
                     feedbackType === type.value
                       ? 'border-gray-900 bg-gray-900 text-white'
                       : 'border-gray-200 text-gray-700 hover:border-gray-300'
                   }`}
                 >
-                  <span>{type.icon}</span>
-                  <span>{type.label}</span>
+                  {type.label}
                 </button>
               ))}
             </div>
