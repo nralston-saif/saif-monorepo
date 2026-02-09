@@ -131,7 +131,7 @@ export default function ReplyThread({ postId, currentUserId, replyCount }: Reply
 
       {/* Expanded reply thread */}
       {expanded && (
-        <div className="mt-3 pl-4 border-l-2 border-gray-100">
+        <div className="mt-3 pl-4 border-l-2 border-gray-200">
           {loading && replies.length === 0 ? (
             <div className="text-sm text-gray-400 py-2">Loading replies...</div>
           ) : (
@@ -142,8 +142,8 @@ export default function ReplyThread({ postId, currentUserId, replyCount }: Reply
                   : 'Unknown'
 
                 return (
-                  <div key={reply.id} className="py-3 first:pt-0">
-                    <div className="flex items-start gap-2">
+                  <div key={reply.id} className="py-2 first:pt-0">
+                    <div className="flex items-start gap-2 bg-gray-50 rounded-lg px-3 py-2">
                       <div className="w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center text-xs font-medium text-gray-600 flex-shrink-0">
                         {reply.author?.avatar_url ? (
                           <img src={reply.author.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover" />

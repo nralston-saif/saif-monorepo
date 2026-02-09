@@ -1083,6 +1083,10 @@ export type Database = {
           id: string
           author_id: string
           content: string
+          tags: string[]
+          is_pinned: boolean
+          pinned_at: string | null
+          pinned_by: string | null
           created_at: string
           updated_at: string
         }
@@ -1090,6 +1094,10 @@ export type Database = {
           id?: string
           author_id: string
           content: string
+          tags?: string[]
+          is_pinned?: boolean
+          pinned_at?: string | null
+          pinned_by?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -1097,6 +1105,10 @@ export type Database = {
           id?: string
           author_id?: string
           content?: string
+          tags?: string[]
+          is_pinned?: boolean
+          pinned_at?: string | null
+          pinned_by?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -2075,6 +2087,18 @@ export type ForumMention = Database['public']['Tables']['saif_forum_mentions']['
 
 export type ForumPostWithAuthor = ForumPost & {
   author: Pick<Person, 'id' | 'first_name' | 'last_name' | 'avatar_url' | 'role'> | null
+}
+
+export type ForumTagData = {
+  id: string
+  name: string
+  color: string | null
+  category: string | null
+}
+
+export type CompanyInfo = {
+  id: string
+  name: string
 }
 
 export type ForumReplyWithAuthor = ForumReply & {
