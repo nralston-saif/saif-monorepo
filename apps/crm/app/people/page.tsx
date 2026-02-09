@@ -263,7 +263,8 @@ export default async function PeoplePage({
           id,
           name,
           logo_url,
-          stage
+          stage,
+          is_active
         )
       )
     `)
@@ -285,6 +286,7 @@ export default async function PeoplePage({
         name: string
         logo_url: string | null
         stage: string
+        is_active: boolean | null
       } | null
     }[]
   })[]
@@ -300,7 +302,7 @@ export default async function PeoplePage({
 
     // For everyone else, check if they have an active relationship with a portfolio company
     const hasActivePortfolioRelationship = person.companies?.some(
-      cp => !cp.end_date && cp.company?.stage === 'portfolio'
+      cp => !cp.end_date && cp.company?.stage === 'portfolio' && cp.company?.is_active !== false
     )
 
     return hasActivePortfolioRelationship

@@ -95,7 +95,7 @@ export default async function DashboardPage({
             title,
             is_primary_contact,
             end_date,
-            company:saif_companies(id, name, logo_url, stage)
+            company:saif_companies(id, name, logo_url, stage, is_active)
           )
         `)
         .order('first_name')
@@ -120,7 +120,7 @@ export default async function DashboardPage({
 
       // For everyone else, check if they have an active relationship with a portfolio company
       const hasActivePortfolioRelationship = person.companies?.some(
-        (cp: any) => !cp.end_date && cp.company?.stage === 'portfolio'
+        (cp: any) => !cp.end_date && cp.company?.stage === 'portfolio' && cp.company?.is_active !== false
       )
 
       return hasActivePortfolioRelationship
