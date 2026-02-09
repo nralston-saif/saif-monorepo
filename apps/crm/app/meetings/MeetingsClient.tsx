@@ -147,6 +147,7 @@ export default function MeetingsClient({ meetings, currentUser, partners }: Meet
               setMeetingsList((prev) => [data as Meeting, ...prev])
             } else {
               setMeetingsList((prev) => prev.map((m) => (m.id === data.id ? (data as Meeting) : m)))
+              setSelectedMeeting((prev) => prev?.id === data.id ? (data as Meeting) : prev)
             }
           }
         } else if (payload.eventType === 'DELETE') {
@@ -162,6 +163,13 @@ export default function MeetingsClient({ meetings, currentUser, partners }: Meet
 
   function handleContentSaved(meetingId: string, content: string): void {
     setMeetingsList((prev) => prev.map((m) => (m.id === meetingId ? { ...m, content } : m)))
+  }
+
+  function handleTitleSaved(meetingId: string, title: string): void {
+    setMeetingsList((prev) => prev.map((m) => (m.id === meetingId ? { ...m, title } : m)))
+    if (selectedMeeting?.id === meetingId) {
+      setSelectedMeeting((prev) => prev ? { ...prev, title } : null)
+    }
   }
 
   async function handleDeleteMeeting(): Promise<void> {
@@ -261,11 +269,13 @@ export default function MeetingsClient({ meetings, currentUser, partners }: Meet
                 currentUser={currentUser}
                 partners={partners}
                 onContentSaved={handleContentSaved}
+                onTitleSaved={handleTitleSaved}
               />
             ) : (
               <SimpleMeetingEditor
                 meeting={selectedMeeting}
                 onContentSaved={handleContentSaved}
+                onTitleSaved={handleTitleSaved}
               />
             )
           ) : (
@@ -369,11 +379,13 @@ function LiveblocksWrapper({
   currentUser,
   partners,
   onContentSaved,
+  onTitleSaved,
 }: {
   meeting: Meeting
   currentUser: Person
   partners: Person[]
   onContentSaved: (meetingId: string, content: string) => void
+  onTitleSaved: (meetingId: string, newTitle: string) => void
 }) {
   const [hasTimedOut, setHasTimedOut] = useState(false)
   const [isConnected, setIsConnected] = useState(false)
@@ -408,7 +420,7 @@ function LiveblocksWrapper({
           <p className="text-amber-600 mb-2">Real-time collaboration is taking longer than expected to connect.</p>
           <p className="text-gray-500 text-sm">You can continue editing without real-time sync:</p>
         </div>
-        <SimpleMeetingEditor meeting={meeting} onContentSaved={onContentSaved} />
+        <SimpleMeetingEditor meeting={meeting} onContentSaved={onContentSaved} onTitleSaved={onTitleSaved} />
       </div>
     )
   }
@@ -441,11 +453,111 @@ function LiveblocksWrapper({
             currentUser={currentUser}
             partners={partners}
             onContentSaved={onContentSaved}
+            onTitleSaved={onTitleSaved}
             onConnected={handleConnected}
           />
         )}
       </ClientSideSuspense>
     </RoomProvider>
+  )
+}
+
+// ============================================================================
+// EDITABLE TITLE COMPONENT
+// ============================================================================
+
+function EditableTitle({
+  title,
+  meetingId,
+  onTitleSaved,
+}: {
+  title: string
+  meetingId: string
+  onTitleSaved: (meetingId: string, newTitle: string) => void
+}) {
+  const [isEditing, setIsEditing] = useState(false)
+  const [editValue, setEditValue] = useState(title)
+  const [isSaving, setIsSaving] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const supabase = createClient()
+  const { showToast } = useToast()
+
+  useEffect(() => {
+    setEditValue(title)
+  }, [title])
+
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus()
+      inputRef.current.select()
+    }
+  }, [isEditing])
+
+  async function handleSave(): Promise<void> {
+    const trimmedValue = editValue.trim()
+    if (!trimmedValue) {
+      setEditValue(title)
+      setIsEditing(false)
+      return
+    }
+
+    if (trimmedValue === title) {
+      setIsEditing(false)
+      return
+    }
+
+    setIsSaving(true)
+    const { error } = await supabase
+      .from('saif_meetings')
+      .update({ title: trimmedValue })
+      .eq('id', meetingId)
+
+    setIsSaving(false)
+
+    if (error) {
+      console.error('Error updating title:', error)
+      showToast('Failed to update title', 'error')
+      setEditValue(title)
+    } else {
+      onTitleSaved(meetingId, trimmedValue)
+    }
+    setIsEditing(false)
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent): void {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      handleSave()
+    } else if (e.key === 'Escape') {
+      setEditValue(title)
+      setIsEditing(false)
+    }
+  }
+
+  if (isEditing) {
+    return (
+      <input
+        ref={inputRef}
+        type="text"
+        value={editValue}
+        onChange={(e) => setEditValue(e.target.value)}
+        onBlur={handleSave}
+        onKeyDown={handleKeyDown}
+        disabled={isSaving}
+        className="text-xl font-semibold text-gray-900 bg-transparent border-b-2 border-gray-300 focus:border-black focus:outline-none w-full max-w-md"
+      />
+    )
+  }
+
+  return (
+    <h2
+      onClick={() => setIsEditing(true)}
+      className="text-xl font-semibold text-gray-900 cursor-pointer hover:bg-gray-100 px-1 -mx-1 rounded transition-colors"
+      title="Click to edit title"
+    >
+      {title}
+    </h2>
   )
 }
 
@@ -458,12 +570,14 @@ function MeetingNotesEditor({
   currentUser,
   partners,
   onContentSaved,
+  onTitleSaved,
   onConnected,
 }: {
   meeting: Meeting
   currentUser: Person
   partners: Person[]
   onContentSaved: (meetingId: string, content: string) => void
+  onTitleSaved: (meetingId: string, newTitle: string) => void
   onConnected?: () => void
 }) {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
@@ -514,7 +628,11 @@ function MeetingNotesEditor({
       <div className="p-6 border-b border-gray-100">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-xl font-semibold text-gray-900">{meeting.title}</h2>
+            <EditableTitle
+              title={meeting.title}
+              meetingId={meeting.id}
+              onTitleSaved={onTitleSaved}
+            />
             <p className="text-sm text-gray-500 mt-1">{formatMeetingDate(meeting.meeting_date)}</p>
           </div>
           <div className="flex items-center gap-3">
@@ -574,9 +692,11 @@ function MeetingNotesEditor({
 function SimpleMeetingEditor({
   meeting,
   onContentSaved,
+  onTitleSaved,
 }: {
   meeting: Meeting
   onContentSaved: (meetingId: string, content: string) => void
+  onTitleSaved: (meetingId: string, newTitle: string) => void
 }) {
   const [content, setContent] = useState(meeting.content || '')
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
@@ -621,7 +741,11 @@ function SimpleMeetingEditor({
       <div className="p-6 border-b border-gray-100">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-xl font-semibold text-gray-900">{meeting.title}</h2>
+            <EditableTitle
+              title={meeting.title}
+              meetingId={meeting.id}
+              onTitleSaved={onTitleSaved}
+            />
             <p className="text-sm text-gray-500 mt-1">{formatMeetingDate(meeting.meeting_date)}</p>
           </div>
           <SaveStatusIndicator status={saveStatus} />
