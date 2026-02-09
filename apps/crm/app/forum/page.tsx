@@ -72,7 +72,7 @@ export default async function ForumPage({ searchParams }: { searchParams: Search
     supabase
       .from('saif_tags')
       .select('id, name, color, category')
-      .in('category', ['forum', 'general'])
+      .eq('category', 'forum')
       .order('name'),
   ])
 
