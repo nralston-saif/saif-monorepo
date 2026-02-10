@@ -144,7 +144,7 @@ export default async function CompanyPage({
       .select(`
         vote,
         notes,
-        voter:saif_people!saifcrm_votes_user_id_fkey(id, first_name, last_name)
+        voter:saif_people!votes_user_id_fkey(id, first_name, last_name)
       `)
       .eq('application_id', application.id)
 

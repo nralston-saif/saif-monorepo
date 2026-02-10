@@ -2045,9 +2045,13 @@ export default function CompanyView({ company, canEdit, isPartner, isFounder = f
                 </div>
               )}
 
-              {/* Vote Summary - only for interview stage */}
-              {activeDeal.stage === 'interview' && activeDeal.votes.length > 0 && (
-                <div className="mb-4 pt-4 border-t border-blue-200">
+              {/* Vote Summary */}
+              {activeDeal.votes.length > 0 && (
+                <div className={`mb-4 pt-4 border-t ${
+                  activeDeal.stage === 'interview' ? 'border-blue-200' :
+                  activeDeal.stage === 'portfolio' ? 'border-emerald-200' :
+                  activeDeal.stage === 'rejected' ? 'border-gray-200' : 'border-amber-200'
+                }`}>
                   <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-3">Partner Votes</h3>
                   <div className="flex gap-3 items-center mb-3">
                     <div className="flex items-center gap-2 bg-emerald-100 px-3 py-1.5 rounded-lg">
