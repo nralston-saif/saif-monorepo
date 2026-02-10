@@ -1918,7 +1918,11 @@ export default function DealsClient({
                       <div
                         key={app.id}
                         className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden card-hover cursor-pointer"
-                        onClick={() => setDetailDelibApp(app)}
+                        onClick={() => {
+                          if (app.company_id) {
+                            router.push(`/companies/${app.company_id}`)
+                          }
+                        }}
                       >
                         <div className="p-3">
                           <div className="flex items-start justify-between mb-2">
@@ -2015,17 +2019,6 @@ export default function DealsClient({
                         </div>
 
                         <div className="px-3 py-2 bg-gray-50 border-t border-gray-100 flex gap-2 items-center">
-                          {app.company_id ? (
-                            <Link
-                              href={`/companies/${app.company_id}`}
-                              onClick={(e) => e.stopPropagation()}
-                              className="text-xs px-2 py-1 rounded bg-white border border-gray-200 text-gray-700 hover:bg-gray-50"
-                            >
-                              Notes
-                            </Link>
-                          ) : (
-                            <span className="text-xs px-2 py-1 text-gray-400">No company linked</span>
-                          )}
                           <div className="relative">
                             <button
                               onClick={(e) => {
