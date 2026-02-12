@@ -16,6 +16,7 @@ export default function SignupPage() {
   const [resendLoading, setResendLoading] = useState(false)
   const [resendMessage, setResendMessage] = useState<string | null>(null)
   const [showResendOption, setShowResendOption] = useState(false)
+  const [showLoginLink, setShowLoginLink] = useState(false)
 
   // Validate password strength
   const validatePassword = (password: string): { valid: boolean; error?: string } => {
@@ -70,6 +71,7 @@ export default function SignupPage() {
       if (!checkResult.canSignup) {
         setError(checkResult.message || 'This email is not eligible for signup.')
         setShowResendOption(checkResult.canResendVerification || false)
+        setShowLoginLink(checkResult.reason === 'already_active')
         setLoading(false)
         return
       }
@@ -192,8 +194,18 @@ export default function SignupPage() {
 
         <form className="mt-8 space-y-6" onSubmit={handleSignup}>
           {error && (
-            <div className="rounded-md bg-red-50 p-4">
-              <p className="text-sm text-red-800">{error}</p>
+            <div className={`rounded-md p-4 ${showLoginLink ? 'bg-blue-50' : 'bg-red-50'}`}>
+              <p className={`text-sm ${showLoginLink ? 'text-blue-800' : 'text-red-800'}`}>{error}</p>
+              {showLoginLink && (
+                <div className="mt-3">
+                  <Link
+                    href="/login"
+                    className="text-sm font-medium text-blue-800 hover:text-blue-900 underline"
+                  >
+                    Go to login
+                  </Link>
+                </div>
+              )}
               {showResendOption && (
                 <div className="mt-3">
                   <button

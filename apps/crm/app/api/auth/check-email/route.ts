@@ -12,7 +12,7 @@ function getServiceClient() {
 
 type CheckEmailResponse = {
   canSignup: boolean
-  reason: 'eligible' | 'not_eligible' | 'pending_verification'
+  reason: 'eligible' | 'not_eligible' | 'pending_verification' | 'already_active'
   message?: string
   canResendVerification?: boolean
 }
@@ -60,8 +60,16 @@ export async function POST(request: NextRequest): Promise<NextResponse<CheckEmai
       )
     }
 
-    if (!person || person.auth_user_id) {
+    if (!person) {
       return NextResponse.json(notEligibleResponse)
+    }
+
+    if (person.auth_user_id) {
+      return NextResponse.json({
+        canSignup: false,
+        reason: 'already_active',
+        message: 'You already have an account. Please log in instead.',
+      })
     }
 
     // Paginate through auth users to handle >1000 users
