@@ -155,7 +155,7 @@ export default async function DashboardPage({
         saifcrm_votes(id, user_id, vote_type),
         saifcrm_deliberations(decision)
       `)
-      .in('stage', ['new', 'voting', 'deliberation'])
+      .in('stage', ['new', 'application', 'interview'])
       .order('submitted_at', { ascending: false }),
 
     // Application stats
@@ -214,8 +214,8 @@ export default async function DashboardPage({
   ])
 
   // Split applications by stage (filter in JS instead of 2 DB queries)
-  const pipelineApps = allApplications?.filter(app => app.stage && ['new', 'voting'].includes(app.stage)) || []
-  const deliberationApps = allApplications?.filter(app => app.stage === 'deliberation') || []
+  const pipelineApps = allApplications?.filter(app => app.stage && ['new', 'application'].includes(app.stage)) || []
+  const deliberationApps = allApplications?.filter(app => app.stage === 'interview') || []
 
   // Calculate overdue count from tickets data (instead of separate DB query)
   const overdueTicketsCount = allActiveTickets?.filter(t => t.due_date && t.due_date < todayDate).length || 0
