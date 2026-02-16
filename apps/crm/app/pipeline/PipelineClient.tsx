@@ -356,7 +356,7 @@ export default function PipelineClient({
         return
       }
 
-      // Create a ticket for the email follow-up task
+      // Create ticket and send notification in a single server-side call
       const isInterview = action === 'deliberation'
       const ticketTitle = isInterview
         ? `Schedule interview follow-up: ${app.company_name}${app.primary_email ? ` (${app.primary_email})` : ''}`
@@ -364,43 +364,23 @@ export default function PipelineClient({
       const ticketDescription = isInterview
         ? `Schedule an interview follow-up email for ${app.company_name}.${app.founder_names ? `\n\nFounders: ${app.founder_names}` : ''}`
         : `Send rejection email to ${app.company_name}.${app.founder_names ? `\n\nFounders: ${app.founder_names}` : ''}`
-      const { data: ticketData, error: ticketError } = await supabase
-        .from('saif_tickets')
-        .insert({
+      const currentUserName = partners.find((p) => p.id === userId)?.name || 'Someone'
+
+      await fetch('/api/tickets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
           title: ticketTitle,
           description: ticketDescription,
-          status: 'open',
           priority: 'medium',
-          assigned_to: selectedEmailSender,
-          created_by: userId,
+          assignedTo: selectedEmailSender,
+          createdBy: userId,
           tags: ['email-follow-up', newStage],
-          application_id: app.id,
-        })
-        .select('id')
-        .single()
-
-      if (ticketError) {
-        console.error('Error creating ticket:', ticketError)
-        // Don't fail the whole operation if ticket creation fails
-      }
-
-      // Send notification to the assigned person
-      if (ticketData?.id) {
-        const currentUserName = partners.find((p) => p.id === userId)?.name || 'Someone'
-        fetch('/api/notifications/ticket', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
-            type: 'assigned',
-            ticketId: ticketData.id,
-            ticketTitle,
-            targetId: selectedEmailSender,
-            actorId: userId,
-            actorName: currentUserName,
-          }),
-        }).catch(console.error)
-      }
+          applicationId: app.id,
+          actorName: currentUserName,
+        }),
+      }).catch(console.error)
 
       // Dismiss "ready to be advanced" notifications for all partners
       fetch('/api/notifications/dismiss', {

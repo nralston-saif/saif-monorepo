@@ -779,38 +779,24 @@ export default function DealsClient({
       const ticketDescription = isInterview
         ? `Schedule an interview follow-up email for ${app.company_name}.${app.founder_names ? `\n\nFounders: ${app.founder_names}` : ''}`
         : `Send rejection email to ${app.company_name}.${app.founder_names ? `\n\nFounders: ${app.founder_names}` : ''}`
-      const { data: ticketData } = await supabase
-        .from('saif_tickets')
-        .insert({
+      const currentUserName = partners.find((p) => p.id === userId)?.name || 'Someone'
+
+      // Create ticket and send notification in a single server-side call
+      await fetch('/api/tickets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
           title: ticketTitle,
           description: ticketDescription,
-          status: 'open',
           priority: 'medium',
-          assigned_to: selectedEmailSender,
-          created_by: userId,
+          assignedTo: selectedEmailSender,
+          createdBy: userId,
           tags: ['email-follow-up', newStage],
-          application_id: app.id,
-        })
-        .select('id')
-        .single()
-
-      // Send notification to the assigned person
-      if (ticketData?.id) {
-        const currentUserName = partners.find((p) => p.id === userId)?.name || 'Someone'
-        fetch('/api/notifications/ticket', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
-            type: 'assigned',
-            ticketId: ticketData.id,
-            ticketTitle,
-            targetId: selectedEmailSender,
-            actorId: userId,
-            actorName: currentUserName,
-          }),
-        }).catch(console.error)
-      }
+          applicationId: app.id,
+          actorName: currentUserName,
+        }),
+      })
 
       // Dismiss "ready to be advanced" notifications for all partners
       fetch('/api/notifications/dismiss', {
@@ -1129,42 +1115,26 @@ export default function DealsClient({
         // Sync company stage to passed
         await syncCompanyStage(selectedDelibApp.id, 'rejected')
 
-        // Create ticket for sending rejection email
+        // Create ticket and send notification in a single server-side call
         const ticketTitle = `Send rejection email: ${selectedDelibApp.company_name}${selectedDelibApp.primary_email ? ` (${selectedDelibApp.primary_email})` : ''}`
         const ticketDescription = `Send rejection email to ${selectedDelibApp.company_name} (rejected from interviews).${selectedDelibApp.founder_names ? `\n\nFounders: ${selectedDelibApp.founder_names}` : ''}`
+        const currentUserName = partners.find((p) => p.id === userId)?.name || 'Someone'
 
-        const { data: ticketData } = await supabase
-          .from('saif_tickets')
-          .insert({
+        await fetch('/api/tickets', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
             title: ticketTitle,
             description: ticketDescription,
-            status: 'open',
             priority: 'medium',
-            assigned_to: rejectionEmailSender,
-            created_by: userId,
+            assignedTo: rejectionEmailSender,
+            createdBy: userId,
             tags: ['email-follow-up', 'rejected', 'interview'],
-            application_id: selectedDelibApp.id,
-          })
-          .select('id')
-          .single()
-
-        // Send notification to the assigned person
-        if (ticketData?.id) {
-          const currentUserName = partners.find((p) => p.id === userId)?.name || 'Someone'
-          fetch('/api/notifications/ticket', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({
-              type: 'assigned',
-              ticketId: ticketData.id,
-              ticketTitle: ticketTitle,
-              targetId: rejectionEmailSender,
-              actorId: userId,
-              actorName: currentUserName,
-            }),
-          }).catch(console.error)
-        }
+            applicationId: selectedDelibApp.id,
+            actorName: currentUserName,
+          }),
+        })
 
         // Auto-generate rejection email
         fetch('/api/generate-rejection-email', {

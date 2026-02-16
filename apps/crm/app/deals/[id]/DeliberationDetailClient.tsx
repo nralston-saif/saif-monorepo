@@ -367,42 +367,26 @@ export default function DeliberationDetailClient({
         // Sync company stage to passed
         await syncCompanyStage(application.id, 'rejected')
 
-        // Create ticket for sending rejection email
+        // Create ticket and send notification in a single server-side call
         const ticketTitle = `Send rejection email: ${application.company_name}${application.primary_email ? ` (${application.primary_email})` : ''}`
         const ticketDescription = `Send rejection email to ${application.company_name} (rejected from interviews).${application.founder_names ? `\n\nFounders: ${application.founder_names}` : ''}`
+        const currentUserName = partners.find((p) => p.id === userId)?.name || userName
 
-        const { data: ticketData } = await supabase
-          .from('saif_tickets')
-          .insert({
+        await fetch('/api/tickets', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
             title: ticketTitle,
             description: ticketDescription,
-            status: 'open',
             priority: 'medium',
-            assigned_to: rejectionEmailSender,
-            created_by: userId,
+            assignedTo: rejectionEmailSender,
+            createdBy: userId,
             tags: ['email-follow-up', 'rejected', 'interview'],
-            application_id: application.id,
-          })
-          .select('id')
-          .single()
-
-        // Send notification to the assigned person
-        if (ticketData?.id) {
-          const currentUserName = partners.find((p) => p.id === userId)?.name || userName
-          fetch('/api/notifications/ticket', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({
-              type: 'assigned',
-              ticketId: ticketData.id,
-              ticketTitle: ticketTitle,
-              targetId: rejectionEmailSender,
-              actorId: userId,
-              actorName: currentUserName,
-            }),
-          }).catch(console.error)
-        }
+            applicationId: application.id,
+            actorName: currentUserName,
+          }),
+        })
 
         // Auto-generate rejection email
         fetch('/api/generate-rejection-email', {
