@@ -16,6 +16,21 @@ type FocusTagSelectorProps = {
   availableFocusTags?: FocusTag[]
 }
 
+const COLOR_PALETTE = [
+  '#10B981', // emerald
+  '#3B82F6', // blue
+  '#8B5CF6', // violet
+  '#F59E0B', // amber
+  '#EC4899', // pink
+  '#EF4444', // red
+  '#14B8A6', // teal
+  '#6366F1', // indigo
+  '#84CC16', // lime
+  '#F97316', // orange
+  '#06B6D4', // cyan
+  '#A855F7', // purple
+]
+
 export default function FocusTagSelector({
   selectedTags,
   onChange,
@@ -26,7 +41,9 @@ export default function FocusTagSelector({
   const [isOpen, setIsOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [isCreating, setIsCreating] = useState(false)
+  const [editingColorTag, setEditingColorTag] = useState<FocusTag | null>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const colorPickerRef = useRef<HTMLDivElement>(null)
   const supabase = createClient()
 
   // Fetch focus tags from database if not provided
@@ -42,6 +59,9 @@ export default function FocusTagSelector({
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsOpen(false)
         setSearchQuery('')
+      }
+      if (colorPickerRef.current && !colorPickerRef.current.contains(event.target as Node)) {
+        setEditingColorTag(null)
       }
     }
 
@@ -83,8 +103,7 @@ export default function FocusTagSelector({
     setIsCreating(true)
 
     // Generate a color for the new tag
-    const colors = ['#10B981', '#3B82F6', '#8B5CF6', '#F59E0B', '#EC4899', '#EF4444', '#14B8A6', '#6366F1']
-    const randomColor = colors[Math.floor(Math.random() * colors.length)]
+    const randomColor = COLOR_PALETTE[Math.floor(Math.random() * COLOR_PALETTE.length)]
 
     const { data, error } = await supabase
       .from('saif_tags')
@@ -107,6 +126,22 @@ export default function FocusTagSelector({
       setSearchQuery('')
       setIsOpen(false)
     }
+  }
+
+  const handleColorChange = async (tag: FocusTag, newColor: string) => {
+    // Update in database
+    const { error } = await supabase
+      .from('saif_tags')
+      .update({ color: newColor })
+      .eq('id', tag.id)
+
+    if (!error) {
+      // Update local state
+      setAvailableTags(prev => prev.map(t =>
+        t.id === tag.id ? { ...t, color: newColor } : t
+      ))
+    }
+    setEditingColorTag(null)
   }
 
   // Get only the focus tags from selected tags, sorted alphabetically
@@ -132,9 +167,12 @@ export default function FocusTagSelector({
     !selectedTags.map(t => t.toLowerCase()).includes(tag.name.toLowerCase())
   )
 
+  const getTagInfo = (tagName: string): FocusTag | undefined => {
+    return availableTags.find(t => t.name.toLowerCase() === tagName.toLowerCase())
+  }
+
   const getTagColor = (tagName: string): string => {
-    const tag = availableTags.find(t => t.name.toLowerCase() === tagName.toLowerCase())
-    return tag?.color || '#6B7280'
+    return getTagInfo(tagName)?.color || '#6B7280'
   }
 
   const showCreateOption = searchQuery.trim() &&
@@ -144,25 +182,76 @@ export default function FocusTagSelector({
     <div className="relative" ref={dropdownRef}>
       {/* Selected Focus Tags Display */}
       <div className="flex flex-wrap gap-2 mb-2">
-        {selectedFocusTags.map(tag => (
-          <span
-            key={tag}
-            className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium text-white"
-            style={{ backgroundColor: getTagColor(tag) }}
-          >
-            {tag}
-            <button
-              type="button"
-              onClick={() => removeTag(tag)}
-              className="hover:bg-white/20 rounded-full p-0.5"
+        {selectedFocusTags.map(tagName => {
+          const tagInfo = getTagInfo(tagName)
+          return (
+            <span
+              key={tagName}
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium text-white"
+              style={{ backgroundColor: getTagColor(tagName) }}
             >
-              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </span>
-        ))}
+              {/* Color swatch - clickable to edit */}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  if (tagInfo) {
+                    setEditingColorTag(tagInfo)
+                  }
+                }}
+                className="w-3 h-3 rounded-full border border-white/30 hover:border-white transition-colors cursor-pointer"
+                style={{ backgroundColor: getTagColor(tagName) }}
+                title="Click to change color"
+              />
+              {tagName}
+              <button
+                type="button"
+                onClick={() => removeTag(tagName)}
+                className="hover:bg-white/20 rounded-full p-0.5"
+              >
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </span>
+          )
+        })}
       </div>
+
+      {/* Color Picker Popover */}
+      {editingColorTag && (
+        <div
+          ref={colorPickerRef}
+          className="absolute z-20 bg-white rounded-lg shadow-lg border border-gray-200 p-3 mt-1"
+          style={{ top: '0', left: '0' }}
+        >
+          <div className="text-xs font-medium text-gray-700 mb-2">
+            Change color for "{editingColorTag.name}"
+          </div>
+          <div className="grid grid-cols-6 gap-1.5">
+            {COLOR_PALETTE.map((color) => (
+              <button
+                key={color}
+                type="button"
+                onClick={() => handleColorChange(editingColorTag, color)}
+                className={`w-6 h-6 rounded-md border-2 transition-transform hover:scale-110 ${
+                  editingColorTag.color === color ? 'border-gray-900' : 'border-transparent'
+                }`}
+                style={{ backgroundColor: color }}
+              />
+            ))}
+          </div>
+          <div className="mt-2 pt-2 border-t border-gray-100">
+            <label className="text-xs text-gray-500 block mb-1">Custom color</label>
+            <input
+              type="color"
+              value={editingColorTag.color}
+              onChange={(e) => handleColorChange(editingColorTag, e.target.value)}
+              className="w-full h-8 rounded cursor-pointer"
+            />
+          </div>
+        </div>
+      )}
 
       {/* Input Field */}
       <div className="relative">
@@ -216,28 +305,40 @@ export default function FocusTagSelector({
             </div>
           ) : (
             filteredTags.map(tag => (
-              <button
+              <div
                 key={tag.id}
-                type="button"
-                onClick={() => {
-                  toggleTag(tag.name)
-                  setSearchQuery('')
-                }}
-                className="w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center gap-2"
+                className="w-full px-4 py-3 hover:bg-gray-50 flex items-center gap-2"
               >
-                <span
-                  className="w-3 h-3 rounded-full flex-shrink-0"
+                {/* Color swatch - clickable to edit */}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setEditingColorTag(tag)
+                  }}
+                  className="w-4 h-4 rounded-full flex-shrink-0 border border-gray-200 hover:border-gray-400 transition-colors"
                   style={{ backgroundColor: tag.color }}
+                  title="Click to change color"
                 />
-                <span className="flex-1">{tag.name}</span>
-              </button>
+                {/* Tag name - clickable to add */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    toggleTag(tag.name)
+                    setSearchQuery('')
+                  }}
+                  className="flex-1 text-left"
+                >
+                  {tag.name}
+                </button>
+              </div>
             ))
           )}
         </div>
       )}
 
       <p className="text-xs text-gray-500 mt-1">
-        Select existing focus areas or type to create new ones
+        Select existing focus areas or type to create new ones. Click a color to change it.
       </p>
     </div>
   )

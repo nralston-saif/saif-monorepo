@@ -1,12 +1,34 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
+import dynamic from 'next/dynamic'
 import type { BioMapPerson, BioMapOrganization, FocusTag } from './page'
 import BioMapDetailModal from './BioMapDetailModal'
 import CreateTicketButton from '@/components/CreateTicketButton'
 import { createClient } from '@/lib/supabase/client'
+import { useNetworkData, type GraphNode } from './components/hooks/useNetworkData'
+import { useTreemapData, type TreemapMode } from './components/hooks/useTreemapData'
 
-type ViewMode = 'people' | 'organizations'
+// Dynamically import visualization components to avoid SSR issues
+const NetworkGraph = dynamic(() => import('./components/NetworkGraph'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center h-[600px] bg-white rounded-lg border border-gray-200">
+      <div className="text-gray-500">Loading network graph...</div>
+    </div>
+  ),
+})
+
+const FocusAreaTreemap = dynamic(() => import('./components/FocusAreaTreemap'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center h-[500px] bg-white rounded-lg border border-gray-200">
+      <div className="text-gray-500">Loading treemap...</div>
+    </div>
+  ),
+})
+
+type ViewMode = 'people' | 'organizations' | 'network' | 'treemap'
 type SortOption = 'name-az' | 'name-za' | 'date-newest'
 
 const ROLE_COLORS: Record<string, string> = {
@@ -58,6 +80,7 @@ export default function BioMapClient({
   const [selectedOrganization, setSelectedOrganization] = useState<BioMapOrganization | null>(null)
   const [showAddOrgModal, setShowAddOrgModal] = useState(false)
   const [showAddPersonModal, setShowAddPersonModal] = useState(false)
+  const [treemapMode, setTreemapMode] = useState<TreemapMode>('organizations')
 
   // Organization filters
   const [typeFilter, setTypeFilter] = useState<string>('all')
@@ -241,6 +264,58 @@ export default function BioMapClient({
   // Get focus tags for a person/org with their colors
   const focusTagNames = useMemo(() => focusTags.map(t => t.name.toLowerCase()), [focusTags])
 
+  // Prepare data for visualizations
+  const networkData = useNetworkData(filteredPeople, filteredOrganizations, focusTags)
+  const treemapData = useTreemapData(filteredPeople, filteredOrganizations, focusTags, treemapMode)
+
+  // Handle network node click
+  const handleNetworkNodeClick = useCallback((node: GraphNode) => {
+    if (node.type === 'person') {
+      setSelectedPerson(node.entityData as BioMapPerson)
+    } else {
+      setSelectedOrganization(node.entityData as BioMapOrganization)
+    }
+  }, [])
+
+  // Handle treemap segment click (filter by focus area)
+  const handleTreemapSegmentClick = useCallback((focusArea: string) => {
+    // Set the focus filter to the clicked area
+    setFocusFilter(focusArea)
+    // Switch to a list view to see filtered results
+    setViewMode('organizations')
+  }, [])
+
+  // Handle treemap entity click
+  const handleTreemapEntityClick = useCallback((entityType: 'person' | 'organization', entityId: string) => {
+    if (entityType === 'person') {
+      const person = people.find(p => p.id === entityId)
+      if (person) setSelectedPerson(person)
+    } else {
+      const org = organizations.find(o => o.id === entityId)
+      if (org) setSelectedOrganization(org)
+    }
+  }, [people, organizations])
+
+  // Handle tag color change
+  const handleTagColorChange = useCallback(async (tagName: string, newColor: string) => {
+    const supabase = createClient()
+
+    // Find the tag in focusTags to get its ID
+    const tag = focusTags.find(t => t.name.toLowerCase() === tagName.toLowerCase())
+    if (!tag) return
+
+    // Update the color in the database
+    const { error } = await supabase
+      .from('saif_tags')
+      .update({ color: newColor })
+      .eq('id', tag.id)
+
+    if (!error) {
+      // Refresh the page to get updated colors
+      window.location.reload()
+    }
+  }, [focusTags])
+
   const getFocusTags = (tags: string[]): { name: string; color: string }[] => {
     return tags
       .filter(t => focusTagNames.includes(t.toLowerCase()))
@@ -281,7 +356,7 @@ export default function BioMapClient({
       {/* Search, Sort, View Mode and Tag Filters */}
       <div className="bg-white rounded-xl rounded-b-none shadow-sm border border-gray-100 border-b-0 p-4">
         <div className="flex flex-col sm:flex-row gap-4 mb-4">
-          <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
+          <div className="flex gap-1 bg-gray-100 p-1 rounded-lg flex-wrap">
             <button
               onClick={() => setViewMode('organizations')}
               className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
@@ -301,6 +376,32 @@ export default function BioMapClient({
               }`}
             >
               People ({filteredPeople.length})
+            </button>
+            <button
+              onClick={() => setViewMode('network')}
+              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-1.5 ${
+                viewMode === 'network'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+              </svg>
+              Network
+            </button>
+            <button
+              onClick={() => setViewMode('treemap')}
+              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-1.5 ${
+                viewMode === 'treemap'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM14 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zM14 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+              </svg>
+              Treemap
             </button>
           </div>
           <div className="flex-1 relative">
@@ -446,7 +547,30 @@ export default function BioMapClient({
       </div>
 
       {/* Content */}
-      {viewMode === 'organizations' ? (
+      {viewMode === 'network' ? (
+        /* Network Graph View */
+        <div className="mt-4 relative">
+          <NetworkGraph
+            data={networkData}
+            focusTags={focusTags}
+            onNodeClick={handleNetworkNodeClick}
+            height={600}
+          />
+        </div>
+      ) : viewMode === 'treemap' ? (
+        /* Treemap View */
+        <div className="mt-4">
+          <FocusAreaTreemap
+            data={treemapData}
+            mode={treemapMode}
+            onModeChange={setTreemapMode}
+            onSegmentClick={handleTreemapSegmentClick}
+            onEntityClick={handleTreemapEntityClick}
+            onTagColorChange={handleTagColorChange}
+            height={500}
+          />
+        </div>
+      ) : viewMode === 'organizations' ? (
         /* Organizations Table */
         filteredOrganizations.length === 0 ? (
           <div className="text-center py-12 bg-white rounded-2xl rounded-t-none shadow-sm border border-gray-100">
