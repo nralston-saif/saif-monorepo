@@ -1,118 +1,20 @@
-import { createClient } from '@/lib/supabase/server'
-import { redirect } from 'next/navigation'
-import Navigation from '@/components/Navigation'
-import { getActiveProfile } from '@/lib/impersonation'
-import PipelineClient from './PipelineClient'
+'use client'
 
-export default async function PipelinePage() {
-  const supabase = await createClient()
+import { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 
-  const { profile } = await getActiveProfile()
+/**
+ * Deprecated pipeline route — redirects to /deals.
+ * Kept as a client component so the URL hash (e.g. #app-123) is preserved
+ * across the redirect (server redirects strip the hash).
+ */
+export default function PipelineRedirect() {
+  const router = useRouter()
 
-  if (!profile || profile.role !== 'partner') {
-    redirect('/access-denied')
-  }
+  useEffect(() => {
+    const hash = window.location.hash
+    router.replace(`/deals${hash}`)
+  }, [router])
 
-  // Consolidated: Fetch all applications in one query (was 2 queries, now 1)
-  // Partners query runs in parallel
-  const [{ data: allApplications }, { data: partners }] = await Promise.all([
-    supabase
-      .from('saifcrm_applications')
-      .select(`
-        *,
-        email_sender:saif_people!applications_email_sender_id_fkey(name),
-        saifcrm_votes(id, vote, user_id, notes, vote_type, saif_people(name))
-      `)
-      .in('stage', ['new', 'voting', 'deliberation', 'invested', 'rejected'])
-      .order('submitted_at', { ascending: false }),
-
-    // Get all partners for email sender selection
-    supabase
-      .from('saif_people')
-      .select('id, name')
-      .eq('role', 'partner')
-      .eq('status', 'active')
-      .order('name')
-  ])
-
-  // Split applications by stage in JS (instead of 2 separate DB queries)
-  const applications = allApplications?.filter(app => app.stage && ['new', 'voting'].includes(app.stage)) || []
-  const oldApplications = allApplications?.filter(app => app.stage && ['deliberation', 'invested', 'rejected'].includes(app.stage)) || []
-
-  // Transform applications to include vote counts and user's vote
-  const applicationsWithVotes = applications?.map((app) => {
-    // Filter to only initial votes
-    const initialVotes = app.saifcrm_votes?.filter((v: any) => v.vote_type === 'initial') || []
-    const voteCount = initialVotes.length
-    // Compare with person id (profile.id), not auth user id
-    const userVote = initialVotes.find((v: any) => v.user_id === profile?.id)
-
-    // Map votes with user names for display when revealed
-    const votesWithNames = initialVotes.map((v: any) => ({
-      oduserId: v.user_id,
-      userName: v.saif_people?.name || 'Unknown',
-      vote: v.vote,
-      notes: v.notes,
-    }))
-
-    return {
-      id: app.id,
-      company_name: app.company_name,
-      founder_names: app.founder_names,
-      founder_linkedins: app.founder_linkedins,
-      founder_bios: app.founder_bios,
-      primary_email: app.primary_email,
-      company_description: app.company_description,
-      website: app.website,
-      previous_funding: app.previous_funding,
-      deck_link: app.deck_link,
-      submitted_at: app.submitted_at,
-      votes_revealed: app.votes_revealed,
-      voteCount,
-      userVote: userVote?.vote,
-      userNotes: userVote?.notes,
-      allVotes: votesWithNames,
-    }
-  }) || []
-
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <Navigation userName={profile?.first_name || 'User'} personId={profile?.id} />
-      <PipelineClient
-        applications={applicationsWithVotes as any}
-        oldApplications={(oldApplications || []).map(app => {
-          // Filter to only initial votes
-          const initialVotes = app.saifcrm_votes?.filter((v: any) => v.vote_type === 'initial') || []
-          const votesWithNames = initialVotes.map((v: any) => ({
-            oduserId: v.user_id,
-            userName: v.saif_people?.name || 'Unknown',
-            vote: v.vote,
-            notes: v.notes,
-          }))
-
-          return {
-            id: app.id,
-            company_name: app.company_name,
-            founder_names: app.founder_names,
-            founder_linkedins: app.founder_linkedins,
-            founder_bios: app.founder_bios,
-            primary_email: app.primary_email,
-            company_description: app.company_description,
-            website: app.website,
-            previous_funding: app.previous_funding,
-            deck_link: app.deck_link,
-            stage: app.stage,
-            submitted_at: app.submitted_at,
-            email_sent: app.email_sent,
-            email_sent_at: app.email_sent_at,
-            email_sender_name: (app.email_sender as any)?.name || null,
-            allVotes: votesWithNames,
-            draft_rejection_email: (app as any).draft_rejection_email || null,
-          }
-        }) as any}
-        userId={profile?.id || ''}
-        partners={partners || []}
-      />
-    </div>
-  )
+  return null
 }

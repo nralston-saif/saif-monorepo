@@ -174,8 +174,8 @@ export default async function PeoplePage({
 
     applications?.forEach(app => {
       const key = app.company_name.toLowerCase()
-      const page = app.stage === 'deliberation' ? 'deliberation' : 'pipeline'
-      if (!companyLocationMap[key] || (page === 'deliberation' && companyLocationMap[key].page === 'pipeline')) {
+      const page = app.stage === 'deliberation' ? 'deliberation' : 'deals'
+      if (!companyLocationMap[key] || (page === 'deliberation' && companyLocationMap[key].page === 'deals')) {
         companyLocationMap[key] = { page, id: app.id }
       }
     })

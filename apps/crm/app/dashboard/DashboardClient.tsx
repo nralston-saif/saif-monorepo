@@ -435,7 +435,7 @@ export default function DashboardClient({
               needsVote.map((app) => (
                 <Link
                   key={app.id}
-                  href={`/pipeline#app-${app.id}`}
+                  href={`/deals#app-${app.id}`}
                   className="block px-3 py-2 hover:bg-gray-50 transition-colors"
                 >
                   <div className="flex items-center justify-between">
@@ -453,7 +453,7 @@ export default function DashboardClient({
 
           {needsVote.length > 0 && (
             <div className="px-3 py-1.5 bg-gray-50 border-t border-gray-100">
-              <Link href="/pipeline" className="text-xs text-gray-500 hover:text-gray-900">
+              <Link href="/deals" className="text-xs text-gray-500 hover:text-gray-900">
                 View all →
               </Link>
             </div>

@@ -240,7 +240,7 @@ export async function notifyNewApplication(applicationId: string, companyName: s
     type: 'new_application',
     title: `New application: ${companyName}`,
     message: 'A new company has applied. Review and cast your vote.',
-    link: `/pipeline#app-${applicationId}`,
+    link: `/deals#app-${applicationId}`,
     applicationId,
   })
 }
@@ -262,7 +262,7 @@ export async function notifyReadyForDeliberation(
     type: 'ready_for_deliberation',
     title: `${companyName} ready to be advanced`,
     message: 'All 3 votes are in.',
-    link: `/pipeline#app-${applicationId}`,
+    link: `/deals#app-${applicationId}`,
     applicationId,
   })
 }

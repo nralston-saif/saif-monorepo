@@ -103,7 +103,7 @@ export default function SearchModal({ onClose }: { onClose: () => void }) {
       subtitle: formatFounderNames(app.founder_names),
       badge: app.stage,
       badgeStyle: getStageBadgeStyle(app.stage),
-      href: app.stage === 'deliberation' ? '/deals' : '/pipeline',
+      href: '/deals',
       hash: `app-${app.id}`,
     })),
     ...results.investments.map((inv) => ({
@@ -459,7 +459,7 @@ export default function SearchModal({ onClose }: { onClose: () => void }) {
                             subtitle: app.founder_names,
                             badge: app.stage,
                             badgeStyle: getStageBadgeStyle(app.stage),
-                            href: app.stage === 'deliberation' ? '/deals' : '/pipeline',
+                            href: '/deals',
                             hash: `app-${app.id}`,
                           })
                         }
